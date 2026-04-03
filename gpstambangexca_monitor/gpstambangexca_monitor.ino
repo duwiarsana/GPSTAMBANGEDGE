@@ -4,6 +4,13 @@
 #include <SPI.h>
 #include <SD.h>
 #include <ArduinoJson.h>
+#include <esp_task_wdt.h>
+
+// ================= WATCHDOG =================
+#define WDT_TIMEOUT_SEC  30       // Hardware watchdog: 30 detik
+#define GPS_TIMEOUT_MS   300000   // GPS timeout: 5 menit tanpa data → restart
+#define HEAP_MIN_BYTES   20000    // Heap minimum: 20KB → restart
+#define SD_RETRY_INTERVAL 60000   // SD re-init: coba tiap 1 menit
 
 // ================= PIN =================
 #define RXD2 16
@@ -38,6 +45,12 @@ uint32_t seq = 0;
 uint32_t totalRecords = 0;
 bool sdReady = false;
 unsigned long ledLogTimer = 0;
+
+// ================= WATCHDOG STATE =================
+unsigned long lastGpsReceived = 0;
+unsigned long lastSdRetry = 0;
+uint32_t restartCount = 0;
+const char* RESTART_FILE = "/restart_count.txt";
 
 // ================= HISTORY RING BUFFER =================
 #define MAX_HISTORY 30
@@ -305,6 +318,7 @@ void appendLog(const String &line) {
     logFile = SD.open(LOG_FILE, FILE_APPEND);
     if (!logFile) {
       logMsg("❌ LOG FAIL");
+      sdReady = false;  // tandai SD bermasalah
       return;
     }
   }
@@ -315,6 +329,7 @@ void appendLog(const String &line) {
   totalRecords++;
   addToHistory(line);
   latestJson = line;
+  lastGpsReceived = millis();  // update watchdog GPS
 
   digitalWrite(LED_LOG, HIGH);
   ledLogTimer = millis();
@@ -399,17 +414,26 @@ void handleRoot() {
 }
 
 void handleApiStatus() {
-  StaticJsonDocument<256> doc;
-  doc["uptime"]       = millis();
-  doc["totalRecords"] = totalRecords;
-  doc["freeHeap"]     = ESP.getFreeHeap();
-  doc["sdReady"]      = sdReady;
-  doc["seq"]          = seq;
-  doc["deviceId"]     = "EXCA01";
+  StaticJsonDocument<512> doc;
+  doc["uptime"]        = millis();
+  doc["totalRecords"]  = totalRecords;
+  doc["freeHeap"]      = ESP.getFreeHeap();
+  doc["sdReady"]       = sdReady;
+  doc["seq"]           = seq;
+  doc["deviceId"]      = "EXCA01";
+  doc["restartCount"]  = restartCount;
+  doc["lastGpsAgo"]    = (lastGpsReceived > 0) ? (millis() - lastGpsReceived) : -1;
+  doc["wdtEnabled"]    = true;
 
   String out;
   serializeJson(doc, out);
   webServer.send(200, "application/json", out);
+}
+
+void handleApiRestart() {
+  webServer.send(200, "text/plain", "RESTARTING...");
+  delay(500);
+  ESP.restart();
 }
 
 void handleApiLatest() {
@@ -445,6 +469,11 @@ void setup() {
   pinMode(LED_LOG, OUTPUT);
   digitalWrite(LED_LOG, LOW);
 
+  // Hardware Watchdog Timer — restart otomatis jika loop macet > 30 detik
+  esp_task_wdt_init(WDT_TIMEOUT_SEC, true);  // true = auto restart
+  esp_task_wdt_add(NULL);                     // tambahkan task utama
+  logMsg("🐕 Watchdog enabled: " + String(WDT_TIMEOUT_SEC) + "s");
+
   Serial2.begin(GPS_BAUD);
   Serial2.setPins(RXD2, TXD2);
 
@@ -452,6 +481,13 @@ void setup() {
   while (Serial2.available()) Serial2.read();
 
   initSD();
+
+  // Baca & increment restart counter
+  if (sdReady) {
+    restartCount = readUint(RESTART_FILE) + 1;
+    writeUint(RESTART_FILE, restartCount);
+    logMsg("🔄 Restart count: " + String(restartCount));
+  }
 
   // WiFi Access Point
   WiFi.softAP(AP_SSID, AP_PASS);
@@ -464,7 +500,10 @@ void setup() {
   webServer.on("/api/status", handleApiStatus);
   webServer.on("/api/latest", handleApiLatest);
   webServer.on("/api/logs", handleApiLogs);
+  webServer.on("/api/restart", handleApiRestart);
   webServer.begin();
+
+  lastGpsReceived = millis();  // mulai hitung GPS timeout
 
   logMsg("✅ EXCA MONITOR READY");
   logMsg("🌐 Buka http://" + WiFi.softAPIP().toString() + " di browser HP");
@@ -472,6 +511,9 @@ void setup() {
 
 // ================= LOOP =================
 void loop() {
+  // Feed hardware watchdog — jika tidak dipanggil 30 detik, ESP32 restart
+  esp_task_wdt_reset();
+
   // 1. Proses GPS
   handleGPS();
 
@@ -482,6 +524,29 @@ void loop() {
 
   // 3. Handle web requests
   webServer.handleClient();
+
+  unsigned long now = millis();
+
+  // 4. GPS Timeout — restart jika tidak ada data GPS > 5 menit
+  if (lastGpsReceived > 0 && now - lastGpsReceived > GPS_TIMEOUT_MS) {
+    logMsg("❌ GPS timeout " + String(GPS_TIMEOUT_MS / 60000) + " menit, RESTARTING...");
+    delay(1000);
+    ESP.restart();
+  }
+
+  // 5. Heap Monitor — restart jika memori kritis
+  if (ESP.getFreeHeap() < HEAP_MIN_BYTES) {
+    logMsg("❌ Heap kritis: " + String(ESP.getFreeHeap()) + " bytes, RESTARTING...");
+    delay(1000);
+    ESP.restart();
+  }
+
+  // 6. SD Card Recovery — coba re-init jika SD gagal
+  if (!sdReady && now - lastSdRetry > SD_RETRY_INTERVAL) {
+    lastSdRetry = now;
+    logMsg("🔧 SD re-init...");
+    initSD();
+  }
 
   delay(2);
 }
