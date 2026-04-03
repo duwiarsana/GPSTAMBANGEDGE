@@ -157,8 +157,8 @@ const char HTML_PAGE[] PROGMEM = R"rawliteral(
     <h2>📋 Riwayat Log <span style="color:#667;font-size:0.85em" id="logInfo"></span></h2>
     <div class="log-wrap" style="max-height:350px;overflow-y:auto">
       <table>
-        <thead><tr><th>#</th><th>Waktu</th><th>Latitude</th><th>Longitude</th><th>Source</th></tr></thead>
-        <tbody id="logBody"><tr><td colspan="5" class="empty">Memuat...</td></tr></tbody>
+        <thead><tr><th>#</th><th>Waktu</th><th>Lat</th><th>Lon</th><th>Speed</th><th>Sat</th></tr></thead>
+        <tbody id="logBody"><tr><td colspan="6" class="empty">Memuat...</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -191,6 +191,8 @@ function update(){
       ['timestamp','🕐 Waktu',''],
       ['latitude','🌍 Latitude','coord'],
       ['longitude','🌍 Longitude','coord'],
+      ['speed','🚀 Kecepatan (km/h)','coord'],
+      ['satellites','🛰️ Satelit','coord'],
       ['protocol','📡 Protocol',''],
       ['model','📟 Model',''],
       ['msg_id','🆔 Msg ID',''],
@@ -216,9 +218,10 @@ function update(){
         +(r.timestamp||'—')+'</td><td style="color:#ff9500">'
         +(r.latitude!=null?r.latitude.toFixed(6):'—')+'</td><td style="color:#ff9500">'
         +(r.longitude!=null?r.longitude.toFixed(6):'—')+'</td><td>'
-        +(r.source||'—')+'</td></tr>';
+        +(r.speed!=null?r.speed:'—')+'</td><td>'
+        +(r.satellites!=null?r.satellites:'—')+'</td></tr>';
     }
-    if(!h) h='<tr><td colspan="5" class="empty">Belum ada data</td></tr>';
+    if(!h) h='<tr><td colspan="6" class="empty">Belum ada data</td></tr>';
     document.getElementById('logBody').innerHTML=h;
   }).catch(()=>{});
 }
@@ -471,9 +474,13 @@ void setup() {
   digitalWrite(LED_LOG, LOW);
 
   // Hardware Watchdog Timer
-  esp_task_wdt_init(WDT_TIMEOUT_SEC, true);
-  esp_task_wdt_add(NULL);
-  logMsg("🐕 Watchdog enabled: " + String(WDT_TIMEOUT_SEC) + "s");
+  esp_task_wdt_config_t wdt_config = {
+    .timeout_ms = WDT_TIMEOUT_SEC * 1000,
+    .idle_core_mask = 0,
+    .trigger_panic = true
+  };
+  esp_task_wdt_reconfigure(&wdt_config);
+  logMsg("🐕 Watchdog configured: " + String(WDT_TIMEOUT_SEC) + "s");
 
   Serial2.begin(GPS_BAUD);
   Serial2.setPins(GPS_RX, GPS_TX);
@@ -505,6 +512,9 @@ void setup() {
   webServer.begin();
 
   lastGpsReceived = millis();
+
+  // Aktifkan watchdog untuk loop task SETELAH setup selesai
+  esp_task_wdt_add(NULL);
 
   logMsg("✅ " + String(DT_ID) + " MONITOR READY");
   logMsg("🌐 Buka http://" + WiFi.softAPIP().toString() + " di browser HP");
