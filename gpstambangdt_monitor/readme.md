@@ -79,14 +79,20 @@ Menampilkan field terakhir yang diterima:
 - 🆔 Msg ID
 - 🏷️ Source
 
-### 3. Riwayat Log
+### 3. 💾 Download Data Logger
+Tombol download langsung dari HP:
+- **📄 JSONL** — Download file log mentah (format JSON Lines)
+- **📊 CSV** — Download dalam format CSV (bisa dibuka di Excel)
+- Info jumlah record & ukuran file ditampilkan otomatis
+
+### 4. Riwayat Log
 Tabel 30 data terbaru dengan kolom:
 - Waktu
 - Latitude
 - Longitude
 - Source
 
-### 4. Auto Refresh
+### 5. Auto Refresh
 - Data di-update otomatis setiap **3 detik**
 - Progress bar animasi (tema orange) menunjukkan countdown refresh
 - Indicator **LIVE** berkedip menandakan dashboard aktif
@@ -98,9 +104,11 @@ Tabel 30 data terbaru dengan kolom:
 | Endpoint | Method | Response | Keterangan |
 |----------|--------|----------|-----------|
 | `/` | GET | HTML | Halaman dashboard |
-| `/api/status` | GET | JSON | Uptime, records, heap, SD status |
+| `/api/status` | GET | JSON | Uptime, records, heap, SD status, fileSize |
 | `/api/latest` | GET | JSON | Data GPS terakhir |
 | `/api/logs?n=30` | GET | JSON Array | N data terbaru (max 30) |
+| `/api/download` | GET | File (JSONL) | Download seluruh log GPS (format JSONL) |
+| `/api/download/csv` | GET | File (CSV) | Download seluruh log GPS (format CSV) |
 
 ### Contoh Response `/api/status`
 
@@ -244,6 +252,7 @@ const char* AP_PASS = "12345678";
 | Heartbeat Stats | ✔ | ✘ |
 | Multi WiFi Internet | ✔ | ✘ |
 | Web Dashboard | ✘ | ✔ |
+| Download Logger (JSONL/CSV) | ✘ | ✔ |
 | REST API | ✘ | ✔ |
 | WiFi Mode | STA (bergantian) | AP (tetap) |
 | WiFi SSID | — | `DT01_MONITOR` |

@@ -111,6 +111,18 @@ const char HTML_PAGE[] PROGMEM = R"rawliteral(
     .empty{text-align:center;color:#445;padding:20px;font-size:0.85em}
 
     .footer{text-align:center;color:#334;font-size:0.65em;padding:12px 0;margin-top:8px}
+
+    /* Download buttons */
+    .dl-card{background:linear-gradient(135deg,#0f1628,#162040);border-radius:12px;padding:16px;margin-bottom:12px;border:1px solid #1e2744}
+    .dl-card h2{color:#00d4ff;font-size:0.9em;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #1e2744;letter-spacing:0.5px}
+    .dl-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .dl-btn{display:flex;align-items:center;justify-content:center;gap:6px;padding:14px 10px;border-radius:10px;text-decoration:none;font-weight:700;font-size:0.85em;letter-spacing:0.3px;transition:all 0.3s ease;border:none;cursor:pointer;text-align:center}
+    .dl-btn:active{transform:scale(0.96)}
+    .dl-jsonl{background:linear-gradient(135deg,#00d4ff,#0088cc);color:#fff;box-shadow:0 4px 15px #00d4ff33}
+    .dl-jsonl:hover{box-shadow:0 6px 20px #00d4ff55}
+    .dl-csv{background:linear-gradient(135deg,#00ff88,#00cc66);color:#0b0d17;box-shadow:0 4px 15px #00ff8833}
+    .dl-csv:hover{box-shadow:0 6px 20px #00ff8855}
+    .dl-info{text-align:center;color:#556;font-size:0.7em;margin-top:10px}
   </style>
 </head>
 <body>
@@ -151,6 +163,15 @@ const char HTML_PAGE[] PROGMEM = R"rawliteral(
     </div>
   </div>
 
+  <div class="dl-card">
+    <h2>💾 Download Data Logger</h2>
+    <div class="dl-grid">
+      <a href="/api/download" class="dl-btn dl-jsonl" id="dlJsonl">📄 JSONL</a>
+      <a href="/api/download/csv" class="dl-btn dl-csv" id="dlCsv">📊 CSV</a>
+    </div>
+    <div class="dl-info" id="dlInfo">Memuat info file...</div>
+  </div>
+
   <div class="card">
     <h2>📋 Riwayat Log <span style="color:#667;font-size:0.85em" id="logInfo"></span></h2>
     <div class="log-wrap" style="max-height:350px;overflow-y:auto">
@@ -170,6 +191,12 @@ function fmtUp(ms){
   return (d>0?d+'d ':'')+h+'h '+m+'m '+s+'s';
 }
 
+function fmtSize(b){
+  if(b<1024) return b+' B';
+  if(b<1048576) return (b/1024).toFixed(1)+' KB';
+  return (b/1048576).toFixed(2)+' MB';
+}
+
 function update(){
   fetch('/api/status').then(r=>r.json()).then(d=>{
     document.getElementById('uptime').textContent=fmtUp(d.uptime);
@@ -181,6 +208,17 @@ function update(){
     document.getElementById('sd').innerHTML=d.sdReady
       ?'<span class="badge badge-ok">OK</span>'
       :'<span class="badge badge-fail">FAIL</span>';
+
+    // Update download info
+    var info=document.getElementById('dlInfo');
+    if(d.sdReady && d.totalRecords>0){
+      info.textContent='📁 '+d.totalRecords.toLocaleString()+' record';
+      if(d.fileSize!==undefined) info.textContent+=' • '+fmtSize(d.fileSize);
+    } else if(!d.sdReady){
+      info.textContent='⚠️ SD Card tidak tersedia';
+    } else {
+      info.textContent='📁 Belum ada data untuk didownload';
+    }
   }).catch(()=>{});
 
   fetch('/api/latest').then(r=>r.json()).then(d=>{
@@ -428,6 +466,15 @@ void handleApiStatus() {
   doc["lastGpsAgo"]    = (lastGpsReceived > 0) ? (millis() - lastGpsReceived) : -1;
   doc["wdtEnabled"]    = true;
 
+  // Tambahkan info ukuran file untuk download info
+  if (sdReady) {
+    File f = SD.open(LOG_FILE);
+    if (f) {
+      doc["fileSize"] = f.size();
+      f.close();
+    }
+  }
+
   String out;
   serializeJson(doc, out);
   webServer.send(200, "application/json", out);
@@ -463,6 +510,91 @@ void handleApiLogs() {
   out += "]";
 
   webServer.send(200, "application/json", out);
+}
+
+// ================= DOWNLOAD HANDLERS =================
+void handleDownloadJsonl() {
+  if (!sdReady) {
+    webServer.send(503, "text/plain", "SD Card tidak tersedia");
+    return;
+  }
+
+  File f = SD.open(LOG_FILE);
+  if (!f) {
+    webServer.send(404, "text/plain", "File log tidak ditemukan");
+    return;
+  }
+
+  size_t fileSize = f.size();
+  logMsg("📥 Download JSONL, size=" + String(fileSize));
+
+  // Kirim header untuk download file
+  webServer.sendHeader("Content-Disposition", "attachment; filename=\"EXCA01_gps_log.jsonl\"");
+  webServer.sendHeader("Cache-Control", "no-cache");
+
+  // Stream file langsung ke client
+  webServer.streamFile(f, "application/x-jsonlines");
+  f.close();
+
+  logMsg("✅ Download JSONL selesai");
+}
+
+void handleDownloadCsv() {
+  if (!sdReady) {
+    webServer.send(503, "text/plain", "SD Card tidak tersedia");
+    return;
+  }
+
+  File f = SD.open(LOG_FILE);
+  if (!f) {
+    webServer.send(404, "text/plain", "File log tidak ditemukan");
+    return;
+  }
+
+  logMsg("📥 Download CSV mulai...");
+
+  // Hitung ukuran estimasi untuk Content-Length (opsional, bisa pakai chunked)
+  // Kita gunakan chunked transfer encoding untuk hemat memori
+  webServer.sendHeader("Content-Disposition", "attachment; filename=\"EXCA01_gps_log.csv\"");
+  webServer.sendHeader("Cache-Control", "no-cache");
+  webServer.setContentLength(CONTENT_LENGTH_UNKNOWN);
+  webServer.send(200, "text/csv", "");
+
+  // Header CSV
+  WiFiClient client = webServer.client();
+  client.println("timestamp,latitude,longitude,speed,satellites,imei,protocol,model,msg_id,source");
+
+  // Parse setiap baris JSON dan convert ke CSV
+  StaticJsonDocument<1024> doc;
+  while (f.available()) {
+    String line = f.readStringUntil('\n');
+    line.trim();
+    if (line.length() == 0) continue;
+
+    doc.clear();
+    if (deserializeJson(doc, line) != DeserializationError::Ok) continue;
+
+    String csvLine = "";
+    csvLine += "\"" + String(doc["timestamp"] | "") + "\",";
+    csvLine += String(doc["latitude"] | 0.0, 6) + ",";
+    csvLine += String(doc["longitude"] | 0.0, 6) + ",";
+    csvLine += String(doc["speed"] | 0) + ",";
+    csvLine += String(doc["satellites"] | 0) + ",";
+    csvLine += "\"" + String(doc["imei"] | "") + "\",";
+    csvLine += "\"" + String(doc["protocol"] | "") + "\",";
+    csvLine += "\"" + String(doc["model"] | "") + "\",";
+    csvLine += "\"" + String(doc["msg_id"] | "") + "\",";
+    csvLine += "\"" + String(doc["source"] | "") + "\"";
+
+    client.println(csvLine);
+
+    // Feed watchdog selama download besar
+    esp_task_wdt_reset();
+    yield();
+  }
+
+  f.close();
+  logMsg("✅ Download CSV selesai");
 }
 
 // ================= SETUP =================
@@ -509,6 +641,8 @@ void setup() {
   webServer.on("/api/latest", handleApiLatest);
   webServer.on("/api/logs", handleApiLogs);
   webServer.on("/api/restart", handleApiRestart);
+  webServer.on("/api/download", handleDownloadJsonl);
+  webServer.on("/api/download/csv", handleDownloadCsv);
   webServer.begin();
 
   lastGpsReceived = millis();  // mulai hitung GPS timeout
