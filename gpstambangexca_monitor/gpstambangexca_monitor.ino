@@ -241,6 +241,13 @@ function update(){
         h+='<div class="field"><span class="lbl">'+lbl+'</span><span class="val'+(cls?' '+cls:'')+'">'+d[k]+'</span></div>';
       }
     }
+    if(d['input_status']!==undefined&&d['input_status']!==null){
+      var is = String(d['input_status']);
+      var d1 = (is.length > 0 && is[0] == '1') ? 'ON' : 'OFF';
+      var d2 = (is.length > 1 && is[1] == '1') ? 'ON' : 'OFF';
+      h+='<div class="field"><span class="lbl">⚙️ PTO</span><span class="val">'+d1+'</span></div>';
+      h+='<div class="field"><span class="lbl">🔑 Ignition</span><span class="val">'+d2+'</span></div>';
+    }
     if(!h) h='<div class="empty">Belum ada data GPS</div>';
     document.getElementById('gpsFields').innerHTML=h;
   }).catch(()=>{});
@@ -562,7 +569,7 @@ void handleDownloadCsv() {
 
   // Header CSV
   WiFiClient client = webServer.client();
-  client.println("timestamp,latitude,longitude,speed,satellites,imei,protocol,model,msg_id,source");
+  client.println("timestamp,latitude,longitude,speed,satellites,ignition,pto,imei,protocol,model,msg_id,source");
 
   // Parse setiap baris JSON dan convert ke CSV
   StaticJsonDocument<1024> doc;
@@ -574,12 +581,18 @@ void handleDownloadCsv() {
     doc.clear();
     if (deserializeJson(doc, line) != DeserializationError::Ok) continue;
 
+    String is = doc["input_status"] | "000000";
+    String d1 = (is.length() > 0 && is.charAt(0) == '1') ? "1" : "0";
+    String d2 = (is.length() > 1 && is.charAt(1) == '1') ? "1" : "0";
+
     String csvLine = "";
     csvLine += "\"" + String(doc["timestamp"] | "") + "\",";
     csvLine += String(doc["latitude"] | 0.0, 6) + ",";
     csvLine += String(doc["longitude"] | 0.0, 6) + ",";
     csvLine += String(doc["speed"] | 0) + ",";
     csvLine += String(doc["satellites"] | 0) + ",";
+    csvLine += d2 + ",";
+    csvLine += d1 + ",";
     csvLine += "\"" + String(doc["imei"] | "") + "\",";
     csvLine += "\"" + String(doc["protocol"] | "") + "\",";
     csvLine += "\"" + String(doc["model"] | "") + "\",";
