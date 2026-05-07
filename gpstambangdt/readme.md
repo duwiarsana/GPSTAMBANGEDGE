@@ -116,6 +116,15 @@ Data disimpan dulu di SD Card:
 
 ---
 
+### 🔹 6. Smart Recording (Ignition-Based)
+Sama seperti unit EXCA, DT juga memiliki fitur pencatatan cerdas untuk menghemat memori:
+- **Ignition ON (1)**: Mencatat data GPS secara normal.
+- **Ignition OFF (0)**: Tetap mencatat selama **3 menit (cooldown)** sebelum masuk mode IDLE.
+- **Indikator**: Ditunjukkan oleh LED kuning pada GPIO 13.
+- **Tujuan**: Menghemat SD Card dan mempercepat sinkronisasi data ke MQTT.
+
+---
+
 ### 🔹 6. MQTT Communication
 
 | Parameter | Nilai |
@@ -195,29 +204,41 @@ Sesudah compact:
 
 ---
 
-### 🔹 10. LED Status Indicator
+### 🔹 11. LED Status Indicator
 
-| LED | GPIO | Fungsi |
-|-----|------|--------|
-| 🔵 | 2 | Kedip saat GPS data masuk + SD logging (auto-off 100ms) |
-| 🟢 | 4 | Menyala saat transfer data dari EXCA |
-| 🔴 | 15 | Menyala saat publish data ke MQTT |
+| LED | GPIO | State | Pattern | Keterangan |
+|-----|------|-------|---------|------------|
+| 🔵 | 2 | LOG | Blink | GPS DT masuk + SD logging |
+| 🟢 | 4 | EXCA | ON | Sedang transfer data dari EXCA |
+| 🔴 | 15 | MQTT | ON | Sedang publish data ke MQTT |
+| 🟡 | 13 | REC | **OFF** | IDLE: Mesin mati, data di-skip |
+| 🟡 | 13 | REC | **Slow Blink** | ACTIVE: Mesin hidup, mencatat |
+| 🟡 | 13 | REC | **Fast Blink** | COOLDOWN: Mencatat selama 3 menit setelah mesin mati |
 
 ---
 
-### 🔹 11. Heartbeat Monitoring
+### 🔹 12. Anti-Blocking Logger
+Menjamin data GPS DT tidak hilang saat sinkronisasi WiFi/MQTT sedang berjalan:
+- `handleDTGps()` tetap dipanggil di sela-sela loop transfer WiFi dan publish MQTT.
+- Mencegah kehilangan titik koordinat saat DT sedang sibuk melakukan transmisi data.
+
+---
+
+### 🔹 13. Heartbeat Monitoring
 
 Setiap **60 detik**, DT mencetak status ke Serial Monitor:
 
 ```
-[60000] 💓 DT01 | GPS:42 | EXCA:120 | MQTT:162 | heap:245760
+[60000] 💓 DT01 | GPS:42 | SKIP:15 | EXCA:120 | MQTT:162 | state:ACTIVE | heap:245760
 ```
 
 | Field | Keterangan |
 |-------|-----------|
 | GPS | Jumlah record GPS DT yang sudah di-log |
+| SKIP | Jumlah record yang di-skip karena mode IDLE |
 | EXCA | Jumlah record dari EXCA yang sudah di-relay |
 | MQTT | Jumlah record yang sudah terkirim ke MQTT |
+| state | Status recording saat ini (IDLE/ACTIVE/COOLDOWN) |
 | heap | Free heap memory (byte) |
 
 ---
@@ -335,18 +356,18 @@ IPAddress excaIP(192, 168, 4, 1);
 | Anti JSON corrupt (brace counter) | ✔ |
 | Timeout parser (4 detik) | ✔ |
 | Buffer overflow protection (4096 byte) | ✔ |
+| Smart Recording (Ignition-based) | ✔ |
+| Anti-Blocking Logger (Parallel GPS) | ✔ |
 | Anti duplicate (UID unik) | ✔ |
-| Resume transfer (offset-based) | ✔ |
-| Power loss safe (flush setiap record) | ✔ |
+| Resume transfer (Offset-based) | ✔ |
+| Power loss safe (Flush per record) | ✔ |
 | Retry publish (3x + exponential backoff) | ✔ |
-| ACK backend (offset update hanya saat sukses) | ✔ |
+| ACK backend (Offset update safe) | ✔ |
 | Relay JSON validation | ✔ |
 | Offset vs file size validation | ✔ |
-| GPS buffer flush setelah WiFi | ✔ |
-| Concurrency guard (busy flag) | ✔ |
-| File compaction (threshold 4KB) | ✔ |
-| Heartbeat monitoring (60 detik) | ✔ |
-| LED status indicator (3 LED) | ✔ |
+| File compaction (Threshold 4KB) | ✔ |
+| Heartbeat monitoring + State info | ✔ |
+| LED status indicator (4 LED) | ✔ |
 
 ---
 

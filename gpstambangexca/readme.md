@@ -10,11 +10,13 @@ Firmware ini digunakan pada perangkat **EXCA (Excavator)** yang bertugas:
 
 - Membaca data GPS dari serial (RS232 → TTL)
 - Parsing JSON multi-line dari GPS tracker
+- **Smart Recording**: Otomatis memfilter data berdasarkan status mesin (Ignition)
 - Menyimpan data ke SD Card (format JSONL)
 - Menambahkan UID unik pada setiap data
 - Menyediakan WiFi Access Point
 - Mengirim data ke DT (Dump Truck) via TCP
 - Menggunakan sistem snapshot + offset (anti duplikasi)
+- **Anti-Blocking**: Tetap memproses GPS saat transfer WiFi sedang sibuk
 
 ---
 
@@ -49,6 +51,15 @@ MQTT / Backend Server
 - Format: JSONL (1 line = 1 record)
 - File: `/gps_log.jsonl`
 - Flush setiap record (aman untuk power loss)
+
+---
+
+### 🔹 3. Smart Recording (Ignition-Based)
+Sistem secara cerdas memfilter data yang disimpan ke SD Card untuk menghemat kapasitas:
+- **Ignition ON (1)**: Langsung mulai mencatat data ke SD Card.
+- **Ignition OFF (0)**: Tetap mencatat selama **3 menit (cooldown)** sebelum berhenti.
+- **Event Penting**: Data "Ignition On" (event 2) dan "Ignition Off" (event 3) **SELALU dicatat** sebagai audit trail.
+- **Tujuan**: Menghemat SD Card (60-70%) dan meringankan ukuran file transfer.
 
 ---
 
@@ -121,12 +132,15 @@ PORT: 5000
 
 ---
 
-### 🔹 8. LED Status
+### 🔹 8. LED Status Indicator
 
-| LED | Fungsi |
-|-----|------|
-| 🔵 GPIO 2 | GPS data masuk + SD logging |
-| 🔴 GPIO 4 | Transfer ke DT |
+| LED | GPIO | State | Pattern | Keterangan |
+|-----|------|-------|---------|------------|
+| 🔵 | 2 | LOG | Blink (100ms) | Berkedip setiap ada data GPS yang masuk & di-log |
+| 🔴 | 4 | TRANS | ON | Menyala saat ada transfer data ke Dump Truck |
+| 🟡 | 13 | REC | **OFF** | IDLE: Mesin mati, data di-skip |
+| 🟡 | 13 | REC | **Slow Blink** | ACTIVE: Mesin hidup, data dicatat |
+| 🟡 | 13 | REC | **Fast Blink** | COOLDOWN: Mesin baru mati, mencatat selama 3 menit |
 
 ---
 
@@ -192,13 +206,17 @@ EXCA → Snapshot → Transfer → Update Offset
 ## 🛡️ Safety & Reliability
 
 | Fitur | Status |
-|------|------|
-| Anti JSON corrupt | ✔ |
-| Timeout parser | ✔ |
-| Buffer overflow protection | ✔ |
-| Anti duplicate | ✔ |
-| Resume transfer | ✔ |
-| Power loss safe | ✔ |
+|-------|:---:|
+| Anti JSON corrupt (brace counter) | ✔ |
+| Timeout parser (4 detik) | ✔ |
+| Buffer overflow protection (4096 byte) | ✔ |
+| Smart Recording (Ignition-based) | ✔ |
+| Anti-Blocking Logger (Parallel GPS) | ✔ |
+| UID unik (Anti duplicate) | ✔ |
+| Snapshot isolation (Transfer safe) | ✔ |
+| Power loss safe (Flush per record) | ✔ |
+| Resume transfer (Offset-based) | ✔ |
+| Non-blocking LED status | ✔ |
 
 ---
 
