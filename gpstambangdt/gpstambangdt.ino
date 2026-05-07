@@ -13,6 +13,7 @@
 #define LED_GPS    2    // 🔵 GPS DT logging
 #define LED_EXCA   4    // 🟢 EXCA transfer
 #define LED_MQTT  15    // 🔴 MQTT publish
+#define LED_REC   13    // 🟡 Recording state
 
 // ================= ID DEVICE =================
 // GANTI INI SAJA UNTUK MULTIPLE DT
@@ -94,6 +95,17 @@ bool ackReceived = false;
 uint32_t statGpsLogged   = 0;
 uint32_t statExcaRelayed = 0;
 uint32_t statMqttSent    = 0;
+uint32_t statSkipped     = 0;
+
+// ================= IGNITION STATE =================
+enum RecordState { REC_IDLE, REC_ACTIVE, REC_COOLDOWN };
+RecordState recordState = REC_IDLE;
+unsigned long ignOffTime = 0;
+const unsigned long IGN_COOLDOWN_MS = 180000;  // 3 menit
+
+// LED REC blink
+unsigned long ledRecLastToggle = 0;
+bool ledRecOn = false;
 
 // ================= DEBUG =================
 void logMsg(const String &msg) {
@@ -182,13 +194,73 @@ bool initStorage() {
   return true;
 }
 
-// ================= GPS DT LOGGER =================
-void resetGpsParser() {
-  gpsBufLen = 0;
-  gpsBrace = 0;
-  gpsCollecting = false;
+// ================= IGNITION FILTER =================
+const char* recStateStr(RecordState s) {
+  switch (s) {
+    case REC_IDLE:     return "IDLE";
+    case REC_ACTIVE:   return "ACTIVE";
+    case REC_COOLDOWN: return "COOLDOWN";
+    default:           return "?";
+  }
 }
 
+bool shouldRecord(JsonDocument &doc) {
+  int eventCode = doc["event_code"] | 0;
+  int ignition  = doc["ignition"]  | -1;
+
+  // Selalu catat event Ignition On/Off untuk audit trail
+  if (eventCode == 2 || eventCode == 3) {
+    if (eventCode == 2) {
+      recordState = REC_ACTIVE;
+      logMsg("🔑 IGN ON → ACTIVE");
+    } else {
+      if (recordState == REC_ACTIVE) {
+        recordState = REC_COOLDOWN;
+        ignOffTime = millis();
+        logMsg("🔑 IGN OFF → COOLDOWN (" + String(IGN_COOLDOWN_MS / 1000) + "s)");
+      }
+    }
+    return true;  // selalu catat event ignition
+  }
+
+  // State machine berdasarkan field ignition
+  switch (recordState) {
+    case REC_IDLE:
+      if (ignition == 1) {
+        recordState = REC_ACTIVE;
+        logMsg("⏺️ → ACTIVE");
+        return true;
+      }
+      return false;  // skip data saat idle
+
+    case REC_ACTIVE:
+      if (ignition == 0) {
+        recordState = REC_COOLDOWN;
+        ignOffTime = millis();
+        logMsg("⏸️ → COOLDOWN");
+      }
+      return true;  // catat termasuk data pertama ignition=0
+
+    case REC_COOLDOWN:
+      if (ignition == 1) {
+        recordState = REC_ACTIVE;
+        logMsg("⏺️ → ACTIVE (dari cooldown)");
+        return true;
+      }
+      // Cek apakah cooldown sudah habis
+      if (millis() - ignOffTime >= IGN_COOLDOWN_MS) {
+        recordState = REC_IDLE;
+        logMsg("⏹️ → IDLE (cooldown selesai)");
+        return false;
+      }
+      return true;  // masih dalam cooldown, tetap catat
+
+    default:
+      return false;
+  }
+}
+
+// ================= GPS DT LOGGER =================
 bool processDTJson(const char* json, String &out) {
   StaticJsonDocument<3072> doc;
 
@@ -202,6 +274,12 @@ bool processDTJson(const char* json, String &out) {
     return false;
   }
 
+  // Filter berdasarkan ignition state
+  if (!shouldRecord(doc)) {
+    statSkipped++;
+    return false;
+  }
+
   doc["msg_id"]      = makeDTUID(doc);
   doc["source"]      = DT_ID;
   doc["record_type"] = "dt";
@@ -209,6 +287,12 @@ bool processDTJson(const char* json, String &out) {
   out = "";
   serializeJson(doc, out);
   return true;
+}
+
+void resetGpsParser() {
+  gpsBufLen = 0;
+  gpsBrace = 0;
+  gpsCollecting = false;
 }
 
 void handleDTGps() {
@@ -718,12 +802,46 @@ bool compactQueueFile(const char* logPath, const char* offsetPath, const char* t
   return true;
 }
 
+// ================= LED RECORDING =================
+void updateLedRec() {
+  unsigned long now = millis();
+  unsigned long interval = 0;
+
+  switch (recordState) {
+    case REC_IDLE:
+      // LED mati total
+      if (ledRecOn) {
+        digitalWrite(LED_REC, LOW);
+        ledRecOn = false;
+      }
+      return;
+
+    case REC_ACTIVE:
+      // Blink lambat: 1s ON, 1s OFF
+      interval = 1000;
+      break;
+
+    case REC_COOLDOWN:
+      // Blink cepat: 200ms ON, 200ms OFF
+      interval = 200;
+      break;
+  }
+
+  if (now - ledRecLastToggle >= interval) {
+    ledRecLastToggle = now;
+    ledRecOn = !ledRecOn;
+    digitalWrite(LED_REC, ledRecOn ? HIGH : LOW);
+  }
+}
+
 // ================= HEARTBEAT =================
 void printHeartbeat() {
   logMsg("💓 " + String(DT_ID) +
          " | GPS:" + String(statGpsLogged) +
+         " | SKIP:" + String(statSkipped) +
          " | EXCA:" + String(statExcaRelayed) +
          " | MQTT:" + String(statMqttSent) +
+         " | state:" + String(recStateStr(recordState)) +
          " | heap:" + String(ESP.getFreeHeap()));
 }
 
@@ -738,10 +856,12 @@ void setup() {
   pinMode(LED_GPS, OUTPUT);
   pinMode(LED_EXCA, OUTPUT);
   pinMode(LED_MQTT, OUTPUT);
+  pinMode(LED_REC, OUTPUT);
 
   digitalWrite(LED_GPS, LOW);
   digitalWrite(LED_EXCA, LOW);
   digitalWrite(LED_MQTT, LOW);
+  digitalWrite(LED_REC, LOW);
 
   // GPS serial init
   Serial2.begin(GPS_BAUD);
@@ -760,7 +880,7 @@ void setup() {
   WiFi.disconnect(true, true);
   delay(200);
 
-  logMsg("✅ " + String(DT_ID) + " READY");
+  logMsg("✅ " + String(DT_ID) + " READY | IGN cooldown=" + String(IGN_COOLDOWN_MS / 1000) + "s");
 }
 
 // ================= LOOP =================
@@ -772,6 +892,15 @@ void loop() {
   // LED GPS auto off setelah 100ms
   if (digitalRead(LED_GPS) == HIGH && millis() - ledGpsTimer > 100) {
     digitalWrite(LED_GPS, LOW);
+  }
+
+  // Update LED recording state (non-blocking blink)
+  updateLedRec();
+
+  // Cek cooldown timeout di loop (untuk kasus tidak ada data masuk)
+  if (recordState == REC_COOLDOWN && millis() - ignOffTime >= IGN_COOLDOWN_MS) {
+    recordState = REC_IDLE;
+    logMsg("⏹️ → IDLE (cooldown selesai)");
   }
 
   unsigned long now = millis();

@@ -11,6 +11,7 @@
 
 #define LED_LOG 2        // 🔵 GPS + SD
 #define LED_TRANSFER 4   // 🔴 Transfer DT
+#define LED_REC 13       // 🟡 Recording state
 
 // ================= UART =================
 #define GPS_BAUD 115200
@@ -40,6 +41,18 @@ bool busy = false;
 uint32_t seq = 0;
 
 unsigned long ledLogTimer = 0;
+
+// ================= IGNITION STATE =================
+enum RecordState { REC_IDLE, REC_ACTIVE, REC_COOLDOWN };
+RecordState recordState = REC_IDLE;
+unsigned long ignOffTime = 0;
+const unsigned long IGN_COOLDOWN_MS = 180000;  // 3 menit
+uint32_t statSkipped = 0;
+uint32_t statLogged  = 0;
+
+// LED REC blink
+unsigned long ledRecLastToggle = 0;
+bool ledRecOn = false;
 
 // ================= DEBUG =================
 void logMsg(String s){
@@ -113,7 +126,74 @@ void appendLog(String line){
   digitalWrite(LED_LOG, HIGH);
   ledLogTimer = millis();
 
-  logMsg("LOGGED");
+  statLogged++;
+  logMsg("📍 LOGGED #" + String(statLogged));
+}
+
+// ================= IGNITION FILTER =================
+const char* recStateStr(RecordState s) {
+  switch (s) {
+    case REC_IDLE:     return "IDLE";
+    case REC_ACTIVE:   return "ACTIVE";
+    case REC_COOLDOWN: return "COOLDOWN";
+    default:           return "?";
+  }
+}
+
+bool shouldRecord(JsonDocument &doc) {
+  int eventCode = doc["event_code"] | 0;
+  int ignition  = doc["ignition"]  | -1;
+
+  // Selalu catat event Ignition On/Off untuk audit trail
+  if (eventCode == 2 || eventCode == 3) {
+    if (eventCode == 2) {
+      recordState = REC_ACTIVE;
+      logMsg("🔑 IGN ON → ACTIVE");
+    } else {
+      if (recordState == REC_ACTIVE) {
+        recordState = REC_COOLDOWN;
+        ignOffTime = millis();
+        logMsg("🔑 IGN OFF → COOLDOWN (" + String(IGN_COOLDOWN_MS / 1000) + "s)");
+      }
+    }
+    return true;  // selalu catat event ignition
+  }
+
+  // State machine berdasarkan field ignition
+  switch (recordState) {
+    case REC_IDLE:
+      if (ignition == 1) {
+        recordState = REC_ACTIVE;
+        logMsg("⏺️ → ACTIVE");
+        return true;
+      }
+      return false;  // skip data saat idle
+
+    case REC_ACTIVE:
+      if (ignition == 0) {
+        recordState = REC_COOLDOWN;
+        ignOffTime = millis();
+        logMsg("⏸️ → COOLDOWN");
+      }
+      return true;  // catat termasuk data pertama ignition=0
+
+    case REC_COOLDOWN:
+      if (ignition == 1) {
+        recordState = REC_ACTIVE;
+        logMsg("⏺️ → ACTIVE (dari cooldown)");
+        return true;
+      }
+      // Cek apakah cooldown sudah habis
+      if (millis() - ignOffTime >= IGN_COOLDOWN_MS) {
+        recordState = REC_IDLE;
+        logMsg("⏹️ → IDLE (cooldown selesai)");
+        return false;
+      }
+      return true;  // masih dalam cooldown, tetap catat
+
+    default:
+      return false;
+  }
 }
 
 // ================= JSON =================
@@ -128,6 +208,12 @@ bool processJSON(const char* json, String &out){
 
   if(!doc["imei"] || !doc["timestamp"]){
     logMsg("INVALID FIELD");
+    return false;
+  }
+
+  // Filter berdasarkan ignition state
+  if (!shouldRecord(doc)) {
+    statSkipped++;
     return false;
   }
 
@@ -345,6 +431,38 @@ void handleClient(WiFiClient c){
   busy = false;
 }
 
+// ================= LED RECORDING =================
+void updateLedRec() {
+  unsigned long now = millis();
+  unsigned long interval = 0;
+
+  switch (recordState) {
+    case REC_IDLE:
+      // LED mati total
+      if (ledRecOn) {
+        digitalWrite(LED_REC, LOW);
+        ledRecOn = false;
+      }
+      return;
+
+    case REC_ACTIVE:
+      // Blink lambat: 1s ON, 1s OFF
+      interval = 1000;
+      break;
+
+    case REC_COOLDOWN:
+      // Blink cepat: 200ms ON, 200ms OFF
+      interval = 200;
+      break;
+  }
+
+  if (now - ledRecLastToggle >= interval) {
+    ledRecLastToggle = now;
+    ledRecOn = !ledRecOn;
+    digitalWrite(LED_REC, ledRecOn ? HIGH : LOW);
+  }
+}
+
 // ================= SETUP =================
 void setup(){
 
@@ -352,9 +470,11 @@ void setup(){
 
   pinMode(LED_LOG, OUTPUT);
   pinMode(LED_TRANSFER, OUTPUT);
+  pinMode(LED_REC, OUTPUT);
 
   digitalWrite(LED_LOG, LOW);
   digitalWrite(LED_TRANSFER, LOW);
+  digitalWrite(LED_REC, LOW);
 
   Serial2.begin(GPS_BAUD);
   Serial2.setPins(RXD2, TXD2);
@@ -367,7 +487,7 @@ void setup(){
   WiFi.softAP(AP_SSID, AP_PASS);
   server.begin();
 
-  logMsg("EXCA READY");
+  logMsg("EXCA READY | IGN cooldown=" + String(IGN_COOLDOWN_MS / 1000) + "s");
 }
 
 // ================= LOOP =================
@@ -375,9 +495,18 @@ void loop(){
 
   handleGPS();
 
-  // LED LOG auto off
+  // LED LOG auto off setelah 100ms
   if(digitalRead(LED_LOG)==HIGH && millis()-ledLogTimer>100){
     digitalWrite(LED_LOG, LOW);
+  }
+
+  // Update LED recording state (non-blocking blink)
+  updateLedRec();
+
+  // Cek cooldown timeout di loop juga (untuk kasus tidak ada data masuk)
+  if (recordState == REC_COOLDOWN && millis() - ignOffTime >= IGN_COOLDOWN_MS) {
+    recordState = REC_IDLE;
+    logMsg("⏹️ → IDLE (cooldown selesai)");
   }
 
   WiFiClient c = server.available();
