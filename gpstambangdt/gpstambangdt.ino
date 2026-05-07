@@ -424,6 +424,8 @@ bool waitTcpLine(WiFiClient &client, String &out, unsigned long timeoutMs) {
     if (!client.connected() || millis() - t0 > timeoutMs) {
       return false;
     }
+    // Anti-blocking: tetap proses GPS saat nunggu data WiFi
+    handleDTGps();
     delay(1);
   }
 
@@ -504,6 +506,8 @@ bool transferFromExca() {
         client.stop();
         return false;
       }
+      // Anti-blocking: tetap proses GPS tiap terima 1 baris
+      handleDTGps();
     }
   }
 }
@@ -636,6 +640,9 @@ bool publishOneWithAck(const String &line, const String &msgId, int maxRetry = 3
     unsigned long t0 = millis();
     while (millis() - t0 < 5000) {
       mqtt.loop();
+      
+      // Anti-blocking: tetap proses GPS saat nunggu ACK MQTT
+      handleDTGps();
 
       if (ackReceived && lastAckMsgId == msgId) {
         statMqttSent++;
@@ -711,6 +718,9 @@ bool publishQueueFile(const char* logPath, const char* offsetPath) {
 
     writeUint(offsetPath, currentPos);
     sentCount++;
+
+    // Anti-blocking: tetap proses GPS tiap selesai publish 1 baris
+    handleDTGps();
   }
 
   f.close();

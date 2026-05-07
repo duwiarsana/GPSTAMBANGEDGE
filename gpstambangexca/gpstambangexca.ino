@@ -314,6 +314,9 @@ bool createSnapshot(uint32_t &newOffset){
     if(line.length()==0) continue;
 
     snap.println(line);
+
+    // Anti-blocking: tetap proses GPS saat copy file besar
+    handleGPS(); 
   }
 
   newOffset = src.position();
@@ -331,6 +334,9 @@ bool waitAck(WiFiClient &c, String expect){
 
   while(!c.available()){
     if(!c.connected() || millis()-t>3000) return false;
+    
+    // Anti-blocking: tetap proses GPS saat menunggu response WiFi
+    handleGPS();
     delay(1);
   }
 
@@ -361,6 +367,9 @@ bool sendSnap(WiFiClient &c){
       f.close();
       return false;
     }
+
+    // Anti-blocking: tetap proses GPS setiap selesai kirim 1 baris
+    handleGPS();
   }
 
   c.println("END");
