@@ -199,9 +199,36 @@ bool shouldRecord(JsonDocument &doc) {
 // ================= JSON =================
 bool processJSON(const char* json, String &out){
 
-  StaticJsonDocument<3072> doc;
+  StaticJsonDocument<1536> doc;
 
-  if(deserializeJson(doc, json)){
+  static StaticJsonDocument<256> filter;
+  static bool filterInitialized = false;
+  if (!filterInitialized) {
+    filter["imei"] = true;
+    filter["event_code"] = true;
+    filter["timestamp"] = true;
+    filter["latitude"] = true;
+    filter["longitude"] = true;
+    filter["fix"] = true;
+    filter["speed"] = true;
+    filter["heading"] = true;
+    filter["odometer"] = true;
+    filter["altitude"] = true;
+    filter["ignition"] = true;
+    filter["input_status"] = true;
+    filter["external"] = true;
+    filter["ibutton"]["id"] = true;
+    filter["ibutton"]["status"] = true;
+    filter["ibutton"]["auth"] = true;
+    filter["ibeacon"][0]["mac"] = true;
+    filter["ibeacon"][0]["battery"] = true;
+    filter["ibeacon"][0]["major"] = true;
+    filter["ibeacon"][0]["minor"] = true;
+    filter["ibeacon"][0]["rssi"] = true;
+    filterInitialized = true;
+  }
+
+  if (deserializeJson(doc, json, DeserializationOption::Filter(filter))) {
     logMsg("JSON ERROR");
     return false;
   }
@@ -217,10 +244,44 @@ bool processJSON(const char* json, String &out){
     return false;
   }
 
-  doc["msg_id"] = makeUID(doc);
-  doc["source"] = "EXCA01";
+  StaticJsonDocument<1024> optDoc;
+  optDoc["id"]   = makeUID(doc);
+  optDoc["imei"] = doc["imei"];
+  optDoc["ev"]   = doc["event_code"];
+  optDoc["ts"]   = doc["timestamp"];
+  optDoc["lat"]  = doc["latitude"];
+  optDoc["lon"]  = doc["longitude"];
+  optDoc["fix"]  = doc["fix"];
+  optDoc["spd"]  = doc["speed"];
+  optDoc["hdg"]  = doc["heading"];
+  optDoc["odo"]  = doc["odometer"];
+  optDoc["alt"]  = doc["altitude"];
+  optDoc["ign"]  = doc["ignition"];
+  optDoc["in"]   = doc["input_status"];
+  optDoc["volt"] = doc["external"];
 
-  serializeJson(doc, out);
+  if (doc.containsKey("ibutton")) {
+    JsonObject ib = optDoc.createNestedObject("ib");
+    ib["id"] = doc["ibutton"]["id"];
+    ib["st"] = doc["ibutton"]["status"];
+    ib["au"] = doc["ibutton"]["auth"];
+  }
+
+  if (doc.containsKey("ibeacon")) {
+    JsonArray be = optDoc.createNestedArray("be");
+    JsonArray ibeacon = doc["ibeacon"].as<JsonArray>();
+    for (JsonObject beacon : ibeacon) {
+      JsonObject b = be.createNestedObject();
+      b["mac"]  = beacon["mac"];
+      b["bat"]  = beacon["battery"];
+      b["maj"]  = beacon["major"];
+      b["min"]  = beacon["minor"];
+      b["rssi"] = beacon["rssi"];
+    }
+  }
+
+  out = "";
+  serializeJson(optDoc, out);
   return true;
 }
 
@@ -284,47 +345,13 @@ void handleGPS(){
   }
 }
 
-// ================= SNAPSHOT =================
+// ================= SNAPSHOT UTILS =================
 uint32_t readOffset(){
   return readUint(OFFSET_FILE);
 }
 
 void writeOffset(uint32_t v){
   writeUint(OFFSET_FILE, v);
-}
-
-bool createSnapshot(uint32_t &newOffset){
-
-  File src = SD.open(LOG_FILE);
-  if(!src) return false;
-
-  uint32_t off = readOffset();
-
-  if(!src.seek(off)){
-    src.seek(0);
-    off = 0;
-  }
-
-  SD.remove(SNAP_FILE);
-  File snap = SD.open(SNAP_FILE, FILE_WRITE);
-
-  while(src.available()){
-    String line = src.readStringUntil('\n');
-    line.trim();
-    if(line.length()==0) continue;
-
-    snap.println(line);
-
-    // Anti-blocking: tetap proses GPS saat copy file besar
-    handleGPS(); 
-  }
-
-  newOffset = src.position();
-
-  snap.close();
-  src.close();
-
-  return true;
 }
 
 // ================= SEND =================
@@ -346,41 +373,9 @@ bool waitAck(WiFiClient &c, String expect){
   return s==expect;
 }
 
-bool sendSnap(WiFiClient &c){
-
-  File f = SD.open(SNAP_FILE);
-  if(!f){
-    c.println("NO_DATA");
-    return false;
-  }
-
-  while(f.available()){
-
-    String line = f.readStringUntil('\n');
-    line.trim();
-
-    if(line.length()==0) continue;
-
-    c.println(line);
-
-    if(!waitAck(c,"NEXT")){
-      f.close();
-      return false;
-    }
-
-    // Anti-blocking: tetap proses GPS setiap selesai kirim 1 baris
-    handleGPS();
-  }
-
-  c.println("END");
-  f.close();
-  return true;
-}
-
 // ================= CLIENT =================
-void handleClient(WiFiClient c){
-
-  if(busy){
+void handleClient(WiFiClient c) {
+  if (busy) {
     c.println("BUSY");
     c.stop();
     return;
@@ -389,51 +384,90 @@ void handleClient(WiFiClient c){
   busy = true;
   digitalWrite(LED_TRANSFER, HIGH);
 
-  String cmd;
-
-  if(!waitAck(c,"HELLO")){
+  if (!waitAck(c, "HELLO")) {
     c.stop();
     digitalWrite(LED_TRANSFER, LOW);
-    busy=false;
+    busy = false;
     return;
   }
 
   c.println("READY");
 
-  if(!waitAck(c,"GET")){
+  if (!waitAck(c, "GET")) {
     c.stop();
     digitalWrite(LED_TRANSFER, LOW);
-    busy=false;
+    busy = false;
     return;
   }
 
-  uint32_t newOffset=0;
-
-  if(!createSnapshot(newOffset)){
+  // Buka log file asli untuk streaming
+  File f = SD.open(LOG_FILE, FILE_READ);
+  if (!f) {
     c.println("NO_DATA");
     c.stop();
     digitalWrite(LED_TRANSFER, LOW);
-    busy=false;
+    busy = false;
     return;
   }
 
-  if(!sendSnap(c)){
+  uint32_t startOffset = readOffset();
+  uint32_t totalSize = f.size();
+
+  if (startOffset >= totalSize) {
+    c.println("NO_DATA");
+    f.close();
     c.stop();
     digitalWrite(LED_TRANSFER, LOW);
-    busy=false;
+    busy = false;
     return;
   }
 
-  if(!waitAck(c,"OK")){
+  // Kirim informasi startOffset dan totalSize
+  c.printf("START %u %u\n", startOffset, totalSize);
+
+  if (!f.seek(startOffset)) {
+    c.println("ERROR_SEEK");
+    f.close();
     c.stop();
     digitalWrite(LED_TRANSFER, LOW);
-    busy=false;
+    busy = false;
     return;
   }
 
-  writeOffset(newOffset);
+  uint8_t buffer[1024];
+  uint32_t bytesSent = 0;
+  uint32_t totalToSend = totalSize - startOffset;
+  bool success = true;
 
-  logMsg("TRANSFER OK");
+  while (f.available() && bytesSent < totalToSend && c.connected()) {
+    int toRead = min((uint32_t)sizeof(buffer), totalToSend - bytesSent);
+    int bytesRead = f.read(buffer, toRead);
+    if (bytesRead > 0) {
+      int written = c.write(buffer, bytesRead);
+      if (written != bytesRead) {
+        logMsg("❌ Send fail midway");
+        success = false;
+        break;
+      }
+      bytesSent += bytesRead;
+    }
+    // Anti-blocking: tetap proses GPS
+    handleGPS();
+  }
+
+  f.close();
+
+  if (success && bytesSent == totalToSend) {
+    c.println("END");
+    if (waitAck(c, "OK")) {
+      writeOffset(totalSize);
+      logMsg("✅ TRANSFER OK, offset updated to: " + String(totalSize));
+    } else {
+      logMsg("⚠️ No OK ack from receiver");
+    }
+  } else {
+    logMsg("❌ Transfer incomplete");
+  }
 
   c.stop();
   digitalWrite(LED_TRANSFER, LOW);
@@ -485,6 +519,7 @@ void setup(){
   digitalWrite(LED_TRANSFER, LOW);
   digitalWrite(LED_REC, LOW);
 
+  Serial2.setRxBufferSize(2048);
   Serial2.begin(GPS_BAUD);
   Serial2.setPins(RXD2, TXD2);
 

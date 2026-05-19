@@ -85,25 +85,25 @@ Jika ditemukan beberapa EXCA, DT akan connect ke yang **RSSI terbaik** (sinyal t
 
 ---
 
-### 🔹 4. Transfer Protocol EXCA ↔ DT
+### 🔹 4. Transfer Protocol EXCA ↔ DT (High-Speed Chunk Stream)
 
-Handshake berbasis text-command via TCP:
+Handshake dan transfer data biner cepat menggunakan TCP socket:
 
 ```
-DT    → HELLO
-EXCA  → READY        (atau BUSY jika sedang sibuk)
-DT    → GET
-EXCA  → {json data}  (per baris)
-DT    → NEXT         (ACK per baris)
-EXCA  → END          (selesai)
-DT    → OK           (konfirmasi)
+DT   ──► HELLO   ──► EXCA
+DT   ◄── READY   ◄── EXCA
+DT   ──► GET     ──► EXCA
+EXCA ──► START [startOffset] [totalSize] ──► DT
+EXCA ──► (Mengirimkan data biner dalam blok 1KB) ──► DT
+EXCA ──► END     ──► DT
+DT   ──► OK      ──► EXCA
 ```
 
-Perlindungan:
-- DT menangani response `BUSY` → retry nanti
-- DT menangani response `NO_DATA` → tidak ada data baru
-- Timeout per operasi (5 detik handshake, 8 detik data)
-- Validasi JSON sebelum simpan ke SD
+Perlindungan Data Ganda (*Zero Duplicates*):
+- Selama transfer berjalan, DT menulis data biner ke file penampung sementara `/relay_temp.jsonl`.
+- Jika transfer terputus di tengah jalan, berkas sementara `/relay_temp.jsonl` langsung dihapus sehingga tidak ada data yang masuk ke berkas utama `/relay_log.jsonl`.
+- Setelah transfer sukses 100% dan terverifikasi sesuai ukuran byte yang dikirim, isi `/relay_temp.jsonl` digabungkan (append) secara blok 512-byte ke `/relay_log.jsonl` utama, lalu file sementara tersebut dihapus.
+- Selama proses unduh dan penggabungan file, GPS parser lokal (`handleDTGps()`) terus dipanggil di sela-sela loop agar perekaman data GPS Dump Truck tidak terganggu.
 
 ---
 
@@ -355,11 +355,12 @@ IPAddress excaIP(192, 168, 4, 1);
 |-------|:---:|
 | Anti JSON corrupt (brace counter) | ✔ |
 | Timeout parser (4 detik) | ✔ |
-| Buffer overflow protection (4096 byte) | ✔ |
+| Buffer overflow protection (2048 byte) | ✔ |
 | Smart Recording (Ignition-based) | ✔ |
 | Anti-Blocking Logger (Parallel GPS) | ✔ |
 | Anti duplicate (UID unik) | ✔ |
-| Resume transfer (Offset-based) | ✔ |
+| Fast WiFi Chunk Streaming (Non-blocking) | ✔ |
+| Temp Buffer Protection (Zero Duplicates) | ✔ |
 | Power loss safe (Flush per record) | ✔ |
 | Retry publish (3x + exponential backoff) | ✔ |
 | ACK backend (Offset update safe) | ✔ |

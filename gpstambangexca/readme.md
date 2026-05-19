@@ -79,16 +79,12 @@ EXCA01-861327085560006-20260326T141225Z-1023
 
 ---
 
-### 🔹 4. Snapshot System (DT Friendly)
+### 🔹 4. Direct Offset Streaming (DT Friendly)
 
 Saat DT connect:
-- EXCA membuat snapshot dari log
-- Hanya data baru (berdasarkan offset)
-
-File:
-```
-/snap.jsonl
-```
+- EXCA langsung membuka berkas `/gps_log.jsonl` asli (tidak perlu menyalin ke snapshot).
+- Membaca offset terakhir dari `/offset.txt`.
+- Melakukan `seek()` langsung ke offset tersebut dan memancarkan data mentah dalam blok 1KB.
 
 ---
 
@@ -100,23 +96,23 @@ File:
 ```
 
 Fungsi:
-- Menyimpan posisi terakhir yang sudah dikirim ke DT
-- Update hanya setelah transfer sukses
+- Menyimpan posisi byte terakhir yang sudah sukses terkirim ke DT.
+- Nilai offset diperbarui hanya setelah DT membalas `"OK"`.
 
 ---
 
-### 🔹 6. Transfer Protocol EXCA ↔ DT
+### 🔹 6. Transfer Protocol EXCA ↔ DT (High-Speed Chunk Stream)
 
-Handshake:
+Handshake & Streaming:
 
 ```
-DT → HELLO
-EXCA → READY
-DT → GET
-EXCA → kirim data
-DT → NEXT (per line)
-EXCA → END
-DT → OK
+DT   ──► HELLO   ──► EXCA
+DT   ◄── READY   ◄── EXCA
+DT   ──► GET     ──► EXCA
+EXCA ──► START [startOffset] [totalSize] ──► DT
+EXCA ──► (Mengirimkan data biner dalam blok 1KB) ──► DT
+EXCA ──► END     ──► DT
+DT   ──► OK      ──► EXCA
 ```
 
 ---
@@ -193,12 +189,12 @@ Contoh data dari device:
 
 ### Saat Logging
 ```
-GPS → EXCA → SD
+GPS → EXCA (JSON filter & key mappings) → SD
 ```
 
 ### Saat DT Connect
 ```
-EXCA → Snapshot → Transfer → Update Offset
+EXCA → Seek direct offset → Stream chunks → Update Offset (setelah terima OK)
 ```
 
 ---
@@ -209,11 +205,12 @@ EXCA → Snapshot → Transfer → Update Offset
 |-------|:---:|
 | Anti JSON corrupt (brace counter) | ✔ |
 | Timeout parser (4 detik) | ✔ |
-| Buffer overflow protection (4096 byte) | ✔ |
+| Buffer overflow protection (2048 byte) | ✔ |
 | Smart Recording (Ignition-based) | ✔ |
 | Anti-Blocking Logger (Parallel GPS) | ✔ |
 | UID unik (Anti duplicate) | ✔ |
-| Snapshot isolation (Transfer safe) | ✔ |
+| Direct File Streaming (No SD wear) | ✔ |
+| Fast WiFi Chunk Streaming (Non-blocking) | ✔ |
 | Power loss safe (Flush per record) | ✔ |
 | Resume transfer (Offset-based) | ✔ |
 | Non-blocking LED status | ✔ |
@@ -224,7 +221,6 @@ EXCA → Snapshot → Transfer → Update Offset
 
 ```
 /gps_log.jsonl
-/snap.jsonl
 /offset.txt
 /seq.txt
 ```

@@ -65,7 +65,6 @@ void loop() {
 
 void handleTransfer(WiFiClient& client) {
   uint32_t currentOffset = 0;
-  bool isTransferring = false;
 
   while (client.connected()) {
     if (client.available()) {
@@ -78,8 +77,8 @@ void handleTransfer(WiFiClient& client) {
       if (request == "HELLO") {
         client.println("READY");
       } 
-      else if (request.startsWith("GET")) {
-        // Format: GET {offset}
+      else if (request.startsWith("STREAM")) {
+        // Format: STREAM {offset}
         int spaceIdx = request.indexOf(' ');
         if (spaceIdx != -1) {
           currentOffset = request.substring(spaceIdx + 1).toInt();
@@ -89,11 +88,41 @@ void handleTransfer(WiFiClient& client) {
 
         logFile = SD.open("/gps_log.jsonl", FILE_READ);
         if (logFile) {
-          if (currentOffset < logFile.size()) {
+          uint32_t totalSize = logFile.size();
+          if (currentOffset < totalSize) {
+            client.printf("OK_START %u\n", totalSize);
             logFile.seek(currentOffset);
-            client.println("OK_START");
-            isTransferring = true;
+            
+            Serial.printf("[INFO] Streaming from offset %u (Total Size: %u bytes)...\n", currentOffset, totalSize);
             digitalWrite(PIN_LED_TRANS, HIGH);
+
+            uint8_t buffer[2048];
+            uint32_t bytesSent = 0;
+            uint32_t lastProgress = millis();
+
+            while (logFile.available() && client.connected()) {
+              int bytesRead = logFile.read(buffer, sizeof(buffer));
+              if (bytesRead > 0) {
+                client.write(buffer, bytesRead);
+                bytesSent += bytesRead;
+                
+                // Blink LED to show progress
+                digitalWrite(PIN_LED_TRANS, !digitalRead(PIN_LED_TRANS));
+
+                // Print progress periodically (every 1 second)
+                if (millis() - lastProgress > 1000) {
+                  Serial.printf("[INFO] Sent %u bytes (%.1f%%)\n", 
+                                currentOffset + bytesSent, 
+                                ((float)(currentOffset + bytesSent) / totalSize) * 100.0);
+                  lastProgress = millis();
+                }
+              }
+            }
+            
+            logFile.close();
+            digitalWrite(PIN_LED_TRANS, LOW);
+            Serial.printf("[INFO] Stream finished. Sent %u bytes in this session.\n", bytesSent);
+            break; // Selesai streaming, keluar dari loop
           } else {
             client.println("NO_DATA");
             logFile.close();
@@ -101,24 +130,6 @@ void handleTransfer(WiFiClient& client) {
         } else {
           client.println("ERROR_FILE");
         }
-      }
-      else if (request == "NEXT" && isTransferring) {
-        if (logFile.available()) {
-          String line = logFile.readStringUntil('\n');
-          client.println(line);
-          // LED blink saat kirim data
-          digitalWrite(PIN_LED_TRANS, !digitalRead(PIN_LED_TRANS));
-        } else {
-          client.println("END");
-          isTransferring = false;
-          logFile.close();
-          digitalWrite(PIN_LED_TRANS, LOW);
-          Serial.println("[INFO] Transfer finished (EOF).");
-        }
-      }
-      else if (request == "OK") {
-        Serial.println("[INFO] Receiver confirmed success.");
-        break;
       }
     }
     

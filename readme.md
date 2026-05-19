@@ -127,18 +127,38 @@ Data dari GPS Tracker (input):
 }
 ```
 
-Data setelah diproses (tersimpan di SD):
+Data setelah diproses (tersimpan di SD dengan format efisien/singkat):
 
 ```json
 {
-  "protocol": "Json-V001",
-  "model": "NL02",
-  "imei": "861327085560006",
-  "timestamp": "2026-03-26T14:12:25Z",
-  "latitude": -6.390116,
-  "longitude": 106.994792,
-  "msg_id": "EXCA01-861327085560006-20260326T141225Z-1023",
-  "source": "EXCA01"
+  "id": "EXCA01-861327085563067-20260409T123526Z-18812",
+  "imei": "861327085563067",
+  "ev": 51,
+  "ts": "2026-04-09T12:35:26Z",
+  "lat": -0.738881,
+  "lon": 117.130152,
+  "fix": 1,
+  "spd": 0,
+  "hdg": 67,
+  "odo": 3815,
+  "alt": 0,
+  "ign": 0,
+  "in": "000000",
+  "volt": 25345,
+  "ib": {
+    "id": "010A0D09",
+    "st": "login",
+    "au": true
+  },
+  "be": [
+    {
+      "mac": "C3:00:00:38:B4:52",
+      "bat": 100,
+      "maj": 0,
+      "min": 0,
+      "rssi": -67
+    }
+  ]
 }
 ```
 
@@ -191,15 +211,15 @@ Brownout detector was triggered
 
 ---
 
-## 📊 Estimasi Kapasitas SD Card
+## 📊 Estimasi Kapasitas SD Card (Dengan Optimasi Key JSON)
 
 | Interval GPS | Data/hari | 5 Hari | SD 2GB cukup untuk |
 |:---:|:---:|:---:|:---:|
-| 10 detik | 8.640 record (~2.5 MB) | ~12.5 MB | ~400 hari |
-| 30 detik | 2.880 record (~840 KB) | ~4.1 MB | ~1.200 hari |
-| 60 detik | 1.440 record (~420 KB) | ~2 MB | ~2.400 hari |
+| 10 detik | 8.640 record (~1.25 MB) | ~6.25 MB | ~800 hari |
+| 30 detik | 2.880 record (~420 KB) | ~2 MB | ~2.400 hari |
+| 60 detik | 1.440 record (~210 KB) | ~1 MB | ~4.800 hari |
 
-> SD Card **tidak akan penuh** dalam waktu operasional normal.
+> SD Card **tidak akan penuh** dalam waktu operasional normal dan menghemat ruang hingga 50% dibanding versi sebelumnya.
 
 ---
 
@@ -209,10 +229,11 @@ Brownout detector was triggered
 |-------|:---:|:---:|-----------|
 | Anti JSON corrupt | ✔ | ✔ | Brace counter + validasi field |
 | Timeout parser | ✔ | ✔ | 4 detik max per JSON |
-| Buffer overflow protection | ✔ | ✔ | Buffer 4096 byte dengan cek limit |
+| Buffer overflow protection | ✔ | ✔ | Buffer Serial diperbesar hingga 2048 byte |
 | Anti duplicate (UID) | ✔ | ✔ | Format: `DEVICE-IMEI-TIMESTAMP-SEQ` |
 | Power loss safe | ✔ | ✔ | Flush setiap record |
-| Resume transfer | ✔ | ✔ | Offset-based |
+| Fast WiFi Chunk Streaming | ✔ | ✔ | Transfer biner non-blocking (hingga 50x lebih cepat) |
+| Temp Buffer Protection | — | ✔ | Data ganda dicegah via `/relay_temp.jsonl` atomik |
 | Retry publish | — | ✔ | 3x retry per record ke MQTT |
 | ACK backend | — | ✔ | Offset update hanya setelah ACK |
 | Concurrency guard | ✔ | ✔ | Flag busy mencegah konflik |

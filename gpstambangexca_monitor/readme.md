@@ -237,7 +237,7 @@ const char* AP_PASS = "12345678";
 | SD Card Storage | ✔ | ✔ |
 | UID System | ✔ | ✔ |
 | Transfer ke DT (TCP) | ✔ | ✘ |
-| Snapshot System | ✔ | ✘ |
+| Direct Offset Streaming | ✔ | ✘ |
 | Offset System | ✔ | ✘ |
 | Web Dashboard | ✘ | ✔ |
 | Download Logger (JSONL/CSV) | ✘ | ✔ |

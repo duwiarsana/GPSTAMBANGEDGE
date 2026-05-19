@@ -262,9 +262,36 @@ bool shouldRecord(JsonDocument &doc) {
 
 // ================= GPS DT LOGGER =================
 bool processDTJson(const char* json, String &out) {
-  StaticJsonDocument<3072> doc;
+  StaticJsonDocument<1536> doc;
 
-  if (deserializeJson(doc, json)) {
+  static StaticJsonDocument<256> filter;
+  static bool filterInitialized = false;
+  if (!filterInitialized) {
+    filter["imei"] = true;
+    filter["event_code"] = true;
+    filter["timestamp"] = true;
+    filter["latitude"] = true;
+    filter["longitude"] = true;
+    filter["fix"] = true;
+    filter["speed"] = true;
+    filter["heading"] = true;
+    filter["odometer"] = true;
+    filter["altitude"] = true;
+    filter["ignition"] = true;
+    filter["input_status"] = true;
+    filter["external"] = true;
+    filter["ibutton"]["id"] = true;
+    filter["ibutton"]["status"] = true;
+    filter["ibutton"]["auth"] = true;
+    filter["ibeacon"][0]["mac"] = true;
+    filter["ibeacon"][0]["battery"] = true;
+    filter["ibeacon"][0]["major"] = true;
+    filter["ibeacon"][0]["minor"] = true;
+    filter["ibeacon"][0]["rssi"] = true;
+    filterInitialized = true;
+  }
+
+  if (deserializeJson(doc, json, DeserializationOption::Filter(filter))) {
     logMsg("❌ DT JSON error");
     return false;
   }
@@ -280,12 +307,44 @@ bool processDTJson(const char* json, String &out) {
     return false;
   }
 
-  doc["msg_id"]      = makeDTUID(doc);
-  doc["source"]      = DT_ID;
-  doc["record_type"] = "dt";
+  StaticJsonDocument<1024> optDoc;
+  optDoc["id"]   = makeDTUID(doc);
+  optDoc["imei"] = doc["imei"];
+  optDoc["ev"]   = doc["event_code"];
+  optDoc["ts"]   = doc["timestamp"];
+  optDoc["lat"]  = doc["latitude"];
+  optDoc["lon"]  = doc["longitude"];
+  optDoc["fix"]  = doc["fix"];
+  optDoc["spd"]  = doc["speed"];
+  optDoc["hdg"]  = doc["heading"];
+  optDoc["odo"]  = doc["odometer"];
+  optDoc["alt"]  = doc["altitude"];
+  optDoc["ign"]  = doc["ignition"];
+  optDoc["in"]   = doc["input_status"];
+  optDoc["volt"] = doc["external"];
+
+  if (doc.containsKey("ibutton")) {
+    JsonObject ib = optDoc.createNestedObject("ib");
+    ib["id"] = doc["ibutton"]["id"];
+    ib["st"] = doc["ibutton"]["status"];
+    ib["au"] = doc["ibutton"]["auth"];
+  }
+
+  if (doc.containsKey("ibeacon")) {
+    JsonArray be = optDoc.createNestedArray("be");
+    JsonArray ibeacon = doc["ibeacon"].as<JsonArray>();
+    for (JsonObject beacon : ibeacon) {
+      JsonObject b = be.createNestedObject();
+      b["mac"]  = beacon["mac"];
+      b["bat"]  = beacon["battery"];
+      b["maj"]  = beacon["major"];
+      b["min"]  = beacon["minor"];
+      b["rssi"] = beacon["rssi"];
+    }
+  }
 
   out = "";
-  serializeJson(doc, out);
+  serializeJson(optDoc, out);
   return true;
 }
 
@@ -465,51 +524,119 @@ bool transferFromExca() {
 
   client.println("GET");
 
-  int count = 0;
+  if (!waitTcpLine(client, line, 5000)) {
+    logMsg("❌ EXCA GET response timeout");
+    client.stop();
+    return false;
+  }
 
-  while (true) {
-    if (!waitTcpLine(client, line, 8000)) {
-      logMsg("❌ EXCA data timeout after " + String(count) + " lines");
-      client.stop();
-      return false;
-    }
+  if (line == "NO_DATA") {
+    logMsg("ℹ️ EXCA no new data");
+    client.stop();
+    return true;
+  }
 
-    if (line == "NO_DATA" || line == "NO_LOG") {
-      logMsg("ℹ️ EXCA no new data");
-      client.stop();
-      return true;
-    }
+  if (!line.startsWith("START")) {
+    logMsg("❌ EXCA unexpected header: " + line);
+    client.stop();
+    return false;
+  }
 
-    if (line == "END") {
-      client.println("OK");
-      delay(100);  // beri waktu OK terkirim sebelum disconnect
-      client.stop();
-      statExcaRelayed += count;
-      logMsg("✅ EXCA sync: " + String(count) + " lines");
-      return true;
-    }
+  // Parse header: START [offset] [totalSize]
+  uint32_t startOffset = 0;
+  uint32_t totalSize = 0;
+  sscanf(line.c_str(), "START %u %u", &startOffset, &totalSize);
 
-    if (line.length() > 0) {
-      // Validasi bahwa data adalah JSON valid sebelum simpan
-      StaticJsonDocument<512> checkDoc;
-      if (deserializeJson(checkDoc, line)) {
-        logMsg("⚠️ EXCA bad JSON, skip");
-        client.println("NEXT");
-        continue;
+  uint32_t totalToReceive = totalSize - startOffset;
+  logMsg("📥 EXCA sync starting: " + String(totalToReceive) + " bytes");
+
+  // Buka file penampung sementara
+  const char* tempPath = "/relay_temp.jsonl";
+  SD.remove(tempPath);
+  File tempFile = SD.open(tempPath, FILE_WRITE);
+  if (!tempFile) {
+    logMsg("❌ SD fail to open temp file");
+    client.stop();
+    return false;
+  }
+
+  uint8_t buffer[1024];
+  uint32_t bytesReceived = 0;
+  unsigned long lastActivity = millis();
+  bool success = true;
+
+  while (bytesReceived < totalToReceive && (client.connected() || client.available())) {
+    if (client.available()) {
+      int toRead = min((uint32_t)sizeof(buffer), totalToReceive - bytesReceived);
+      int bytesRead = client.read(buffer, toRead);
+      if (bytesRead > 0) {
+        tempFile.write(buffer, bytesRead);
+        bytesReceived += bytesRead;
+        lastActivity = millis();
       }
-
-      if (appendLine(RELAY_LOG_FILE, line)) {
-        count++;
-        client.println("NEXT");
-      } else {
-        logMsg("❌ SD write fail, abort transfer");
-        client.stop();
-        return false;
+    } else {
+      if (millis() - lastActivity > 10000) {
+        logMsg("❌ Connection timeout during download");
+        success = false;
+        break;
       }
-      // Anti-blocking: tetap proses GPS tiap terima 1 baris
+      delay(5);
+    }
+    // Anti-blocking: tetap proses GPS
+    handleDTGps();
+  }
+
+  tempFile.flush();
+  tempFile.close();
+
+  if (!success || bytesReceived != totalToReceive) {
+    logMsg("❌ Transfer incomplete. Got " + String(bytesReceived) + "/" + String(totalToReceive));
+    SD.remove(tempPath);
+    client.stop();
+    return false;
+  }
+
+  // Tunggu token END
+  if (waitTcpLine(client, line, 3000) && line == "END") {
+    client.println("OK");
+    delay(100);
+  } else {
+    logMsg("⚠️ No END marker, but bytes match. Proceeding...");
+    client.println("OK");
+    delay(100);
+  }
+  client.stop();
+
+  // Penggabungan (Append) data dari file temp ke log utama
+  logMsg("📝 Merging temp log to relay log...");
+  File temp = SD.open(tempPath, FILE_READ);
+  File dest = SD.open(RELAY_LOG_FILE, FILE_APPEND);
+  int linesCopied = 0;
+
+  if (temp && dest) {
+    // Jalankan copy block
+    uint8_t copyBuf[512];
+    while (temp.available()) {
+      int bytesRead = temp.read(copyBuf, sizeof(copyBuf));
+      dest.write(copyBuf, bytesRead);
+      // Panggil handleDTGps agar tetap non-blocking saat tulis memori
       handleDTGps();
     }
+    logMsg("✅ Merge complete");
+  } else {
+    logMsg("❌ SD open error during merge");
+    success = false;
   }
+
+  if (temp) temp.close();
+  if (dest) dest.close();
+  SD.remove(tempPath);
+
+  if (success) {
+    statExcaRelayed += 1;
+    return true;
+  }
+  return false;
 }
 
 // ================= MQTT / INTERNET =================
@@ -577,7 +704,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     return;
   }
 
-  String msgId  = doc["msg_id"] | "";
+  String msgId  = doc["id"] | doc["msg_id"] | "";
   String status = doc["status"] | "";
 
   if (status == "ok" && msgId.length() > 0) {
@@ -703,9 +830,9 @@ bool publishQueueFile(const char* logPath, const char* offsetPath) {
       continue;
     }
 
-    String msgId = doc["msg_id"] | "";
+    String msgId = doc["id"] | doc["msg_id"] | "";
     if (msgId.length() == 0) {
-      logMsg("⚠️ no msg_id, skip");
+      logMsg("⚠️ no id/msg_id, skip");
       writeUint(offsetPath, currentPos);
       continue;
     }
@@ -874,6 +1001,7 @@ void setup() {
   digitalWrite(LED_REC, LOW);
 
   // GPS serial init
+  Serial2.setRxBufferSize(2048);
   Serial2.begin(GPS_BAUD);
   Serial2.setPins(GPS_RX, GPS_TX);
 
