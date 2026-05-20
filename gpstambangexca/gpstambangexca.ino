@@ -201,7 +201,7 @@ bool processJSON(const char* json, String &out){
 
   StaticJsonDocument<1536> doc;
 
-  static StaticJsonDocument<256> filter;
+  static StaticJsonDocument<512> filter;
   static bool filterInitialized = false;
   if (!filterInitialized) {
     filter["imei"] = true;
@@ -225,6 +225,9 @@ bool processJSON(const char* json, String &out){
     filter["ibeacon"][0]["major"] = true;
     filter["ibeacon"][0]["minor"] = true;
     filter["ibeacon"][0]["rssi"] = true;
+    filter["gsensor"]["x"] = true;
+    filter["gsensor"]["y"] = true;
+    filter["gsensor"]["z"] = true;
     filterInitialized = true;
   }
 
@@ -278,6 +281,13 @@ bool processJSON(const char* json, String &out){
       b["min"]  = beacon["minor"];
       b["rssi"] = beacon["rssi"];
     }
+  }
+
+  if (doc.containsKey("gsensor")) {
+    JsonObject gs = optDoc.createNestedObject("gs");
+    gs["x"] = doc["gsensor"]["x"];
+    gs["y"] = doc["gsensor"]["y"];
+    gs["z"] = doc["gsensor"]["z"];
   }
 
   out = "";
