@@ -192,7 +192,7 @@ void resetGpsParser() {
 bool processDTJson(const char* json, String &out) {
   StaticJsonDocument<1536> doc;
 
-  static StaticJsonDocument<256> filter;
+  static StaticJsonDocument<512> filter;
   static bool filterInitialized = false;
   if (!filterInitialized) {
     filter["imei"] = true;
@@ -200,22 +200,27 @@ bool processDTJson(const char* json, String &out) {
     filter["timestamp"] = true;
     filter["latitude"] = true;
     filter["longitude"] = true;
-    filter["fix"] = true;
     filter["speed"] = true;
     filter["heading"] = true;
     filter["odometer"] = true;
     filter["altitude"] = true;
     filter["ignition"] = true;
     filter["input_status"] = true;
+    filter["source"] = true;
+    filter["event_info"] = true;
     filter["external"] = true;
+    filter["battery"] = false;
+    filter["output_status"] = true;
+    filter["hdop"] = true;
+    filter["mcu_temp"] = true;
     filter["ibutton"]["id"] = true;
     filter["ibutton"]["status"] = true;
     filter["ibutton"]["auth"] = true;
     filter["ibeacon"][0]["mac"] = true;
-    filter["ibeacon"][0]["battery"] = true;
-    filter["ibeacon"][0]["major"] = true;
-    filter["ibeacon"][0]["minor"] = true;
     filter["ibeacon"][0]["rssi"] = true;
+    filter["gsensor"]["x"] = true;
+    filter["gsensor"]["y"] = true;
+    filter["gsensor"]["z"] = true;
     filterInitialized = true;
   }
 
@@ -232,18 +237,22 @@ bool processDTJson(const char* json, String &out) {
   StaticJsonDocument<1024> optDoc;
   optDoc["id"]   = makeDTUID(doc);
   optDoc["imei"] = doc["imei"];
+  optDoc["src"]  = doc["source"];
+  optDoc["type"] = doc["event_info"];
   optDoc["ev"]   = doc["event_code"];
   optDoc["ts"]   = doc["timestamp"];
   optDoc["lat"]  = doc["latitude"];
   optDoc["lon"]  = doc["longitude"];
-  optDoc["fix"]  = doc["fix"];
   optDoc["spd"]  = doc["speed"];
   optDoc["hdg"]  = doc["heading"];
-  optDoc["odo"]  = doc["odometer"];
   optDoc["alt"]  = doc["altitude"];
+  optDoc["bat"]  = doc["external"];
+  optDoc["odo"]  = doc["odometer"];
   optDoc["ign"]  = doc["ignition"];
   optDoc["in"]   = doc["input_status"];
-  optDoc["volt"] = doc["external"];
+  optDoc["out"]  = doc["output_status"];
+  optDoc["hdop"] = doc["hdop"];
+  optDoc["temp"] = doc["mcu_temp"];
 
   if (doc.containsKey("ibutton")) {
     JsonObject ib = optDoc.createNestedObject("ib");
@@ -258,11 +267,15 @@ bool processDTJson(const char* json, String &out) {
     for (JsonObject beacon : ibeacon) {
       JsonObject b = be.createNestedObject();
       b["mac"]  = beacon["mac"];
-      b["bat"]  = beacon["battery"];
-      b["maj"]  = beacon["major"];
-      b["min"]  = beacon["minor"];
       b["rssi"] = beacon["rssi"];
     }
+  }
+
+  if (doc.containsKey("gsensor")) {
+    JsonObject gs = optDoc.createNestedObject("gs");
+    gs["x"] = doc["gsensor"]["x"];
+    gs["y"] = doc["gsensor"]["y"];
+    gs["z"] = doc["gsensor"]["z"];
   }
 
   out = "";
