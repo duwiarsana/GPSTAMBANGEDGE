@@ -214,6 +214,11 @@ EXCA → Seek direct offset → Stream chunks → Update Offset (setelah terima 
 | Power loss safe (Flush per record) | ✔ |
 | Resume transfer (Offset-based) | ✔ |
 | Non-blocking LED status | ✔ |
+| Hardware Watchdog (WDT - 30s) | ✔ |
+| Heap Memory Monitor (RAM < 20KB) | ✔ |
+
+### 🐕 Hardware Watchdog & Heap Monitor
+Sistem dilengkapi unit **Hardware Watchdog (WDT)** internal dengan timeout **30 detik** untuk memulihkan perangkat secara otomatis apabila program terhenti (freeze) di loop utama atau saat pengiriman data TCP. Selain itu, **Heap Monitor** diaktifkan untuk me-restart ESP32 secara otomatis jika sisa memori RAM bebas berada di bawah **20 KB**.
 
 ---
 

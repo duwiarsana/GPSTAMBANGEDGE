@@ -3,6 +3,7 @@
 #include <SPI.h>
 #include <SD.h>
 #include <ArduinoJson.h>
+#include <esp_task_wdt.h>
 
 // ================= PIN =================
 #define RXD2 16
@@ -12,6 +13,10 @@
 #define LED_LOG 2        // 🔵 GPS + SD
 #define LED_TRANSFER 4   // 🔴 Transfer DT
 #define LED_REC 13       // 🟡 Recording state
+
+// ================= WATCHDOG & MEMORY =================
+#define WDT_TIMEOUT_SEC  30       // Hardware watchdog: 30 detik
+#define HEAP_MIN_BYTES   20000    // Heap minimum: 20KB → restart
 
 // ================= UART =================
 #define GPS_BAUD 115200
@@ -373,6 +378,7 @@ bool waitAck(WiFiClient &c, String expect){
   unsigned long t = millis();
 
   while(!c.available()){
+    esp_task_wdt_reset();
     if(!c.connected() || millis()-t>3000) return false;
     
     // Anti-blocking: tetap proses GPS saat menunggu response WiFi
@@ -453,6 +459,7 @@ void handleClient(WiFiClient c) {
   bool success = true;
 
   while (f.available() && bytesSent < totalToSend && c.connected()) {
+    esp_task_wdt_reset();
     int toRead = min((uint32_t)sizeof(buffer), totalToSend - bytesSent);
     int bytesRead = f.read(buffer, toRead);
     if (bytesRead > 0) {
@@ -524,6 +531,15 @@ void setup(){
 
   Serial.begin(115200);
 
+  // Hardware Watchdog Timer
+  esp_task_wdt_config_t wdt_config = {
+    .timeout_ms = WDT_TIMEOUT_SEC * 1000,
+    .idle_core_mask = 0,
+    .trigger_panic = true
+  };
+  esp_task_wdt_reconfigure(&wdt_config);
+  logMsg("🐕 Watchdog configured: " + String(WDT_TIMEOUT_SEC) + "s");
+
   pinMode(LED_LOG, OUTPUT);
   pinMode(LED_TRANSFER, OUTPUT);
   pinMode(LED_REC, OUTPUT);
@@ -544,11 +560,16 @@ void setup(){
   WiFi.softAP(AP_SSID, AP_PASS);
   server.begin();
 
+  // Aktifkan watchdog untuk loop task setelah setup selesai
+  esp_task_wdt_add(NULL);
+
   logMsg("EXCA READY | IGN cooldown=" + String(IGN_COOLDOWN_MS / 1000) + "s");
 }
 
 // ================= LOOP =================
 void loop(){
+  // Feed hardware watchdog
+  esp_task_wdt_reset();
 
   handleGPS();
 
@@ -569,6 +590,13 @@ void loop(){
   WiFiClient c = server.available();
   if(c){
     handleClient(c);
+  }
+
+  // Heap Monitor
+  if (ESP.getFreeHeap() < HEAP_MIN_BYTES) {
+    logMsg("❌ Heap kritis: " + String(ESP.getFreeHeap()) + " bytes, RESTARTING...");
+    delay(1000);
+    ESP.restart();
   }
 
   delay(2);

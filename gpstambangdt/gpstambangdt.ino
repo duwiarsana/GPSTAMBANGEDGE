@@ -4,6 +4,7 @@
 #include <SPI.h>
 #include <SD.h>
 #include <ArduinoJson.h>
+#include <esp_task_wdt.h>
 
 // ================= PIN =================
 #define GPS_RX 16
@@ -14,6 +15,10 @@
 #define LED_EXCA   4    // 🟢 EXCA transfer
 #define LED_MQTT  15    // 🔴 MQTT publish
 #define LED_REC   13    // 🟡 Recording state
+
+// ================= WATCHDOG & MEMORY =================
+#define WDT_TIMEOUT_SEC  30       // Hardware watchdog: 30 detik
+#define HEAP_MIN_BYTES   20000    // Heap minimum: 20KB → restart
 
 // ================= ID DEVICE =================
 // GANTI INI SAJA UNTUK MULTIPLE DT
@@ -477,6 +482,7 @@ bool connectExca(const String &ssid) {
 
   unsigned long t0 = millis();
   while (WiFi.status() != WL_CONNECTED) {
+    esp_task_wdt_reset();
     if (millis() - t0 > 12000) {
       logMsg("❌ EXCA wifi timeout");
       WiFi.disconnect(true, true);
@@ -493,6 +499,7 @@ bool waitTcpLine(WiFiClient &client, String &out, unsigned long timeoutMs) {
   unsigned long t0 = millis();
 
   while (!client.available()) {
+    esp_task_wdt_reset();
     if (!client.connected() || millis() - t0 > timeoutMs) {
       return false;
     }
@@ -579,6 +586,7 @@ bool transferFromExca() {
   bool success = true;
 
   while (bytesReceived < totalToReceive && (client.connected() || client.available())) {
+    esp_task_wdt_reset();
     if (client.available()) {
       int toRead = min((uint32_t)sizeof(buffer), totalToReceive - bytesReceived);
       int bytesRead = client.read(buffer, toRead);
@@ -630,6 +638,7 @@ bool transferFromExca() {
     // Jalankan copy block
     uint8_t copyBuf[512];
     while (temp.available()) {
+      esp_task_wdt_reset();
       int bytesRead = temp.read(copyBuf, sizeof(copyBuf));
       dest.write(copyBuf, bytesRead);
       // Panggil handleDTGps agar tetap non-blocking saat tulis memori
@@ -689,6 +698,7 @@ bool connectKnownInternet() {
 
   unsigned long t0 = millis();
   while (WiFi.status() != WL_CONNECTED) {
+    esp_task_wdt_reset();
     if (millis() - t0 > 15000) {
       logMsg("❌ Internet timeout");
       WiFi.disconnect(true, true);
@@ -779,6 +789,7 @@ bool publishOneWithAck(const String &line, const String &msgId, int maxRetry = 3
     // Tunggu ACK dengan timeout 5 detik
     unsigned long t0 = millis();
     while (millis() - t0 < 5000) {
+      esp_task_wdt_reset();
       mqtt.loop();
       
       // Anti-blocking: tetap proses GPS saat nunggu ACK MQTT
@@ -930,6 +941,7 @@ bool compactQueueFile(const char* logPath, const char* offsetPath, const char* t
 
   int lineCount = 0;
   while (src.available()) {
+    esp_task_wdt_reset();
     String line = src.readStringUntil('\n');
     line.trim();
     if (line.length() == 0) continue;
@@ -1002,6 +1014,15 @@ void setup() {
 
   logMsg("=== " + String(DT_ID) + " STARTING ===");
 
+  // Hardware Watchdog Timer
+  esp_task_wdt_config_t wdt_config = {
+    .timeout_ms = WDT_TIMEOUT_SEC * 1000,
+    .idle_core_mask = 0,
+    .trigger_panic = true
+  };
+  esp_task_wdt_reconfigure(&wdt_config);
+  logMsg("🐕 Watchdog configured: " + String(WDT_TIMEOUT_SEC) + "s");
+
   // LED init
   pinMode(LED_GPS, OUTPUT);
   pinMode(LED_EXCA, OUTPUT);
@@ -1031,11 +1052,16 @@ void setup() {
   WiFi.disconnect(true, true);
   delay(200);
 
+  // Aktifkan watchdog untuk loop task setelah setup selesai
+  esp_task_wdt_add(NULL);
+
   logMsg("✅ " + String(DT_ID) + " READY | IGN cooldown=" + String(IGN_COOLDOWN_MS / 1000) + "s");
 }
 
 // ================= LOOP =================
 void loop() {
+  // Feed hardware watchdog
+  esp_task_wdt_reset();
 
   // -------- 1. Selalu proses GPS --------
   handleDTGps();
@@ -1096,6 +1122,13 @@ void loop() {
   if (now - lastHeartbeat >= HEARTBEAT_INTERVAL) {
     lastHeartbeat = now;
     printHeartbeat();
+  }
+
+  // Heap Monitor
+  if (ESP.getFreeHeap() < HEAP_MIN_BYTES) {
+    logMsg("❌ Heap kritis: " + String(ESP.getFreeHeap()) + " bytes, RESTARTING...");
+    delay(1000);
+    ESP.restart();
   }
 
   delay(5);

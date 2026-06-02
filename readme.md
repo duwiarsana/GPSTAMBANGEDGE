@@ -240,6 +240,14 @@ Brownout detector was triggered
 | File compaction | — | ✔ | Bersihkan data lama dari SD |
 | Heartbeat monitoring | — | ✔ | Status setiap 60 detik |
 | LED indicator | ✔ | ✔ | Visual feedback di lapangan |
+| Hardware Watchdog (WDT) | ✔ | ✔ | Auto-restart jika program freeze > 30 detik |
+| Heap Memory Monitor | ✔ | ✔ | Auto-restart terkontrol jika sisa RAM < 20KB |
+
+### 🐕 Hardware Watchdog & Heap Monitor
+
+Pada firmware produksi (`gpstambangdt` dan `gpstambangexca`), sistem dilengkapi dengan proteksi otomatis:
+- **Hardware Watchdog (WDT)**: Timeout 30 detik. Sistem mendeteksi jika terjadi kemacetan di *loop* utama, loop koneksi WiFi, loop transfer data, atau penulisan memori SD, dan otomatis melakukan restart fisik.
+- **Heap Monitor**: Jika sisa memori RAM (Heap) jatuh di bawah 20 KB (biasanya karena fragmentasi atau kebocoran memori pasca operasi jaringan intensif), ESP32 akan melakukan restart terkontrol untuk membersihkan memori dan mencegah kemacetan senyap.
 
 ---
 

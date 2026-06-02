@@ -369,6 +369,11 @@ IPAddress excaIP(192, 168, 4, 1);
 | File compaction (Threshold 4KB) | ✔ |
 | Heartbeat monitoring + State info | ✔ |
 | LED status indicator (4 LED) | ✔ |
+| Hardware Watchdog (WDT - 30s) | ✔ |
+| Heap Memory Monitor (RAM < 20KB) | ✔ |
+
+### 🐕 Hardware Watchdog & Heap Monitor
+Sistem dilengkapi dengan unit **Hardware Watchdog (WDT)** internal yang dikonfigurasi dengan timeout **30 detik** untuk mendeteksi kemacetan sistem di segala loop (WiFi scan, connect, transfer TCP, file merge, atau publish MQTT). Selain itu, terdapat **Heap Monitor** yang merestart ESP32 secara terkontrol jika RAM bebas di bawah **20 KB** guna menjaga performa dan reliabilitas perangkat.
 
 ---
 
