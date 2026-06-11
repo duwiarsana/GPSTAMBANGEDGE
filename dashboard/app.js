@@ -1,43 +1,16 @@
-// Configuration
+// ===== Configuration =====
 const BROKER_URL = 'ws://72.62.126.85:9001';
 const DATA_TOPIC = 'kutai/fleet/data';
-const DEFAULT_DT_ID = 'DT01'; // Default target for ACKs from relayed EXCA data
+const DEFAULT_DT_ID = 'DT01';
 
-// Stats Counter
+// ===== State =====
 let countDT = 0;
 let countEXCA = 0;
 let countACK = 0;
-
-// Fleet positions and markers cache
 const fleetMarkers = {};
 const fleetData = {};
 
-// Map Initialization
-const map = L.map('map').setView([-0.95, 117.0], 12); // Default coordinates centered in Kutai area, East Kalimantan
-
-// Add Dark Matter CartoDB tiles
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-  attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-  subdomains: 'abcd',
-  maxZoom: 20
-}).addTo(map);
-
-// Custom Icons for DT and EXCA
-const dtIcon = L.divIcon({
-  className: 'custom-marker dt-marker',
-  html: '<div class="marker-pin blue-pin"><i class="fa-solid fa-truck"></i></div>',
-  iconSize: [36, 36],
-  iconAnchor: [18, 36]
-});
-
-const excaIcon = L.divIcon({
-  className: 'custom-marker exca-marker',
-  html: '<div class="marker-pin orange-pin"><i class="fa-solid fa-helmet-safety"></i></div>',
-  iconSize: [36, 36],
-  iconAnchor: [18, 36]
-});
-
-// UI Elements
+// ===== DOM Elements =====
 const connStatusEl = document.getElementById('conn-status');
 const countDtEl = document.getElementById('count-dt');
 const countExcaEl = document.getElementById('count-exca');
@@ -48,53 +21,88 @@ const telemetryRowsEl = document.getElementById('telemetry-rows');
 const simDtBtn = document.getElementById('sim-dt-btn');
 const simExcaBtn = document.getElementById('sim-exca-btn');
 const clearLogBtn = document.getElementById('clear-log-btn');
+const clockEl = document.getElementById('live-clock');
 
-// CSS styles for custom markers to be added dynamically
-const style = document.createElement('style');
-style.innerHTML = `
-  .marker-pin {
-    width: 34px;
-    height: 34px;
-    border-radius: 50% 50% 50% 0;
-    position: absolute;
-    transform: rotate(-45deg);
-    left: 50%;
-    top: 50%;
-    margin: -17px 0 0 -17px;
+// ===== Live Clock =====
+function updateClock() {
+  if (clockEl) {
+    const now = new Date();
+    clockEl.textContent = now.toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+  }
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ===== Map Initialization =====
+const map = L.map('map', {
+  zoomControl: true,
+  attributionControl: false,
+}).setView([-0.95, 117.0], 12);
+
+// CARTO Dark Matter tiles — already dark, no CSS filter needed
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+  subdomains: 'abcd',
+  maxZoom: 20
+}).addTo(map);
+
+// Custom Marker Icons
+const dtIcon = L.divIcon({
+  className: 'map-marker-dt',
+  html: '<div class="marker-dot blue"><i class="fa-solid fa-truck"></i></div>',
+  iconSize: [32, 32],
+  iconAnchor: [16, 16]
+});
+
+const excaIcon = L.divIcon({
+  className: 'map-marker-exca',
+  html: '<div class="marker-dot amber"><i class="fa-solid fa-helmet-safety"></i></div>',
+  iconSize: [32, 32],
+  iconAnchor: [16, 16]
+});
+
+// Inject marker styles
+const markerStyle = document.createElement('style');
+markerStyle.textContent = `
+  .marker-dot {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 2px solid white;
+    border: 2px solid;
+    font-size: 12px;
+    color: #fff;
     box-shadow: 0 0 10px rgba(0,0,0,0.5);
   }
-  .marker-pin i {
-    transform: rotate(45deg);
-    color: white;
-    font-size: 14px;
+  .marker-dot.blue {
+    background: rgba(77, 171, 247, 0.9);
+    border-color: #4dabf7;
+    box-shadow: 0 0 12px rgba(77, 171, 247, 0.5);
   }
-  .blue-pin {
-    background: #00f2fe;
-    border-color: #00f2fe;
-    box-shadow: 0 0 12px rgba(0, 242, 254, 0.6);
-  }
-  .orange-pin {
-    background: #f97316;
-    border-color: #f97316;
-    box-shadow: 0 0 12px rgba(249, 115, 22, 0.6);
+  .marker-dot.amber {
+    background: rgba(255, 164, 79, 0.9);
+    border-color: #ffa44f;
+    box-shadow: 0 0 12px rgba(255, 164, 79, 0.5);
   }
 `;
-document.head.appendChild(style);
+document.head.appendChild(markerStyle);
 
-// Connect to MQTT Broker
-console.log(`Connecting to MQTT Broker via WebSockets: ${BROKER_URL}...`);
+// ===== MQTT Connection =====
+console.log(`Connecting to MQTT Broker: ${BROKER_URL}`);
 const client = mqtt.connect(BROKER_URL, {
   keepalive: 60,
   reconnectPeriod: 2000,
 });
 
-// MQTT event handlers
 client.on('connect', () => {
-  console.log('Successfully connected to MQTT Broker!');
+  console.log('MQTT Connected');
   updateStatus(true);
   client.subscribe(DATA_TOPIC, (err) => {
     if (!err) {
@@ -106,7 +114,7 @@ client.on('connect', () => {
 });
 
 client.on('close', () => {
-  console.warn('MQTT Connection closed.');
+  console.warn('MQTT Connection closed');
   updateStatus(false);
 });
 
@@ -118,30 +126,29 @@ client.on('error', (err) => {
 
 client.on('message', (topic, message) => {
   const rawPayload = message.toString();
-  
   try {
     const data = JSON.parse(rawPayload);
     handleIncomingData(data, rawPayload);
   } catch (e) {
-    addLogSystem(`Received non-JSON message on topic <code>${topic}</code>: ${rawPayload}`, 'warn');
+    addLogSystem(`Non-JSON message on <code>${topic}</code>: ${rawPayload}`, 'warn');
   }
 });
 
-// Update connection status UI
+// ===== Status Update =====
 function updateStatus(isConnected) {
-  const dot = connStatusEl.querySelector('.pulse-dot');
+  const dot = connStatusEl.querySelector('.conn-dot');
   const text = connStatusEl.querySelector('.status-text');
-  
+
   if (isConnected) {
-    dot.className = 'pulse-dot green';
+    dot.className = 'conn-dot online';
     text.textContent = 'Connected';
   } else {
-    dot.className = 'pulse-dot red';
+    dot.className = 'conn-dot offline';
     text.textContent = 'Disconnected';
   }
 }
 
-// Process incoming payload
+// ===== Data Handler =====
 function handleIncomingData(data, rawJson) {
   const id = data.id || data.msg_id;
   const src = data.src || data.source || 'UNKNOWN';
@@ -151,41 +158,51 @@ function handleIncomingData(data, rawJson) {
   const speed = parseFloat(data.spd || data.speed || 0);
   const battery = parseFloat(data.bat || data.external || 0);
   const ignition = data.ign !== undefined ? data.ign : (data.ignition !== undefined ? data.ignition : -1);
-  
+
   const isDT = src.toUpperCase().startsWith('DT');
-  
+
   // Update counter
   if (isDT) {
     countDT++;
     countDtEl.textContent = countDT;
+    animateStat('stat-dt');
   } else {
     countEXCA++;
     countExcaEl.textContent = countEXCA;
+    animateStat('stat-exca');
   }
-  
-  // Add to Live Log Stream UI
-  addLogEntry(src, isDT ? 'dt' : 'exca', `[JSON] ${rawJson}`);
-  
-  // Update map coordinates
+
+  // Log entry
+  addLogEntry(src, isDT ? 'dt' : 'exca', rawJson);
+
+  // Map marker
   if (!isNaN(latitude) && !isNaN(longitude)) {
     updateMapMarker(src, isDT, latitude, longitude, speed, timestamp);
   }
 
-  // Update telemetry table
+  // Telemetry table
   updateTelemetryTable(src, timestamp, ignition, speed, battery, id);
 
-  // Auto ACK mechanism
+  // Auto-ACK
   if (autoAckToggle.checked && id) {
     sendAutoACK(id, src);
   }
 }
 
-// Send ACK to Broker
+// ===== Stat Animation =====
+function animateStat(elementId) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  el.style.transition = 'none';
+  el.style.borderColor = 'rgba(255,255,255,0.15)';
+  requestAnimationFrame(() => {
+    el.style.transition = 'border-color 0.8s ease';
+    el.style.borderColor = '';
+  });
+}
+
+// ===== Auto-ACK =====
 function sendAutoACK(msgId, src) {
-  // Determine which DT ID topic we should send the ACK to
-  // If the source of the message is a DT unit (e.g. DT01), send it to its topic.
-  // If the source is an EXCA unit (e.g. EXCA01), it was relayed, so we broadcast the ACK 
-  // to both the default DT01 topic and its own topic to make sure the relaying DT gets it.
   const targetTopics = [];
   if (src.toUpperCase().startsWith('DT')) {
     targetTopics.push(`kutai/fleet/ack/${src}`);
@@ -194,255 +211,168 @@ function sendAutoACK(msgId, src) {
     targetTopics.push(`kutai/fleet/ack/${src}`);
   }
 
-  const ackPayload = JSON.stringify({
-    id: msgId,
-    status: 'ok'
-  });
+  const ackPayload = JSON.stringify({ id: msgId, status: 'ok' });
 
   targetTopics.forEach(topic => {
     client.publish(topic, ackPayload, { qos: 0 }, (err) => {
       if (!err) {
         countACK++;
         countAckEl.textContent = countACK;
-        addLogEntry(src, 'ack', `📤 Sent ACK to <code>${topic}</code>: ${ackPayload}`);
+        animateStat('stat-ack');
+        addLogEntry('ACK', 'ack', `→ ${topic}: ${ackPayload}`);
       } else {
-        addLogSystem(`Failed to send ACK to ${topic}: ${err.message}`, 'error');
+        addLogSystem(`Failed ACK to ${topic}: ${err.message}`, 'error');
       }
     });
   });
 }
 
-// Map marker updater
+// ===== Map Marker =====
 function updateMapMarker(src, isDT, lat, lon, speed, timestamp) {
-  const key = src;
-  
-  if (fleetMarkers[key]) {
-    // Smooth transition or direct move
-    fleetMarkers[key].setLatLng([lat, lon]);
-    fleetMarkers[key].getPopup().setContent(createPopupContent(src, lat, lon, speed, timestamp));
+  if (fleetMarkers[src]) {
+    fleetMarkers[src].setLatLng([lat, lon]);
+    fleetMarkers[src].getPopup().setContent(popupHTML(src, lat, lon, speed, timestamp));
   } else {
-    // Create new marker
-    const marker = L.marker([lat, lon], {
-      icon: isDT ? dtIcon : excaIcon
-    }).addTo(map);
-    
-    marker.bindPopup(createPopupContent(src, lat, lon, speed, timestamp));
-    fleetMarkers[key] = marker;
+    const marker = L.marker([lat, lon], { icon: isDT ? dtIcon : excaIcon }).addTo(map);
+    marker.bindPopup(popupHTML(src, lat, lon, speed, timestamp));
+    fleetMarkers[src] = marker;
   }
-  
-  // Pan map to latest coordinate
   map.panTo([lat, lon]);
 }
 
-function createPopupContent(src, lat, lon, speed, timestamp) {
+function popupHTML(src, lat, lon, speed, ts) {
   return `
-    <div style="font-family: 'Plus Jakarta Sans', sans-serif; color: #1e293b;">
-      <h4 style="margin: 0 0 5px 0; font-family: 'Outfit'; font-weight: 700;">${src}</h4>
-      <p style="margin: 0 0 3px 0; font-size: 11px;"><b>Lat:</b> ${lat.toFixed(6)}</p>
-      <p style="margin: 0 0 3px 0; font-size: 11px;"><b>Lon:</b> ${lon.toFixed(6)}</p>
-      <p style="margin: 0 0 3px 0; font-size: 11px;"><b>Speed:</b> ${speed} km/h</p>
-      <p style="margin: 0; font-size: 10px; color: #64748b;">${timestamp}</p>
-    </div>
-  `;
+    <div style="font-family:Inter,sans-serif;color:#1e293b;font-size:12px;line-height:1.6">
+      <strong style="font-size:13px">${src}</strong><br>
+      <b>Lat:</b> ${lat.toFixed(6)}<br>
+      <b>Lon:</b> ${lon.toFixed(6)}<br>
+      <b>Speed:</b> ${speed.toFixed(1)} km/h<br>
+      <span style="color:#64748b;font-size:10px">${ts}</span>
+    </div>`;
 }
 
-// Telemetry Table updater
+// ===== Telemetry Table =====
 function updateTelemetryTable(src, timestamp, ignition, speed, battery, msgId) {
-  fleetData[src] = {
-    timestamp,
-    ignition,
-    speed,
-    battery,
-    msgId
-  };
+  fleetData[src] = { timestamp, ignition, speed, battery, msgId };
+  const keys = Object.keys(fleetData).sort();
 
-  // Redraw all rows sorted alphabetically by key (device ID)
-  const sortedKeys = Object.keys(fleetData).sort();
-  
-  if (sortedKeys.length === 0) {
-    telemetryRowsEl.innerHTML = `
-      <tr class="empty-table-row">
-        <td colspan="6">Belum ada data masuk.</td>
-      </tr>
-    `;
+  if (keys.length === 0) {
+    telemetryRowsEl.innerHTML = '<tr class="empty-row"><td colspan="6">Menunggu data…</td></tr>';
     return;
   }
 
   let html = '';
-  sortedKeys.forEach(key => {
-    const row = fleetData[key];
+  keys.forEach(key => {
+    const r = fleetData[key];
     const isDT = key.toUpperCase().startsWith('DT');
-    const badgeClass = isDT ? 'badge-dt' : 'badge-exca';
-    
-    let ignHtml = '<span class="ign-state ign-off"><i class="fa-solid fa-circle-notch"></i> Off</span>';
-    if (row.ignition === 1) {
+    const badge = isDT ? 'badge-dt' : 'badge-exca';
+
+    let ignHtml = '<span class="ign-state ign-off"><i class="fa-solid fa-circle-xmark"></i> Off</span>';
+    if (r.ignition === 1) {
       ignHtml = '<span class="ign-state ign-on"><i class="fa-solid fa-circle"></i> On</span>';
-    } else if (row.ignition === 0) {
-      ignHtml = '<span class="ign-state ign-off"><i class="fa-solid fa-circle-notch"></i> Cooldown</span>';
+    } else if (r.ignition === 0) {
+      ignHtml = '<span class="ign-state ign-off"><i class="fa-solid fa-circle-half-stroke"></i> Idle</span>';
     }
 
-    // Format time
-    const timeStr = row.timestamp.includes('T') ? row.timestamp.split('T')[1].substring(0, 8) : row.timestamp;
+    const time = r.timestamp.includes('T') ? r.timestamp.split('T')[1].substring(0, 8) : r.timestamp;
+    const shortId = r.msgId ? r.msgId.split('-').pop() : '—';
 
-    html += `
-      <tr>
-        <td><span class="badge ${badgeClass}">${key}</span></td>
-        <td>${timeStr}</td>
-        <td>${ignHtml}</td>
-        <td><b>${row.speed.toFixed(1)}</b> km/h</td>
-        <td>${row.battery.toFixed(1)}V</td>
-        <td><small style="color: #64748b; font-family: monospace;">${row.msgId ? row.msgId.split('-').pop() : '-'}</small></td>
-      </tr>
-    `;
+    html += `<tr>
+      <td><span class="badge ${badge}">${key}</span></td>
+      <td style="font-family:var(--mono)">${time}</td>
+      <td>${ignHtml}</td>
+      <td><strong>${r.speed.toFixed(1)}</strong> <span style="color:var(--text-muted)">km/h</span></td>
+      <td>${r.battery.toFixed(1)} <span style="color:var(--text-muted)">V</span></td>
+      <td style="font-family:var(--mono);color:var(--text-muted);font-size:0.65rem">${shortId}</td>
+    </tr>`;
   });
 
   telemetryRowsEl.innerHTML = html;
 }
 
-// UI Logs utilities
+// ===== Log Utilities =====
 function addLogEntry(src, type, message) {
-  // Remove empty message if present
-  const empty = logStreamEl.querySelector('.empty-log-msg');
-  if (empty) {
-    logStreamEl.removeChild(empty);
-  }
-
+  clearEmptyLog();
   const entry = document.createElement('div');
   entry.className = `log-entry ${type}`;
-
-  const timeStr = new Date().toLocaleTimeString();
-  const label = type === 'ack' ? 'SYSTEM' : src;
-
+  const time = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+  const label = type === 'ack' ? 'ACK' : src;
   entry.innerHTML = `
-    <div class="log-meta">
-      <span class="log-tag"><b>${label}</b></span>
-      <span class="log-time">${timeStr}</span>
-    </div>
-    <div class="log-body">${message}</div>
-  `;
-
+    <div class="log-meta"><span>${label}</span><span>${time}</span></div>
+    <div class="log-body">${message}</div>`;
   logStreamEl.appendChild(entry);
   logStreamEl.scrollTop = logStreamEl.scrollHeight;
-
-  // Limit logs to last 50 entries
-  while (logStreamEl.children.length > 50) {
-    logStreamEl.removeChild(logStreamEl.firstChild);
-  }
+  while (logStreamEl.children.length > 50) logStreamEl.removeChild(logStreamEl.firstChild);
 }
 
 function addLogSystem(message, level = 'info') {
-  const empty = logStreamEl.querySelector('.empty-log-msg');
-  if (empty) {
-    logStreamEl.removeChild(empty);
-  }
-
+  clearEmptyLog();
   const entry = document.createElement('div');
-  entry.className = `log-entry sys-${level}`;
-  entry.style.borderLeftColor = level === 'error' ? 'var(--accent-red)' : 'var(--text-secondary)';
-  
-  const timeStr = new Date().toLocaleTimeString();
-
+  entry.className = 'log-entry';
+  entry.style.borderLeftColor = level === 'error' ? 'var(--red)' : 'var(--text-muted)';
+  const time = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
   entry.innerHTML = `
-    <div class="log-meta">
-      <span class="log-tag"><b>${level.toUpperCase()}</b></span>
-      <span class="log-time">${timeStr}</span>
-    </div>
-    <div class="log-body" style="color: ${level === 'error' ? 'var(--accent-red)' : 'var(--text-secondary)'}">${message}</div>
-  `;
-
+    <div class="log-meta"><span>${level.toUpperCase()}</span><span>${time}</span></div>
+    <div class="log-body" style="color:${level === 'error' ? 'var(--red)' : 'var(--text-secondary)'}">${message}</div>`;
   logStreamEl.appendChild(entry);
   logStreamEl.scrollTop = logStreamEl.scrollHeight;
 }
 
-// Clear log stream button handler
+function clearEmptyLog() {
+  const empty = logStreamEl.querySelector('.log-empty');
+  if (empty) empty.remove();
+}
+
 clearLogBtn.addEventListener('click', () => {
-  logStreamEl.innerHTML = '<div class="empty-log-msg">Menunggu data masuk dari topik <code class="code-topic">kutai/fleet/data</code>...</div>';
+  logStreamEl.innerHTML = '<div class="log-empty">Waiting for data on <code>kutai/fleet/data</code>…</div>';
 });
 
-// Simulator functions
+// ===== Simulator =====
 let simDtSeq = 1;
 let simExcaSeq = 1;
 
 simDtBtn.addEventListener('click', () => {
-  if (!client.connected) {
-    alert('Simulasi gagal: Web Dashboard tidak terhubung ke broker MQTT.');
-    return;
-  }
-
-  // Randomize location slightly around Kutai area
+  if (!client.connected) { alert('Dashboard belum terhubung ke broker MQTT.'); return; }
   const lat = -0.95 + (Math.random() - 0.5) * 0.05;
   const lon = 117.0 + (Math.random() - 0.5) * 0.05;
-  const speed = 10 + Math.random() * 40;
-  const bat = 12.2 + Math.random() * 1.5;
-
-  const dtPayload = {
-    id: `DT01-861327085560006-${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z-${simDtSeq++}`,
+  const payload = {
+    id: `DT01-861327085560006-${isoCompact()}-${simDtSeq++}`,
     imei: "861327085560006",
-    src: "DT01",
-    type: "gps",
-    ev: 1,
+    src: "DT01", type: "gps", ev: 1,
     ts: new Date().toISOString(),
-    lat: lat,
-    lon: lon,
-    spd: speed,
+    lat, lon,
+    spd: 10 + Math.random() * 40,
     hdg: Math.floor(Math.random() * 360),
     alt: 45 + Math.floor(Math.random() * 10),
-    bat: bat,
+    bat: 12.2 + Math.random() * 1.5,
     odo: 10450 + simDtSeq * 2,
-    ign: 1,
-    in: 0,
-    out: 0,
-    hdop: 0.8,
-    temp: 41.0 + Math.random() * 3
+    ign: 1, in: 0, out: 0,
+    hdop: 0.8, temp: 41.0 + Math.random() * 3
   };
-
-  client.publish(DATA_TOPIC, JSON.stringify(dtPayload), { qos: 0 }, (err) => {
-    if (!err) {
-      console.log('Published mock DT01 data successfully.');
-    } else {
-      console.error('Publish mock DT01 error:', err);
-    }
-  });
+  client.publish(DATA_TOPIC, JSON.stringify(payload), { qos: 0 });
 });
 
 simExcaBtn.addEventListener('click', () => {
-  if (!client.connected) {
-    alert('Simulasi gagal: Web Dashboard tidak terhubung ke broker MQTT.');
-    return;
-  }
-
-  // Randomize location slightly around Kutai area
+  if (!client.connected) { alert('Dashboard belum terhubung ke broker MQTT.'); return; }
   const lat = -0.93 + (Math.random() - 0.5) * 0.03;
   const lon = 117.02 + (Math.random() - 0.5) * 0.03;
-  const speed = Math.random() * 5; // Excavators are slow
-  const bat = 24.1 + Math.random() * 1.8; // Excavator uses 24V system
-
-  const excaPayload = {
-    id: `EXCA01-861999085560111-${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z-${simExcaSeq++}`,
+  const payload = {
+    id: `EXCA01-861999085560111-${isoCompact()}-${simExcaSeq++}`,
     imei: "861999085560111",
-    src: "EXCA01",
-    type: "gps",
-    ev: 1,
+    src: "EXCA01", type: "gps", ev: 1,
     ts: new Date().toISOString(),
-    lat: lat,
-    lon: lon,
-    spd: speed,
+    lat, lon,
+    spd: Math.random() * 5,
     hdg: Math.floor(Math.random() * 360),
     alt: 50 + Math.floor(Math.random() * 10),
-    bat: bat,
+    bat: 24.1 + Math.random() * 1.8,
     odo: 2310 + simExcaSeq,
-    ign: 1,
-    in: 0,
-    out: 0,
-    hdop: 0.9,
-    temp: 45.0 + Math.random() * 4
+    ign: 1, in: 0, out: 0,
+    hdop: 0.9, temp: 45.0 + Math.random() * 4
   };
-
-  client.publish(DATA_TOPIC, JSON.stringify(excaPayload), { qos: 0 }, (err) => {
-    if (!err) {
-      console.log('Published mock EXCA01 data successfully.');
-    } else {
-      console.error('Publish mock EXCA01 error:', err);
-    }
-  });
+  client.publish(DATA_TOPIC, JSON.stringify(payload), { qos: 0 });
 });
+
+function isoCompact() {
+  return new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+}
