@@ -1,20 +1,20 @@
 #include <Arduino.h>
-#include <WiFi.h>
-#include <PubSubClient.h>
-#include <SPI.h>
-#include <SD.h>
 #include <ArduinoJson.h>
+#include <PubSubClient.h>
+#include <SD.h>
+#include <SPI.h>
+#include <WiFi.h>
 #include <esp_task_wdt.h>
 
 // ================= PIN =================
 #define GPS_RX 16
 #define GPS_TX 17
-#define SD_CS  5
+#define SD_CS 5
 
-#define LED_GPS    2    // 🔵 GPS DT logging
-#define LED_EXCA   4    // 🟢 EXCA transfer
-#define LED_MQTT  15    // 🔴 MQTT publish
-#define LED_REC   13    // 🟡 Recording state
+#define LED_GPS 2   // 🔵 GPS DT logging
+#define LED_EXCA 4  // 🟢 EXCA transfer
+#define LED_MQTT 15 // 🔴 MQTT publish
+#define LED_REC 13  // 🟡 Recording state
 
 // ================= WATCHDOG & MEMORY =================
 #define WDT_TIMEOUT_SEC  30       // Hardware watchdog: 30 detik
@@ -22,20 +22,20 @@
 
 // ================= ID DEVICE =================
 // GANTI INI SAJA UNTUK MULTIPLE DT
-const char* DT_ID = "DT01";
+const char *DT_ID = "DT01";
 
 // ================= UART =================
 #define GPS_BAUD 115200
 
 // ================= EXCA =================
-const char* EXCA_PASS = "12345678";
+const char *EXCA_PASS = "12345678";
 const uint16_t EXCA_PORT = 5000;
 IPAddress excaIP(192, 168, 4, 1);
 
 // ================= MQTT =================
-const char* MQTT_SERVER = "broker.hivemq.com";
+const char *MQTT_SERVER = "72.62.126.85";
 const uint16_t MQTT_PORT = 1883;
-const char* MQTT_DATA_TOPIC = "kutai/fleet/data";
+const char *MQTT_DATA_TOPIC = "kutai/fleet/data";
 
 // ACK topic dibentuk otomatis: kutai/fleet/ack/DT01
 
@@ -45,25 +45,23 @@ PubSubClient mqtt(espClient);
 // ================= INTERNET WIFI =================
 // ISI SESUAI WIFI INTERNET YANG BOLEH DIPAKAI DT
 struct WifiCredential {
-  const char* ssid;
-  const char* pass;
+  const char *ssid;
+  const char *pass;
 };
 
-WifiCredential wifiList[] = {
-  {"WIFI_KAMU", "PASSWORD_WIFI_KAMU"},
-  {"HOTSPOT_KAMU", "PASSWORD_HOTSPOT_KAMU"}
-};
+WifiCredential wifiList[] = {{"WIFI_KAMU", "PASSWORD_WIFI_KAMU"},
+                             {"HOTSPOT_KAMU", "PASSWORD_HOTSPOT_KAMU"}};
 
 const int wifiCount = sizeof(wifiList) / sizeof(wifiList[0]);
 
 // ================= FILE =================
-const char* DT_LOG_FILE       = "/dt_log.jsonl";
-const char* RELAY_LOG_FILE    = "/relay_log.jsonl";
+const char *DT_LOG_FILE = "/dt_log.jsonl";
+const char *RELAY_LOG_FILE = "/relay_log.jsonl";
 
-const char* DT_OFFSET_FILE    = "/dt_offset.txt";
-const char* RELAY_OFFSET_FILE = "/relay_offset.txt";
+const char *DT_OFFSET_FILE = "/dt_offset.txt";
+const char *RELAY_OFFSET_FILE = "/relay_offset.txt";
 
-const char* DT_SEQ_FILE       = "/dt_seq.txt";
+const char *DT_SEQ_FILE = "/dt_seq.txt";
 
 // ================= PARSER GPS DT =================
 #define BUF_SIZE 4096
@@ -77,18 +75,18 @@ unsigned long gpsStartJson = 0;
 uint32_t dtSeq = 0;
 bool excaTransferBusy = false;
 
-unsigned long lastExcaScan    = 0;
+unsigned long lastExcaScan = 0;
 unsigned long lastInternetTry = 0;
-unsigned long lastCompact     = 0;
-unsigned long lastHeartbeat   = 0;
+unsigned long lastCompact = 0;
+unsigned long lastHeartbeat = 0;
 
-const unsigned long EXCA_SCAN_INTERVAL = 10000;   // 10 detik
-const unsigned long INTERNET_INTERVAL  = 30000;   // 30 detik
-const unsigned long COMPACT_INTERVAL   = 120000;  // 2 menit
-const unsigned long HEARTBEAT_INTERVAL = 60000;   // 1 menit
+const unsigned long EXCA_SCAN_INTERVAL = 10000; // 10 detik
+const unsigned long INTERNET_INTERVAL = 30000;  // 30 detik
+const unsigned long COMPACT_INTERVAL = 120000;  // 2 menit
+const unsigned long HEARTBEAT_INTERVAL = 60000; // 1 menit
 
 // LED timers
-unsigned long ledGpsTimer  = 0;
+unsigned long ledGpsTimer = 0;
 unsigned long ledExcaTimer = 0;
 
 // ACK state
@@ -97,16 +95,16 @@ String lastAckMsgId = "";
 bool ackReceived = false;
 
 // Stats counter
-uint32_t statGpsLogged   = 0;
+uint32_t statGpsLogged = 0;
 uint32_t statExcaRelayed = 0;
-uint32_t statMqttSent    = 0;
-uint32_t statSkipped     = 0;
+uint32_t statMqttSent = 0;
+uint32_t statSkipped = 0;
 
 // ================= IGNITION STATE =================
 enum RecordState { REC_IDLE, REC_ACTIVE, REC_COOLDOWN };
 RecordState recordState = REC_IDLE;
 unsigned long ignOffTime = 0;
-const unsigned long IGN_COOLDOWN_MS = 180000;  // 3 menit
+const unsigned long IGN_COOLDOWN_MS = 180000; // 3 menit
 
 // LED REC blink
 unsigned long ledRecLastToggle = 0;
@@ -121,31 +119,35 @@ void logMsg(const String &msg) {
 }
 
 // ================= FILE UTIL =================
-uint32_t readUint(const char* path, uint32_t fallback = 0) {
+uint32_t readUint(const char *path, uint32_t fallback = 0) {
   File f = SD.open(path, FILE_READ);
-  if (!f) return fallback;
+  if (!f)
+    return fallback;
   String s = f.readString();
   f.close();
   s.trim();
-  if (s.length() == 0) return fallback;
+  if (s.length() == 0)
+    return fallback;
   return (uint32_t)s.toInt();
 }
 
-bool writeUint(const char* path, uint32_t val) {
+bool writeUint(const char *path, uint32_t val) {
   SD.remove(path);
   File f = SD.open(path, FILE_WRITE);
-  if (!f) return false;
+  if (!f)
+    return false;
   f.print(val);
   f.close();
   return true;
 }
 
-bool ensureUintFile(const char* path, uint32_t defaultVal) {
-  if (SD.exists(path)) return true;
+bool ensureUintFile(const char *path, uint32_t defaultVal) {
+  if (SD.exists(path))
+    return true;
   return writeUint(path, defaultVal);
 }
 
-bool appendLine(const char* path, const String &line) {
+bool appendLine(const char *path, const String &line) {
   File f = SD.open(path, FILE_APPEND);
   if (!f) {
     logMsg(String("❌ open fail: ") + path);
@@ -163,7 +165,7 @@ String makeDTUID(JsonDocument &doc) {
   writeUint(DT_SEQ_FILE, dtSeq);
 
   String imei = doc["imei"] | "0";
-  String ts   = doc["timestamp"] | "0";
+  String ts = doc["timestamp"] | "0";
 
   ts.replace("-", "");
   ts.replace(":", "");
@@ -180,19 +182,24 @@ bool initStorage() {
     return false;
   }
 
-  if (!ensureUintFile(DT_OFFSET_FILE, 0)) return false;
-  if (!ensureUintFile(RELAY_OFFSET_FILE, 0)) return false;
-  if (!ensureUintFile(DT_SEQ_FILE, 0)) return false;
+  if (!ensureUintFile(DT_OFFSET_FILE, 0))
+    return false;
+  if (!ensureUintFile(RELAY_OFFSET_FILE, 0))
+    return false;
+  if (!ensureUintFile(DT_SEQ_FILE, 0))
+    return false;
 
   dtSeq = readUint(DT_SEQ_FILE, 0);
 
   // Pastikan file log ada
   File f1 = SD.open(DT_LOG_FILE, FILE_APPEND);
-  if (!f1) return false;
+  if (!f1)
+    return false;
   f1.close();
 
   File f2 = SD.open(RELAY_LOG_FILE, FILE_APPEND);
-  if (!f2) return false;
+  if (!f2)
+    return false;
   f2.close();
 
   logMsg("✅ SD ready, seq=" + String(dtSeq));
@@ -200,18 +207,22 @@ bool initStorage() {
 }
 
 // ================= IGNITION FILTER =================
-const char* recStateStr(RecordState s) {
+const char *recStateStr(RecordState s) {
   switch (s) {
-    case REC_IDLE:     return "IDLE";
-    case REC_ACTIVE:   return "ACTIVE";
-    case REC_COOLDOWN: return "COOLDOWN";
-    default:           return "?";
+  case REC_IDLE:
+    return "IDLE";
+  case REC_ACTIVE:
+    return "ACTIVE";
+  case REC_COOLDOWN:
+    return "COOLDOWN";
+  default:
+    return "?";
   }
 }
 
 bool shouldRecord(JsonDocument &doc) {
   int eventCode = doc["event_code"] | 0;
-  int ignition  = doc["ignition"]  | -1;
+  int ignition = doc["ignition"] | -1;
 
   // Selalu catat event Ignition On/Off untuk audit trail
   if (eventCode == 2 || eventCode == 3) {
@@ -222,51 +233,52 @@ bool shouldRecord(JsonDocument &doc) {
       if (recordState == REC_ACTIVE) {
         recordState = REC_COOLDOWN;
         ignOffTime = millis();
-        logMsg("🔑 IGN OFF → COOLDOWN (" + String(IGN_COOLDOWN_MS / 1000) + "s)");
+        logMsg("🔑 IGN OFF → COOLDOWN (" + String(IGN_COOLDOWN_MS / 1000) +
+               "s)");
       }
     }
-    return true;  // selalu catat event ignition
+    return true; // selalu catat event ignition
   }
 
   // State machine berdasarkan field ignition
   switch (recordState) {
-    case REC_IDLE:
-      if (ignition == 1) {
-        recordState = REC_ACTIVE;
-        logMsg("⏺️ → ACTIVE");
-        return true;
-      }
-      return false;  // skip data saat idle
+  case REC_IDLE:
+    if (ignition == 1) {
+      recordState = REC_ACTIVE;
+      logMsg("⏺️ → ACTIVE");
+      return true;
+    }
+    return false; // skip data saat idle
 
-    case REC_ACTIVE:
-      if (ignition == 0) {
-        recordState = REC_COOLDOWN;
-        ignOffTime = millis();
-        logMsg("⏸️ → COOLDOWN");
-      }
-      return true;  // catat termasuk data pertama ignition=0
+  case REC_ACTIVE:
+    if (ignition == 0) {
+      recordState = REC_COOLDOWN;
+      ignOffTime = millis();
+      logMsg("⏸️ → COOLDOWN");
+    }
+    return true; // catat termasuk data pertama ignition=0
 
-    case REC_COOLDOWN:
-      if (ignition == 1) {
-        recordState = REC_ACTIVE;
-        logMsg("⏺️ → ACTIVE (dari cooldown)");
-        return true;
-      }
-      // Cek apakah cooldown sudah habis
-      if (millis() - ignOffTime >= IGN_COOLDOWN_MS) {
-        recordState = REC_IDLE;
-        logMsg("⏹️ → IDLE (cooldown selesai)");
-        return false;
-      }
-      return true;  // masih dalam cooldown, tetap catat
-
-    default:
+  case REC_COOLDOWN:
+    if (ignition == 1) {
+      recordState = REC_ACTIVE;
+      logMsg("⏺️ → ACTIVE (dari cooldown)");
+      return true;
+    }
+    // Cek apakah cooldown sudah habis
+    if (millis() - ignOffTime >= IGN_COOLDOWN_MS) {
+      recordState = REC_IDLE;
+      logMsg("⏹️ → IDLE (cooldown selesai)");
       return false;
+    }
+    return true; // masih dalam cooldown, tetap catat
+
+  default:
+    return false;
   }
 }
 
 // ================= GPS DT LOGGER =================
-bool processDTJson(const char* json, String &out) {
+bool processDTJson(const char *json, String &out) {
   StaticJsonDocument<1536> doc;
 
   static StaticJsonDocument<512> filter;
@@ -318,22 +330,22 @@ bool processDTJson(const char* json, String &out) {
   }
 
   StaticJsonDocument<1024> optDoc;
-  optDoc["id"]   = makeDTUID(doc);
+  optDoc["id"] = makeDTUID(doc);
   optDoc["imei"] = doc["imei"];
-  optDoc["src"]  = doc["source"];
+  optDoc["src"] = doc["source"];
   optDoc["type"] = doc["event_info"];
-  optDoc["ev"]   = doc["event_code"];
-  optDoc["ts"]   = doc["timestamp"];
-  optDoc["lat"]  = doc["latitude"];
-  optDoc["lon"]  = doc["longitude"];
-  optDoc["spd"]  = doc["speed"];
-  optDoc["hdg"]  = doc["heading"];
-  optDoc["alt"]  = doc["altitude"];
-  optDoc["bat"]  = doc["external"];
-  optDoc["odo"]  = doc["odometer"];
-  optDoc["ign"]  = doc["ignition"];
-  optDoc["in"]   = doc["input_status"];
-  optDoc["out"]  = doc["output_status"];
+  optDoc["ev"] = doc["event_code"];
+  optDoc["ts"] = doc["timestamp"];
+  optDoc["lat"] = doc["latitude"];
+  optDoc["lon"] = doc["longitude"];
+  optDoc["spd"] = doc["speed"];
+  optDoc["hdg"] = doc["heading"];
+  optDoc["alt"] = doc["altitude"];
+  optDoc["bat"] = doc["external"];
+  optDoc["odo"] = doc["odometer"];
+  optDoc["ign"] = doc["ignition"];
+  optDoc["in"] = doc["input_status"];
+  optDoc["out"] = doc["output_status"];
   optDoc["hdop"] = doc["hdop"];
   optDoc["temp"] = doc["mcu_temp"];
 
@@ -349,7 +361,7 @@ bool processDTJson(const char* json, String &out) {
     JsonArray ibeacon = doc["ibeacon"].as<JsonArray>();
     for (JsonObject beacon : ibeacon) {
       JsonObject b = be.createNestedObject();
-      b["mac"]  = beacon["mac"];
+      b["mac"] = beacon["mac"];
       b["rssi"] = beacon["rssi"];
     }
   }
@@ -395,8 +407,10 @@ void handleDTGps() {
       continue;
     }
 
-    if (c == '{') gpsBrace++;
-    if (c == '}') gpsBrace--;
+    if (c == '{')
+      gpsBrace++;
+    if (c == '}')
+      gpsBrace--;
 
     if (gpsBrace == 0) {
       gpsBuf[gpsBufLen] = '\0';
@@ -571,7 +585,7 @@ bool transferFromExca() {
   logMsg("📥 EXCA sync starting: " + String(totalToReceive) + " bytes");
 
   // Buka file penampung sementara
-  const char* tempPath = "/relay_temp.jsonl";
+  const char *tempPath = "/relay_temp.jsonl";
   SD.remove(tempPath);
   File tempFile = SD.open(tempPath, FILE_WRITE);
   if (!tempFile) {
@@ -585,10 +599,12 @@ bool transferFromExca() {
   unsigned long lastActivity = millis();
   bool success = true;
 
-  while (bytesReceived < totalToReceive && (client.connected() || client.available())) {
+  while (bytesReceived < totalToReceive &&
+         (client.connected() || client.available())) {
     esp_task_wdt_reset();
     if (client.available()) {
-      int toRead = min((uint32_t)sizeof(buffer), totalToReceive - bytesReceived);
+      int toRead =
+          min((uint32_t)sizeof(buffer), totalToReceive - bytesReceived);
       int bytesRead = client.read(buffer, toRead);
       if (bytesRead > 0) {
         tempFile.write(buffer, bytesRead);
@@ -611,7 +627,8 @@ bool transferFromExca() {
   tempFile.close();
 
   if (!success || bytesReceived != totalToReceive) {
-    logMsg("❌ Transfer incomplete. Got " + String(bytesReceived) + "/" + String(totalToReceive));
+    logMsg("❌ Transfer incomplete. Got " + String(bytesReceived) + "/" +
+           String(totalToReceive));
     SD.remove(tempPath);
     client.stop();
     return false;
@@ -650,8 +667,10 @@ bool transferFromExca() {
     success = false;
   }
 
-  if (temp) temp.close();
-  if (dest) dest.close();
+  if (temp)
+    temp.close();
+  if (dest)
+    dest.close();
   SD.remove(tempPath);
 
   if (success) {
@@ -691,9 +710,11 @@ bool connectKnownInternet() {
 
   WiFi.scanDelete();
 
-  if (bestIdx < 0) return false;
+  if (bestIdx < 0)
+    return false;
 
-  logMsg("🌐 Connecting: " + String(wifiList[bestIdx].ssid) + " RSSI:" + String(bestRSSI));
+  logMsg("🌐 Connecting: " + String(wifiList[bestIdx].ssid) +
+         " RSSI:" + String(bestRSSI));
   WiFi.begin(wifiList[bestIdx].ssid, wifiList[bestIdx].pass);
 
   unsigned long t0 = millis();
@@ -711,9 +732,10 @@ bool connectKnownInternet() {
   return true;
 }
 
-void mqttCallback(char* topic, byte* payload, unsigned int length) {
+void mqttCallback(char *topic, byte *payload, unsigned int length) {
   String topicStr = String(topic);
-  if (topicStr != ackTopic) return;
+  if (topicStr != ackTopic)
+    return;
 
   String msg;
   msg.reserve(length + 1);
@@ -727,7 +749,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     return;
   }
 
-  String msgId  = doc["id"] | doc["msg_id"] | "";
+  String msgId = doc["id"] | doc["msg_id"] | "";
   String status = doc["status"] | "";
 
   if (status == "ok" && msgId.length() > 0) {
@@ -741,11 +763,12 @@ bool connectMQTT() {
   ackTopic = String("kutai/fleet/ack/") + DT_ID;
 
   mqtt.setServer(MQTT_SERVER, MQTT_PORT);
-  mqtt.setBufferSize(1024);   // Default 256 terlalu kecil untuk JSON GPS
+  mqtt.setBufferSize(1024); // Default 256 terlalu kecil untuk JSON GPS
   mqtt.setCallback(mqttCallback);
   mqtt.setKeepAlive(30);
 
-  if (mqtt.connected()) return true;
+  if (mqtt.connected())
+    return true;
 
   // Client ID unik untuk mencegah collision antar DT
   String clientId = String(DT_ID) + "_" + String(millis() % 10000);
@@ -766,14 +789,15 @@ bool connectMQTT() {
   return true;
 }
 
-bool publishOneWithAck(const String &line, const String &msgId, int maxRetry = 3) {
+bool publishOneWithAck(const String &line, const String &msgId,
+                       int maxRetry = 3) {
   for (int attempt = 1; attempt <= maxRetry; attempt++) {
     ackReceived = false;
     lastAckMsgId = "";
 
     if (!mqtt.connected()) {
       if (!connectMQTT()) {
-        delay(500 * attempt);  // exponential backoff
+        delay(500 * attempt); // exponential backoff
         continue;
       }
     }
@@ -791,7 +815,7 @@ bool publishOneWithAck(const String &line, const String &msgId, int maxRetry = 3
     while (millis() - t0 < 5000) {
       esp_task_wdt_reset();
       mqtt.loop();
-      
+
       // Anti-blocking: tetap proses GPS saat nunggu ACK MQTT
       handleDTGps();
 
@@ -809,7 +833,7 @@ bool publishOneWithAck(const String &line, const String &msgId, int maxRetry = 3
   return false;
 }
 
-bool publishQueueFile(const char* logPath, const char* offsetPath) {
+bool publishQueueFile(const char *logPath, const char *offsetPath) {
   File f = SD.open(logPath, FILE_READ);
   if (!f) {
     logMsg(String("❌ open queue: ") + logPath);
@@ -821,7 +845,8 @@ bool publishQueueFile(const char* logPath, const char* offsetPath) {
   // Validasi offset tidak melebihi ukuran file
   uint32_t fileSize = f.size();
   if (offset > fileSize) {
-    logMsg("⚠️ offset(" + String(offset) + ") > fileSize(" + String(fileSize) + "), reset 0");
+    logMsg("⚠️ offset(" + String(offset) + ") > fileSize(" + String(fileSize) +
+           "), reset 0");
     offset = 0;
   }
 
@@ -834,7 +859,7 @@ bool publishQueueFile(const char* logPath, const char* offsetPath) {
   // Cek apakah ada data baru
   if (offset >= fileSize) {
     f.close();
-    return true;  // tidak ada data baru, bukan error
+    return true; // tidak ada data baru, bukan error
   }
 
   uint32_t currentPos = offset;
@@ -845,7 +870,8 @@ bool publishQueueFile(const char* logPath, const char* offsetPath) {
     line.trim();
     currentPos = (uint32_t)f.position();
 
-    if (line.length() == 0) continue;
+    if (line.length() == 0)
+      continue;
 
     StaticJsonDocument<1024> doc;
     if (deserializeJson(doc, line)) {
@@ -875,7 +901,8 @@ bool publishQueueFile(const char* logPath, const char* offsetPath) {
   }
 
   f.close();
-  logMsg("✅ Published " + String(logPath) + ": " + String(sentCount) + " lines");
+  logMsg("✅ Published " + String(logPath) + ": " + String(sentCount) +
+         " lines");
   return true;
 }
 
@@ -904,16 +931,19 @@ void tryInternetAndPublish() {
 }
 
 // ================= COMPACTION =================
-bool compactQueueFile(const char* logPath, const char* offsetPath, const char* tempPath) {
+bool compactQueueFile(const char *logPath, const char *offsetPath,
+                      const char *tempPath) {
   uint32_t offset = readUint(offsetPath, 0);
 
   // Hanya compact jika offset cukup besar (hemat write cycle SD)
-  if (offset < 4096) return true;
+  if (offset < 4096)
+    return true;
 
   logMsg("🧹 Compacting " + String(logPath) + " offset=" + String(offset));
 
   File src = SD.open(logPath, FILE_READ);
-  if (!src) return false;
+  if (!src)
+    return false;
 
   if (!src.seek(offset)) {
     src.close();
@@ -925,7 +955,8 @@ bool compactQueueFile(const char* logPath, const char* offsetPath, const char* t
     src.close();
     SD.remove(logPath);
     File empty = SD.open(logPath, FILE_WRITE);
-    if (empty) empty.close();
+    if (empty)
+      empty.close();
     writeUint(offsetPath, 0);
     logMsg("🧹 Cleared " + String(logPath));
     return true;
@@ -944,7 +975,8 @@ bool compactQueueFile(const char* logPath, const char* offsetPath, const char* t
     esp_task_wdt_reset();
     String line = src.readStringUntil('\n');
     line.trim();
-    if (line.length() == 0) continue;
+    if (line.length() == 0)
+      continue;
     dst.println(line);
     lineCount++;
   }
@@ -960,7 +992,8 @@ bool compactQueueFile(const char* logPath, const char* offsetPath, const char* t
   }
 
   writeUint(offsetPath, 0);
-  logMsg("🧹 Compacted " + String(logPath) + ": " + String(lineCount) + " lines kept");
+  logMsg("🧹 Compacted " + String(logPath) + ": " + String(lineCount) +
+         " lines kept");
   return true;
 }
 
@@ -970,23 +1003,23 @@ void updateLedRec() {
   unsigned long interval = 0;
 
   switch (recordState) {
-    case REC_IDLE:
-      // LED mati total
-      if (ledRecOn) {
-        digitalWrite(LED_REC, LOW);
-        ledRecOn = false;
-      }
-      return;
+  case REC_IDLE:
+    // LED mati total
+    if (ledRecOn) {
+      digitalWrite(LED_REC, LOW);
+      ledRecOn = false;
+    }
+    return;
 
-    case REC_ACTIVE:
-      // Blink lambat: 1s ON, 1s OFF
-      interval = 1000;
-      break;
+  case REC_ACTIVE:
+    // Blink lambat: 1s ON, 1s OFF
+    interval = 1000;
+    break;
 
-    case REC_COOLDOWN:
-      // Blink cepat: 200ms ON, 200ms OFF
-      interval = 200;
-      break;
+  case REC_COOLDOWN:
+    // Blink cepat: 200ms ON, 200ms OFF
+    interval = 200;
+    break;
   }
 
   if (now - ledRecLastToggle >= interval) {
@@ -998,11 +1031,9 @@ void updateLedRec() {
 
 // ================= HEARTBEAT =================
 void printHeartbeat() {
-  logMsg("💓 " + String(DT_ID) +
-         " | GPS:" + String(statGpsLogged) +
-         " | SKIP:" + String(statSkipped) +
-         " | EXCA:" + String(statExcaRelayed) +
-         " | MQTT:" + String(statMqttSent) +
+  logMsg("💓 " + String(DT_ID) + " | GPS:" + String(statGpsLogged) +
+         " | SKIP:" + String(statSkipped) + " | EXCA:" +
+         String(statExcaRelayed) + " | MQTT:" + String(statMqttSent) +
          " | state:" + String(recStateStr(recordState)) +
          " | heap:" + String(ESP.getFreeHeap()));
 }
@@ -1040,7 +1071,8 @@ void setup() {
   Serial2.setPins(GPS_RX, GPS_TX);
 
   delay(1500);
-  while (Serial2.available()) Serial2.read();
+  while (Serial2.available())
+    Serial2.read();
 
   // SD card init
   if (!initStorage()) {
@@ -1055,7 +1087,8 @@ void setup() {
   // Aktifkan watchdog untuk loop task setelah setup selesai
   esp_task_wdt_add(NULL);
 
-  logMsg("✅ " + String(DT_ID) + " READY | IGN cooldown=" + String(IGN_COOLDOWN_MS / 1000) + "s");
+  logMsg("✅ " + String(DT_ID) +
+         " READY | IGN cooldown=" + String(IGN_COOLDOWN_MS / 1000) + "s");
 }
 
 // ================= LOOP =================
@@ -1096,7 +1129,7 @@ void loop() {
       }
 
       WiFi.disconnect(true, true);
-      flushStaleGpsData();    // buang data GPS basi di serial buffer
+      flushStaleGpsData(); // buang data GPS basi di serial buffer
 
       digitalWrite(LED_EXCA, LOW);
       excaTransferBusy = false;
@@ -1108,7 +1141,7 @@ void loop() {
     lastInternetTry = now;
 
     tryInternetAndPublish();
-    flushStaleGpsData();      // buang data GPS basi di serial buffer
+    flushStaleGpsData(); // buang data GPS basi di serial buffer
   }
 
   // -------- 4. Compaction (interval-based) --------

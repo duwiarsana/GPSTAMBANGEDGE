@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kutai Fleet Edge - Live Dashboard</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Plus+Jakarta+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+  
+  <!-- Leaflet CSS for Map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  
+  <!-- Custom Styling -->
+  <link rel="stylesheet" href="style.css">
+  
+  <!-- FontAwesome for Premium Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+  <!-- Background Glowing Orbs -->
+  <div class="glow-orb orb-1"></div>
+  <div class="glow-orb orb-2"></div>
+
+  <div class="app-container">
+    <!-- Header -->
+    <header class="main-header">
+      <div class="brand">
+        <div class="logo-icon">
+          <i class="fa-solid fa-satellite-dish fa-spin-pulse"></i>
+        </div>
+        <div class="brand-text">
+          <h1>Kutai Fleet Edge</h1>
+          <p>Real-Time Mining Telemetry & Relay System</p>
+        </div>
+      </div>
+      
+      <!-- MQTT Status Control -->
+      <div class="status-panel">
+        <div class="connection-pill" id="conn-status">
+          <span class="pulse-dot red"></span>
+          <span class="status-text">Disconnected</span>
+        </div>
+        <div class="broker-info">
+          <i class="fa-solid fa-server"></i>
+          <span>72.62.126.85:9001 (WS)</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Grid Layout -->
+    <main class="dashboard-grid">
+      
+      <!-- Left Panel: Stats and Live Controls -->
+      <section class="control-panel card">
+        <h2 class="section-title"><i class="fa-solid fa-sliders"></i> Control & Status</h2>
+        
+        <!-- Live Counters -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon blue"><i class="fa-solid fa-truck"></i></div>
+            <div class="stat-val" id="count-dt">0</div>
+            <div class="stat-lbl">Dump Truck (DT)</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon orange"><i class="fa-solid fa-excavator"></i><i class="fa-solid fa-helmet-safety"></i></div>
+            <div class="stat-val" id="count-exca">0</div>
+            <div class="stat-lbl">Relayed EXCA</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon green"><i class="fa-solid fa-circle-check"></i></div>
+            <div class="stat-val" id="count-ack">0</div>
+            <div class="stat-lbl">Auto ACKs Sent</div>
+          </div>
+        </div>
+
+        <!-- Automation Control -->
+        <div class="setting-group">
+          <div class="setting-row">
+            <div class="setting-desc">
+              <h3><i class="fa-solid fa-robot"></i> Auto-ACK System</h3>
+              <p>Otomatis kirim ACK ke broker saat data baru diterima</p>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="auto-ack-toggle" checked>
+              <span class="slider round"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Simulator Tools -->
+        <div class="simulator-tools">
+          <h3><i class="fa-solid fa-vial"></i> Test Data Simulator</h3>
+          <p class="tool-desc">Kirim data buatan langsung ke broker untuk menguji respons sistem</p>
+          <div class="btn-group">
+            <button class="btn btn-blue" id="sim-dt-btn">
+              <i class="fa-solid fa-truck"></i> Sim DT01 Data
+            </button>
+            <button class="btn btn-orange" id="sim-exca-btn">
+              <i class="fa-solid fa-helmet-safety"></i> Sim EXCA01 Data
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Center Panel: Realtime Map -->
+      <section class="map-panel card">
+        <div class="map-header">
+          <h2 class="section-title"><i class="fa-solid fa-map-location-dot"></i> Live Fleet Location Map</h2>
+          <span class="map-desc">Menampilkan posisi real-time unit DT dan EXCA</span>
+        </div>
+        <div id="map"></div>
+      </section>
+
+      <!-- Bottom Panel: Live Log Stream -->
+      <section class="log-panel card">
+        <div class="panel-header-row">
+          <h2 class="section-title"><i class="fa-solid fa-list-check"></i> Live Data Stream</h2>
+          <button class="btn-clear" id="clear-log-btn"><i class="fa-solid fa-trash-can"></i> Clear</button>
+        </div>
+        <div class="log-container" id="log-stream">
+          <div class="empty-log-msg">Menunggu data masuk dari topik <code class="code-topic">kutai/fleet/data</code>...</div>
+        </div>
+      </section>
+
+      <!-- Right Panel: Telemetry Grid -->
+      <section class="telemetry-panel card">
+        <h2 class="section-title"><i class="fa-solid fa-chart-line"></i> Active Fleet Telemetry</h2>
+        <div class="table-wrapper">
+          <table class="telemetry-table">
+            <thead>
+              <tr>
+                <th>Device ID</th>
+                <th>Timestamp</th>
+                <th>Ignition</th>
+                <th>Speed</th>
+                <th>Bat (V)</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="telemetry-rows">
+              <tr class="empty-table-row">
+                <td colspan="6">Belum ada data masuk.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+      
+    </main>
+  </div>
+
+  <!-- Leaflet JS for Map -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <!-- MQTT.js library for WebSockets connection -->
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <!-- Custom Logic -->
+  <script src="app.js"></script>
+</body>
+</html>

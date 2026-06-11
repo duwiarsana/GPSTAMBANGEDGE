@@ -129,7 +129,7 @@ Sama seperti unit EXCA, DT juga memiliki fitur pencatatan cerdas untuk menghemat
 
 | Parameter | Nilai |
 |-----------|-------|
-| Server | `broker.hivemq.com` (ganti untuk produksi) |
+| Server | `72.62.126.85` |
 | Port | `1883` |
 | Publish Topic | `kutai/fleet/data` |
 | ACK Topic | `kutai/fleet/ack/{DT_ID}` |
@@ -320,7 +320,7 @@ WifiCredential wifiList[] = {
 ### MQTT Broker
 
 ```cpp
-const char* MQTT_SERVER = "broker.hivemq.com";  // Ganti untuk produksi
+const char* MQTT_SERVER = "72.62.126.85";
 const uint16_t MQTT_PORT = 1883;
 const char* MQTT_DATA_TOPIC = "kutai/fleet/data";
 ```
