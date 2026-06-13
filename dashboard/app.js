@@ -151,7 +151,16 @@ function updateStatus(isConnected) {
 // ===== Data Handler =====
 function handleIncomingData(data, rawJson) {
   const id = data.id || data.msg_id;
-  const src = data.src || data.source || 'UNKNOWN';
+  let src = data.src || data.source || 'UNKNOWN';
+  
+  // Fallback: extract source from ID if source is missing/unknown (e.g. DT01-...)
+  if (src === 'UNKNOWN' && id) {
+    const parts = id.split('-');
+    if (parts.length > 0 && parts[0].trim() !== '') {
+      src = parts[0];
+    }
+  }
+
   const timestamp = data.ts || data.timestamp || new Date().toISOString();
   const latitude = parseFloat(data.lat || data.latitude);
   const longitude = parseFloat(data.lon || data.longitude);

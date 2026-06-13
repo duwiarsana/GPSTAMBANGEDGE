@@ -332,7 +332,7 @@ bool processDTJson(const char *json, String &out) {
   StaticJsonDocument<1024> optDoc;
   optDoc["id"] = makeDTUID(doc);
   optDoc["imei"] = doc["imei"];
-  optDoc["src"] = doc["source"];
+  optDoc["src"] = DT_ID;
   optDoc["type"] = doc["event_info"];
   optDoc["ev"] = doc["event_code"];
   optDoc["ts"] = doc["timestamp"];
