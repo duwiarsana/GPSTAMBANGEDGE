@@ -46,12 +46,12 @@ GPS Tracker DT
 | `/dt_log.jsonl` | GPS DT sendiri | `handleDTGps()` |
 | `/relay_log.jsonl` | Data dari EXCA | `transferFromExca()` |
 
-Data GPS DT ditambahkan field:
-- `msg_id` — UID unik
-- `source` — ID device (misal: `DT01`)
-- `record_type` — `"dt"` untuk membedakan dengan data relay
+Data GPS DT ditambahkan/disesuaikan field:
+- `id` — UID unik (misal: `DT01-861327085560006-20260326T141225Z-55`)
+- `src` — ID device pengirim (yaitu `DT_ID`, misal: `DT01`)
+- `type` — Tipe event (misal: `"interval"`, `"ignition_on"`)
 
-Data EXCA disimpan **apa adanya** (sudah punya `msg_id` dan `source` dari EXCA).
+Data EXCA disimpan **apa adanya** (menggunakan format ringkas yang sudah memiliki `id` dan `src` dari EXCA).
 
 ---
 

@@ -74,3 +74,12 @@ Total ACKs received by simulator: 2
 * **Broker MQTT** di VPS berjalan dengan sangat baik dan menerima koneksi eksternal.
 * **Web Dashboard** sukses melakukan *subscribe* dan menerima pesan dari broker, serta menampilkan posisi DT01 & EXCA01 pada peta.
 * **Mekanisme Auto-ACK** berfungsi 100%, di mana simulator menerima konfirmasi `"status": "ok"` untuk kedua ID pesan di topik `kutai/fleet/ack/DT01`.
+
+---
+
+### 4. Perbaikan Klasifikasi Device & Redesain Dashboard (Terbaru)
+* **Redesain Dashboard**: Tampilan antarmuka dashboard ditingkatkan sepenuhnya menjadi bertema gelap (dark mode) yang bersih, minimalis, dan profesional. Menggunakan font Inter, layout sidebar, peta Leaflet.js yang terintegrasi rapi, tabel telemetri, log stream berwarna, serta indikator status koneksi yang dinamis.
+* **Perbaikan Bug Klasifikasi Perangkat**: Mengatasi masalah di mana data Dump Truck (DT) terhitung sebagai "Relayed EXCA" pada dashboard akibat field `"src"` bernilai `null`.
+  * **Sisi Firmware**: Mengubah `optDoc["src"] = doc["source"]` menjadi `optDoc["src"] = DT_ID` (di DT) dan `optDoc["src"] = EXCA_ID` (di EXCA) karena modul GPS asli tidak menyertakan field `"source"`.
+  * **Sisi Dashboard**: Menambahkan proteksi *fallback* di `app.js` yang akan mengekstrak ID perangkat dari awalan string ID pesan (misal `DT01-IMEI-...` akan dipotong menjadi `DT01`) jika field `"src"` kosong atau `"UNKNOWN"`.
+
