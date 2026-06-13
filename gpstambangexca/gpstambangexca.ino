@@ -22,6 +22,7 @@
 #define GPS_BAUD 115200
 
 // ================= WIFI =================
+const char* EXCA_ID = "EXCA01";
 const char* AP_SSID = "EXCA01_DATA";
 const char* AP_PASS = "12345678";
 WiFiServer server(5000);
@@ -93,7 +94,7 @@ String makeUID(JsonDocument &doc){
   ts.replace("-", "");
   ts.replace(":", "");
 
-  return "EXCA01-" + imei + "-" + ts + "-" + String(seq);
+  return String(EXCA_ID) + "-" + imei + "-" + ts + "-" + String(seq);
 }
 
 // ================= INIT =================
@@ -257,7 +258,7 @@ bool processJSON(const char* json, String &out){
   StaticJsonDocument<1024> optDoc;
   optDoc["id"]   = makeUID(doc);
   optDoc["imei"] = doc["imei"];
-  optDoc["src"]  = doc["source"];
+  optDoc["src"]  = EXCA_ID;
   optDoc["type"] = doc["event_info"];
   optDoc["ev"]   = doc["event_code"];
   optDoc["ts"]   = doc["timestamp"];
