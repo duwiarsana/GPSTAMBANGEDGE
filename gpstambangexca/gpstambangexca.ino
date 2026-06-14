@@ -116,7 +116,58 @@ void initSD(){
 }
 
 // ================= LOG =================
+const unsigned long MAX_LOG_FILE_SIZE = 104857600; // 100MB
+
 void appendLog(String line){
+  // Cek limit kapasitas 100MB
+  if (SD.exists(LOG_FILE)) {
+    File checkF = SD.open(LOG_FILE, FILE_READ);
+    if (checkF) {
+      unsigned long currentSize = checkF.size();
+      checkF.close();
+
+      if (currentSize >= MAX_LOG_FILE_SIZE) {
+        logMsg("⚠️ Limit reached (" + String(currentSize) + " bytes). FIFO discarding oldest logs...");
+        if (logFile) {
+          logFile.close(); // Tutup handler aktif sebelum modifikasi file
+        }
+
+        // FIFO discard: buang 20% baris tertua
+        File src = SD.open(LOG_FILE, FILE_READ);
+        if (src) {
+          unsigned long skipOffset = currentSize / 5;
+          src.seek(skipOffset);
+          while (src.available()) {
+            char c = src.read();
+            if (c == '\n') break;
+          }
+
+          SD.remove("/exca_tmp.jsonl");
+          File dst = SD.open("/exca_tmp.jsonl", FILE_WRITE);
+          if (dst) {
+            while (src.available()) {
+              String l = src.readStringUntil('\n');
+              l.trim();
+              if (l.length() > 0) {
+                dst.println(l);
+              }
+            }
+            dst.close();
+          }
+          src.close();
+
+          SD.remove(LOG_FILE);
+          if (!SD.rename("/exca_tmp.jsonl", LOG_FILE)) {
+            logMsg("❌ FIFO rename fail");
+          } else {
+            logMsg("🧹 FIFO discard completed on EXCA log");
+            // Reset offset file ke 0 karena index baris lama bergeser
+            writeUint(OFFSET_FILE, 0);
+          }
+        }
+      }
+    }
+  }
 
   if(!logFile){
     logFile = SD.open(LOG_FILE, FILE_APPEND);
