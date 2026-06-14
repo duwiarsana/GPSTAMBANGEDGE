@@ -83,3 +83,22 @@ Total ACKs received by simulator: 2
   * **Sisi Firmware**: Mengubah `optDoc["src"] = doc["source"]` menjadi `optDoc["src"] = DT_ID` (di DT) dan `optDoc["src"] = EXCA_ID` (di EXCA) karena modul GPS asli tidak menyertakan field `"source"`.
   * **Sisi Dashboard**: Menambahkan proteksi *fallback* di `app.js` yang akan mengekstrak ID perangkat dari awalan string ID pesan (misal `DT01-IMEI-...` akan dipotong menjadi `DT01`) jika field `"src"` kosong atau `"UNKNOWN"`.
 
+---
+
+### 5. Deployment Subscriber & Proteksi Dashboard (Terbaru)
+* **MQTT Ingest Subscriber**:
+  * **Lokasi VPS**: `/opt/kutai-subscriber/`
+  * **Status Layanan**: Systemd daemon `kutai-subscriber.service` (aktif berjalan, auto-restart).
+  * **Kredensial API Subscriber (Diberikan ke Backend)**:
+    * **Username**: `kutai_mqtt_subscriber`
+    * **Password**: `KutaiMqttSecureSub2026!`
+  * **Konfigurasi API**: File `/opt/kutai-subscriber/.env` berisi port MQTT broker lokal dan target URL API backend (sedang menunggu input URL).
+
+* **Dashboard Web Map VPS**:
+  * **Lokasi VPS**: `/var/www/naturelink-dashboard/`
+  * **URL Akses**: [http://72.62.126.85/](http://72.62.126.85/)
+  * **Keamanan**: Dilindungi menggunakan Nginx Basic Authentication (`.htpasswd`).
+  * **Kredensial Login Dashboard**:
+    * **Username**: `admin`
+    * **Password**: `kutai2026!`
+
