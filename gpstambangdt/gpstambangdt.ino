@@ -11,10 +11,10 @@
 #define GPS_TX 17
 #define SD_CS 5
 
-#define LED_GPS 2   // 🔵 GPS DT logging
-#define LED_EXCA 4  // 🟢 EXCA transfer
-#define LED_MQTT 15 // 🔴 MQTT publish
-#define LED_REC 13  // 🟡 Recording state
+#define LED_REC 13  // 🟡 Unified Status LED (hanya ada GPIO 13)
+#define LED_GPS 13  
+#define LED_EXCA 13 
+#define LED_MQTT 13 
 
 // ================= WATCHDOG & MEMORY =================
 #define WDT_TIMEOUT_SEC  30       // Hardware watchdog: 30 detik

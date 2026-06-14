@@ -10,9 +10,9 @@
 #define TXD2 17
 #define SD_CS 5
 
-#define LED_LOG 2        // 🔵 GPS + SD
-#define LED_TRANSFER 4   // 🔴 Transfer DT
-#define LED_REC 13       // 🟡 Recording state
+#define LED_REC 13       // 🟡 Unified Status LED (hanya ada GPIO 13)
+#define LED_LOG 13       
+#define LED_TRANSFER 13  
 
 // ================= WATCHDOG & MEMORY =================
 #define WDT_TIMEOUT_SEC  30       // Hardware watchdog: 30 detik
