@@ -147,64 +147,7 @@ bool ensureUintFile(const char *path, uint32_t defaultVal) {
   return writeUint(path, defaultVal);
 }
 
-// 100MB max limit
-const unsigned long MAX_LOG_FILE_SIZE = 104857600; 
-
 bool appendLine(const char *path, const String &line) {
-  // Cek apakah file melebihi 100MB
-  if (SD.exists(path)) {
-    File checkF = SD.open(path, FILE_READ);
-    if (checkF) {
-      unsigned long currentSize = checkF.size();
-      checkF.close();
-      
-      if (currentSize >= MAX_LOG_FILE_SIZE) {
-        logMsg("⚠️ Size limit reached (" + String(currentSize) + " bytes) on " + String(path) + ". Discarding oldest logs...");
-        
-        // FIFO discard: buang 20% baris tertua dari atas file
-        String tempPath = String(path) + ".tmp";
-        File src = SD.open(path, FILE_READ);
-        if (src) {
-          // Lewati sekitar 20% dari file (berdasarkan byte offset)
-          unsigned long skipOffset = currentSize / 5;
-          src.seek(skipOffset);
-          // Cari baris baru setelah skip agar file temp dimulai dengan baris utuh
-          while (src.available()) {
-            char c = src.read();
-            if (c == '\n') break;
-          }
-          
-          SD.remove(tempPath.c_str());
-          File dst = SD.open(tempPath.c_str(), FILE_WRITE);
-          if (dst) {
-            while (src.available()) {
-              String l = src.readStringUntil('\n');
-              l.trim();
-              if (l.length() > 0) {
-                dst.println(l);
-              }
-            }
-            dst.close();
-          }
-          src.close();
-          
-          SD.remove(path);
-          if (!SD.rename(tempPath.c_str(), path)) {
-            logMsg("❌ FIFO rename fail");
-          } else {
-            logMsg("🧹 FIFO discard completed on " + String(path));
-            // Reset offset file ke 0 karena index baris lama sudah bergeser
-            if (strcmp(path, DT_LOG_FILE) == 0) {
-              writeUint(DT_OFFSET_FILE, 0);
-            } else if (strcmp(path, RELAY_LOG_FILE) == 0) {
-              writeUint(RELAY_OFFSET_FILE, 0);
-            }
-          }
-        }
-      }
-    }
-  }
-
   File f = SD.open(path, FILE_APPEND);
   if (!f) {
     logMsg(String("❌ open fail: ") + path);
