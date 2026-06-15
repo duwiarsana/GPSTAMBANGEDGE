@@ -11,14 +11,14 @@
 #define GPS_TX 17
 #define SD_CS 5
 
-#define LED_REC 13  // 🟡 Unified Status LED (hanya ada GPIO 13)
-#define LED_GPS 13  
-#define LED_EXCA 13 
-#define LED_MQTT 13 
+#define LED_REC 13 // 🟡 Unified Status LED (hanya ada GPIO 13)
+#define LED_GPS 13
+#define LED_EXCA 13
+#define LED_MQTT 13
 
 // ================= WATCHDOG & MEMORY =================
-#define WDT_TIMEOUT_SEC  30       // Hardware watchdog: 30 detik
-#define HEAP_MIN_BYTES   20000    // Heap minimum: 20KB → restart
+#define WDT_TIMEOUT_SEC 30   // Hardware watchdog: 30 detik
+#define HEAP_MIN_BYTES 20000 // Heap minimum: 20KB → restart
 
 // ================= ID DEVICE =================
 // GANTI INI SAJA UNTUK MULTIPLE DT
@@ -49,8 +49,8 @@ struct WifiCredential {
   const char *pass;
 };
 
-WifiCredential wifiList[] = {{"WIFI_KAMU", "PASSWORD_WIFI_KAMU"},
-                             {"HOTSPOT_KAMU", "PASSWORD_HOTSPOT_KAMU"}};
+WifiCredential wifiList[] = {{"WIFI_GATEWAY_MINING_11", "46448951"},
+                             {"HOTSPOT_DT_KEAMANAN", "46448951"}};
 
 const int wifiCount = sizeof(wifiList) / sizeof(wifiList[0]);
 
@@ -1047,11 +1047,9 @@ void setup() {
   logMsg("MAC Address: " + WiFi.macAddress());
 
   // Hardware Watchdog Timer
-  esp_task_wdt_config_t wdt_config = {
-    .timeout_ms = WDT_TIMEOUT_SEC * 1000,
-    .idle_core_mask = 0,
-    .trigger_panic = true
-  };
+  esp_task_wdt_config_t wdt_config = {.timeout_ms = WDT_TIMEOUT_SEC * 1000,
+                                      .idle_core_mask = 0,
+                                      .trigger_panic = true};
   esp_task_wdt_reconfigure(&wdt_config);
   logMsg("🐕 Watchdog configured: " + String(WDT_TIMEOUT_SEC) + "s");
 
@@ -1160,7 +1158,8 @@ void loop() {
 
   // Heap Monitor
   if (ESP.getFreeHeap() < HEAP_MIN_BYTES) {
-    logMsg("❌ Heap kritis: " + String(ESP.getFreeHeap()) + " bytes, RESTARTING...");
+    logMsg("❌ Heap kritis: " + String(ESP.getFreeHeap()) +
+           " bytes, RESTARTING...");
     delay(1000);
     ESP.restart();
   }
