@@ -88,11 +88,15 @@ Total ACKs received by simulator: 2
 ### 5. Deployment Subscriber & Proteksi Dashboard (Terbaru)
 * **MQTT Ingest Subscriber**:
   * **Lokasi VPS**: `/opt/kutai-subscriber/`
-  * **Status Layanan**: Systemd daemon `kutai-subscriber.service` (aktif berjalan, auto-restart).
-  * **Kredensial API Subscriber (Diberikan ke Backend)**:
-    * **Username**: `kutai_mqtt_subscriber`
+  * **Status Layanan**: Systemd daemon `kutai-subscriber.service` (Aktif & Berjalan lancar, auto-restart).
+  * **Kredensial API Backend**:
+    * **URL Backend**: `http://34.101.245.159/v1/`
+    * **Username**: `MQTT`
     * **Password**: `KutaiMqttSecureSub2026!`
-  * **Konfigurasi API**: File `/opt/kutai-subscriber/.env` berisi port MQTT broker lokal dan target URL API backend (sedang menunggu input URL).
+  * **Status Integrasi & Alur ACK**: 
+    * Sukses terhubung ke backend API (Login berhasil dan token JWT diperoleh). 
+    * Layanan meneruskan telemetri dari broker MQTT lokal ke backend.
+    * **Mekanisme ACK**: Sesuai dengan spesifikasi API, **Backend Server** yang bertanggung jawab penuh mempublikasikan ACK kembali ke MQTT broker (pada topik `kutai/fleet/ack/{src}`) setelah data sukses disimpan (`202 Accepted`). Layanan subscriber lokal dibersihkan dari logika ACK duplikat.
 
 * **Dashboard Web Map VPS**:
   * **Lokasi VPS**: `/var/www/naturelink-dashboard/`
@@ -101,4 +105,18 @@ Total ACKs received by simulator: 2
   * **Kredensial Login Dashboard**:
     * **Username**: `admin`
     * **Password**: `kutai2026!`
+  * **Pembaruan Konfigurasi**: Fitur **Auto-ACK** pada dashboard web default-nya diatur menjadi **OFF (Unchecked)** agar dashboard berfungsi murni sebagai alat pemantau (*monitoring*), tanpa mencampuri proses ACK resmi dari backend.
 
+---
+
+### 6. Pembaruan Logger Firmware (Terbaru)
+Untuk mempermudah verifikasi identitas fisik perangkat di lapangan, firmware **EXCA** dan **DT** diperbarui untuk mencetak MAC Address hardware ESP32 ke port Serial pada saat pertama kali booting:
+* **Log Booting**:
+  ```text
+  [1000] === DT01 STARTING ===
+  [1001] MAC Address: AA:BB:CC:DD:EE:FF
+  ```
+* **Berkas yang Diperbarui**:
+  * [gpstambangdt.ino](file:///Users/duwiarsana/.gemini/antigravity/scratch/GPSTAMBANGEDGE/gpstambangdt/gpstambangdt.ino) (Arduino IDE)
+  * [main.cpp](file:///Users/duwiarsana/.gemini/antigravity/scratch/GPSTAMBANGEDGE/gpstambangdt_pio/src/main.cpp) (PlatformIO)
+  * [gpstambangexca.ino](file:///Users/duwiarsana/.gemini/antigravity/scratch/GPSTAMBANGEDGE/gpstambangexca/gpstambangexca.ino) (Arduino IDE)

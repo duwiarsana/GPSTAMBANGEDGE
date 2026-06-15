@@ -1,0 +1,8 @@
+# Secrets and local configurations
+subscriber/.env
+
+# Temporary and built archives
+dashboard.zip
+
+# OS files
+.DS_Store

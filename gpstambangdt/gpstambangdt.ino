@@ -1044,6 +1044,7 @@ void setup() {
   delay(1000);
 
   logMsg("=== " + String(DT_ID) + " STARTING ===");
+  logMsg("MAC Address: " + WiFi.macAddress());
 
   // Hardware Watchdog Timer
   esp_task_wdt_config_t wdt_config = {

@@ -27,7 +27,14 @@ except ValueError:
     MQTT_PORT = 1883
 MQTT_TOPIC = os.getenv("MQTT_TOPIC", "kutai/fleet/data")
 
-BACKEND_URL = os.getenv("BACKEND_URL", "").rstrip("/")
+raw_backend_url = os.getenv("BACKEND_URL", "").rstrip("/")
+if "/v1" in raw_backend_url:
+    base_v1 = raw_backend_url
+    BACKEND_URL = raw_backend_url.split("/v1")[0]
+else:
+    BACKEND_URL = raw_backend_url
+    base_v1 = f"{BACKEND_URL}/v1" if BACKEND_URL else ""
+
 BACKEND_USERNAME = os.getenv("BACKEND_USERNAME", "")
 BACKEND_PASSWORD = os.getenv("BACKEND_PASSWORD", "")
 
@@ -37,11 +44,11 @@ token_expires_at = 0
 
 def login_to_backend():
     global access_token, token_expires_at
-    if not BACKEND_URL or not BACKEND_USERNAME or not BACKEND_PASSWORD:
+    if not base_v1 or not BACKEND_USERNAME or not BACKEND_PASSWORD:
         logger.error("Configuration error: BACKEND_URL, BACKEND_USERNAME, or BACKEND_PASSWORD is empty.")
         return False
 
-    login_endpoint = f"{BACKEND_URL}/v1/auth/login"
+    login_endpoint = f"{base_v1}/auth/login"
     payload = {
         "username": BACKEND_USERNAME,
         "password": BACKEND_PASSWORD
@@ -79,7 +86,7 @@ def forward_telemetry(payload_dict):
         logger.error("Cannot forward telemetry: Authorization token is unavailable.")
         return False
 
-    ingest_endpoint = f"{BACKEND_URL}/v1/ingest/telemetry?source=MQTT"
+    ingest_endpoint = f"{base_v1}/ingest/telemetry?source=MQTT"
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json"
@@ -119,6 +126,7 @@ def on_message(client, userdata, msg):
         
         # Forward telemetry to backend
         forward_telemetry(data)
+                
     except json.JSONDecodeError:
         logger.error("❌ Failed to parse MQTT payload as JSON.")
     except Exception as e:

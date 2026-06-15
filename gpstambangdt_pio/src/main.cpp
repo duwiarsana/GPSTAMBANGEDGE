@@ -877,6 +877,7 @@ void setup() {
   delay(1000);
 
   logMsg("=== " + String(DT_ID) + " STARTING ===");
+  logMsg("MAC Address: " + WiFi.macAddress());
 
   // LED init
   pinMode(LED_GPS, OUTPUT);

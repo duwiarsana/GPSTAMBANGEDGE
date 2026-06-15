@@ -12,12 +12,18 @@ TMP_DIR=$(mktemp -d)
 cp subscriber/requirements.txt "$TMP_DIR/"
 cp subscriber/subscriber.py "$TMP_DIR/"
 cp subscriber/.env.example "$TMP_DIR/"
+if [ -f subscriber/.env ]; then
+  cp subscriber/.env "$TMP_DIR/"
+fi
 
 # Make sure remote directory exists
 ssh root@$VPS_IP "mkdir -p $REMOTE_DIR"
 
 # Rsync/scp code to VPS
-scp -r "$TMP_DIR"/* root@$VPS_IP:$REMOTE_DIR/
+scp "$TMP_DIR"/requirements.txt "$TMP_DIR"/subscriber.py "$TMP_DIR"/.env.example root@$VPS_IP:$REMOTE_DIR/
+if [ -f "$TMP_DIR"/.env ]; then
+  scp "$TMP_DIR"/.env root@$VPS_IP:$REMOTE_DIR/
+fi
 rm -rf "$TMP_DIR"
 
 echo "=== 2. Creating python virtual environment and installing dependencies on VPS ==="
@@ -33,9 +39,12 @@ ssh root@$VPS_IP bash << 'EOF'
   
   # Setup configuration file (.env) if not exists
   if [ ! -f .env ]; then
-    cp .env.example .env
-    echo "⚠️ .env file created in /opt/kutai-subscriber/.env"
-    echo "⚠️ Please edit this file to configure your BACKEND_URL, USERNAME, and PASSWORD."
+    if [ -f .env.example ]; then
+      cp .env.example .env
+      echo "⚠️ .env file created from example. Please edit it."
+    fi
+  else
+    echo "✅ Remote .env already exists or has been uploaded."
   fi
 EOF
 
