@@ -22,9 +22,11 @@
 </head>
 <body>
 
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
   <div class="app-shell">
     <!-- Sidebar -->
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
       <div class="sidebar-brand">
         <div class="brand-icon">
           <i class="fa-solid fa-satellite-dish"></i>
@@ -33,6 +35,9 @@
           <h1>Kutai Fleet</h1>
           <span class="brand-version">Edge Monitor v1.0</span>
         </div>
+        <button class="sidebar-close" id="sidebar-close-btn" aria-label="Close Menu">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
       </div>
 
       <nav class="sidebar-nav">
@@ -118,7 +123,12 @@
 
       <!-- Top Bar -->
       <header class="topbar">
-        <h2 class="page-title"><i class="fa-solid fa-chart-line"></i> Live Fleet Dashboard</h2>
+        <div class="topbar-left">
+          <button class="menu-toggle" id="menu-toggle-btn" aria-label="Toggle Menu">
+            <i class="fa-solid fa-bars"></i>
+          </button>
+          <h2 class="page-title"><i class="fa-solid fa-chart-line"></i> Live Fleet Dashboard</h2>
+        </div>
         <div class="topbar-right">
           <div class="clock" id="live-clock"></div>
         </div>

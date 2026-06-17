@@ -415,12 +415,12 @@ input:checked + .slider-track::before {
 }
 #map {
   flex: 1;
-  background: #0d1117;
+  background: #f4f4f5;
   min-height: 0;
 }
 
-/* Leaflet dark mode — CARTO dark tiles need NO inversion */
-.leaflet-container { background: #0d1117 !important; }
+/* Leaflet map styles */
+.leaflet-container { background: #f4f4f5 !important; }
 .leaflet-bar {
   border: 1px solid var(--border) !important;
   border-radius: 6px !important;
@@ -603,6 +603,73 @@ input:checked + .slider-track::before {
 }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
 
+/* ===== MOBILE DRAWER & CONTROLS ===== */
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.menu-toggle {
+  display: none;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  transition: all 0.2s;
+}
+
+.menu-toggle:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
+}
+
+.sidebar-close {
+  display: none;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 4px;
+  margin-left: auto;
+  border-radius: var(--radius-sm);
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.sidebar-close:hover {
+  background: var(--bg-hover);
+  color: #fff;
+}
+
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 999;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.sidebar-backdrop.active {
+  display: block;
+  opacity: 1;
+  pointer-events: auto;
+}
+
 /* ===== RESPONSIVE ===== */
 @media (max-width: 1200px) {
   .content-grid {
@@ -615,5 +682,68 @@ input:checked + .slider-track::before {
 }
 
 @media (max-width: 768px) {
-  .sidebar { display: none; }
+  body {
+    overflow: auto;
+    height: auto;
+  }
+
+  .app-shell {
+    height: auto;
+    min-height: 100vh;
+    flex-direction: column;
+  }
+
+  .menu-toggle {
+    display: flex;
+  }
+
+  .sidebar-close {
+    display: flex;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 20px 0 30px rgba(0, 0, 0, 0.5);
+  }
+
+  .sidebar.active {
+    transform: translateX(0);
+  }
+
+  .main-content {
+    overflow: visible;
+    height: auto;
+  }
+
+  .content-grid {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    overflow: visible;
+    gap: 16px;
+    padding: 16px;
+    background: var(--bg-app);
+  }
+
+  .panel {
+    height: auto;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+  }
+
+  #map {
+    height: 350px;
+    min-height: 350px;
+  }
+
+  .table-scroll, .log-scroll {
+    max-height: 350px;
+  }
 }
+

@@ -44,11 +44,10 @@ const map = L.map('map', {
   attributionControl: false,
 }).setView([-0.95, 117.0], 12);
 
-// CARTO Dark Matter tiles — already dark, no CSS filter needed
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-  attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-  subdomains: 'abcd',
-  maxZoom: 20
+// OpenStreetMap standard colorful tiles
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  maxZoom: 19
 }).addTo(map);
 
 // Custom Marker Icons
@@ -385,3 +384,26 @@ simExcaBtn.addEventListener('click', () => {
 function isoCompact() {
   return new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
 }
+
+// ===== Mobile Sidebar Toggle =====
+const menuToggleBtn = document.getElementById('menu-toggle-btn');
+const sidebarCloseBtn = document.getElementById('sidebar-close-btn');
+const sidebarEl = document.getElementById('sidebar');
+const backdropEl = document.getElementById('sidebar-backdrop');
+
+if (menuToggleBtn && sidebarCloseBtn && sidebarEl && backdropEl) {
+  function openSidebar() {
+    sidebarEl.classList.add('active');
+    backdropEl.classList.add('active');
+  }
+
+  function closeSidebar() {
+    sidebarEl.classList.remove('active');
+    backdropEl.classList.remove('active');
+  }
+
+  menuToggleBtn.addEventListener('click', openSidebar);
+  sidebarCloseBtn.addEventListener('click', closeSidebar);
+  backdropEl.addEventListener('click', closeSidebar);
+}
+
