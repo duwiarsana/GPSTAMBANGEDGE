@@ -254,10 +254,10 @@ def get_history():
 
 @app.route("/api/stats", methods=["GET"])
 def get_device_stats():
-    # Define expected devices
+    # Define expected devices matching database naming (e.g. DT01-DT08, DT010-DT016)
     expected_devices = []
     for i in range(1, 17):
-        expected_devices.append(f"DT{i:02d}")
+        expected_devices.append(f"DT0{i}")
     for i in range(1, 4):
         expected_devices.append(f"EXCA{i:02d}")
         
@@ -271,8 +271,17 @@ def get_device_stats():
         counts = {r[0]: (r[1], r[2]) for r in rows}
         
         stats = []
+        # First add expected devices
         for device in expected_devices:
-            val = counts.get(device, (0, None))
+            val = counts.pop(device, (0, None))
+            stats.append({
+                "src": device,
+                "count": val[0],
+                "last_ts": val[1]
+            })
+            
+        # Then add any other unexpected devices that have records in the database
+        for device, val in sorted(counts.items()):
             stats.append({
                 "src": device,
                 "count": val[0],
