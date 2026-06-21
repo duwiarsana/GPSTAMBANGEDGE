@@ -4,6 +4,8 @@ import json
 import logging
 import time
 import requests
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 import paho.mqtt.client as mqtt
 
@@ -42,6 +44,11 @@ BACKEND_PASSWORD = os.getenv("BACKEND_PASSWORD", "")
 access_token = None
 token_expires_at = 0
 
+# Thread pool, thread locks, and active DTs tracking
+executor = ThreadPoolExecutor(max_workers=10)
+token_lock = threading.Lock()
+active_dts = set(f"DT{i:02d}" for i in range(1, 21))
+
 def login_to_backend():
     global access_token, token_expires_at
     if not base_v1 or not BACKEND_USERNAME or not BACKEND_PASSWORD:
@@ -73,12 +80,13 @@ def login_to_backend():
 
 def get_auth_token():
     global access_token, token_expires_at
-    if not access_token or time.time() >= token_expires_at:
-        logger.info("Token expired or missing. Fetching new token...")
-        success = login_to_backend()
-        if not success:
-            return None
-    return access_token
+    with token_lock:
+        if not access_token or time.time() >= token_expires_at:
+            logger.info("Token expired or missing. Fetching new token...")
+            success = login_to_backend()
+            if not success:
+                return None
+        return access_token
 
 def forward_telemetry(payload_dict):
     token = get_auth_token()
@@ -100,7 +108,8 @@ def forward_telemetry(payload_dict):
         elif response.status_code in (401, 403):
             logger.warning("⚠️ Ingest returned unauthorized. Clearing token to force re-login on next message.")
             global access_token
-            access_token = None # Clear token
+            with token_lock:
+                access_token = None # Clear token
             return False
         else:
             logger.error(f"❌ Ingest failed. Status: {response.status_code}. Msg: {response.text}")
@@ -114,23 +123,53 @@ def on_connect(client, userdata, flags, rc, properties=None):
     if rc == 0:
         logger.info(f"✅ Connected to MQTT Broker ({MQTT_HOST}:{MQTT_PORT}) successfully.")
         client.subscribe(MQTT_TOPIC)
-        logger.info(f"Subscribed to topic: {MQTT_TOPIC}")
+        client.subscribe("kutai/fleet/ack/+")
+        logger.info(f"Subscribed to topics: {MQTT_TOPIC} and kutai/fleet/ack/+")
     else:
         logger.error(f"❌ Connection to MQTT Broker failed with code: {rc}")
+
+def handle_telemetry_message(client, data, payload_str):
+    try:
+        # Dynamically record active DTs
+        src = data.get("src") or data.get("source")
+        if src and str(src).upper().startswith("DT"):
+            active_dts.add(str(src))
+        
+        # Forward telemetry to backend
+        forward_telemetry(data)
+    except Exception as e:
+        logger.error(f"❌ Error in telemetry processing thread: {e}")
 
 def on_message(client, userdata, msg):
     try:
         payload_str = msg.payload.decode('utf-8')
-        logger.info(f"📥 Received MQTT message on {msg.topic}")
-        data = json.loads(payload_str)
         
-        # Forward telemetry to backend
-        forward_telemetry(data)
+        if msg.topic.startswith("kutai/fleet/ack/"):
+            # Handle ACK Mirroring
+            topic_parts = msg.topic.split('/')
+            src = topic_parts[-1]
+            
+            if src.upper().startswith("EXCA"):
+                data = json.loads(payload_str)
+                status = data.get("status")
+                msg_id = data.get("id") or data.get("msg_id")
+                
+                if status == "ok" and msg_id:
+                    logger.info(f"🔄 Mirroring EXCA ACK for {msg_id} (from {src}) to active DTs")
+                    for dt in list(active_dts):
+                        dt_topic = f"kutai/fleet/ack/{dt}"
+                        client.publish(dt_topic, msg.payload, qos=0)
+        else:
+            # Handle Telemetry Message
+            logger.info(f"📥 Received MQTT telemetry message on {msg.topic}")
+            data = json.loads(payload_str)
+            # Submit to thread pool for concurrent processing
+            executor.submit(handle_telemetry_message, client, data, payload_str)
                 
     except json.JSONDecodeError:
-        logger.error("❌ Failed to parse MQTT payload as JSON.")
+        logger.error(f"❌ Failed to parse MQTT payload as JSON on topic {msg.topic}")
     except Exception as e:
-        logger.error(f"❌ Error handling message: {e}")
+        logger.error(f"❌ Error in on_message: {e}")
 
 def main():
     logger.info("Starting Kutai Fleet MQTT to Backend Subscriber Service...")
