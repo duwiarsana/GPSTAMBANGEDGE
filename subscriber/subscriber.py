@@ -88,7 +88,7 @@ def get_auth_token():
                 return None
         return access_token
 
-def forward_telemetry(payload_dict):
+def forward_telemetry(client, payload_dict):
     token = get_auth_token()
     if not token:
         logger.error("Cannot forward telemetry: Authorization token is unavailable.")
@@ -104,6 +104,23 @@ def forward_telemetry(payload_dict):
         response = requests.post(ingest_endpoint, json=payload_dict, headers=headers, timeout=10)
         if response.status_code in (200, 202):
             logger.info(f"✅ Telemetry ingest successful for device src: {payload_dict.get('src')} [ID: {payload_dict.get('id')}]")
+            return True
+        elif response.status_code == 409:
+            msg_id = payload_dict.get('id') or payload_dict.get('msg_id')
+            src = payload_dict.get('src') or payload_dict.get('source')
+            logger.warning(f"⚠️ Telemetry duplicate (409 Conflict) for device src: {src} [ID: {msg_id}]. Sending ACK to unblock client.")
+            
+            if msg_id and src:
+                ack_payload = json.dumps({"id": msg_id, "status": "ok"})
+                # Send the ACK directly to the device's ACK topic
+                target_topic = f"kutai/fleet/ack/{src}"
+                client.publish(target_topic, ack_payload, qos=0)
+                
+                # Also mirror to active DTs if it's an EXCA device
+                if str(src).upper().startswith("EXCA"):
+                    for dt in list(active_dts):
+                        dt_topic = f"kutai/fleet/ack/{dt}"
+                        client.publish(dt_topic, ack_payload, qos=0)
             return True
         elif response.status_code in (401, 403):
             logger.warning("⚠️ Ingest returned unauthorized. Clearing token to force re-login on next message.")
@@ -136,7 +153,7 @@ def handle_telemetry_message(client, data, payload_str):
             active_dts.add(str(src))
         
         # Forward telemetry to backend
-        forward_telemetry(data)
+        forward_telemetry(client, data)
     except Exception as e:
         logger.error(f"❌ Error in telemetry processing thread: {e}")
 
