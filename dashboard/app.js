@@ -438,21 +438,23 @@ function updateTelemetryTableFromState() {
       ignHtml = '<span class="ign-state ign-off"><i class="fa-solid fa-circle-half-stroke"></i> Idle</span>';
     }
 
-    let time = r.timestamp;
-    if (r.timestamp.includes('T')) {
-      const parts = r.timestamp.split('T');
+    let time = r.timestamp || '—';
+    if (typeof time === 'string' && time.includes('T')) {
+      const parts = time.split('T');
       const datePart = parts[0].split('-').reverse().join('/');
       const timePart = parts[1].substring(0, 8);
       time = `${datePart} ${timePart}`;
     }
     const shortId = r.msgId ? r.msgId.split('-').pop() : '—';
+    const displaySpeed = (typeof r.speed === 'number' && !isNaN(r.speed)) ? r.speed.toFixed(1) : '0.0';
+    const displayBattery = (typeof r.battery === 'number' && !isNaN(r.battery)) ? r.battery.toFixed(1) : '0.0';
 
     html += `<tr data-device="${key}" style="cursor: pointer;">
       <td><span class="badge ${badge}">${key}</span></td>
       <td style="font-family:var(--mono); font-size:0.8rem;">${time}</td>
       <td>${ignHtml}</td>
-      <td><strong>${r.speed.toFixed(1)}</strong> <span style="color:var(--text-secondary)">km/h</span></td>
-      <td>${r.battery.toFixed(1)} <span style="color:var(--text-secondary)">V</span></td>
+      <td><strong>${displaySpeed}</strong> <span style="color:var(--text-secondary)">km/h</span></td>
+      <td>${displayBattery} <span style="color:var(--text-secondary)">V</span></td>
       <td style="font-family:var(--mono);color:var(--text-muted);font-size:0.7rem">${shortId}</td>
     </tr>`;
   });
