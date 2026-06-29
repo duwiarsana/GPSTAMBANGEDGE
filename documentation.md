@@ -120,3 +120,16 @@ Untuk mempermudah verifikasi identitas fisik perangkat di lapangan, firmware **E
   * [gpstambangdt.ino](file:///Users/duwiarsana/.gemini/antigravity/scratch/GPSTAMBANGEDGE/gpstambangdt/gpstambangdt.ino) (Arduino IDE)
   * [main.cpp](file:///Users/duwiarsana/.gemini/antigravity/scratch/GPSTAMBANGEDGE/gpstambangdt_pio/src/main.cpp) (PlatformIO)
   * [gpstambangexca.ino](file:///Users/duwiarsana/.gemini/antigravity/scratch/GPSTAMBANGEDGE/gpstambangexca/gpstambangexca.ino) (Arduino IDE)
+
+---
+
+### 7. Perbaikan Bug SD Card Concurrency & Penyambungan Data Corrupt (Terbaru)
+* **Penyebab Kerusakan Data (Non-JSON Warning)**:
+  * Pada ESP32, library SD Card menggunakan buffer sektor bersama. Memanggil operasi tulis `FILE_APPEND` (`handleGPS()`) secara bersamaan di sela-sela loop pengiriman data yang sedang membaca file `FILE_READ` menyebabkan cache FATFS rusak. Hal ini mengakibatkan data terpotong secara acak di tengah kalimat JSON (disisipi newline `\n` atau kehilangan beberapa byte).
+* **Pembersihan Firmware**:
+  * Menghapus pemanggilan `handleGPS()` dan `handleDTGps()` dari dalam loop transmisi TCP (`handleClient`) dan loop tunggu ACK MQTT (`waitAck` / `publishOneWithAck`) pada berkas [gpstambangexca.ino](file:///Users/duwiarsana/.gemini/antigravity/scratch/GPSTAMBANGEDGE/gpstambangexca/gpstambangexca.ino), [gpstambangexca_hybrid.ino](file:///Users/duwiarsana/.gemini/antigravity/scratch/GPSTAMBANGEDGE/gpstambangexca_hybrid/gpstambangexca_hybrid.ino), dan [gpstambangdt.ino](file:///Users/duwiarsana/.gemini/antigravity/scratch/GPSTAMBANGEDGE/gpstambangdt/gpstambangdt.ino).
+* **Penyelamatan Data di Sisi VPS & Dashboard (Robust Recovery)**:
+  * **Pemisahan Buffer per Unit**: Memisahkan memory buffer penyimpanan data pecah berdasarkan Device ID (`src`) agar paket dari unit yang berbeda tidak saling menindih di MQTT topic `kutai/fleet/data`.
+  * **Penyambungan Pintar (Robust Merge)**: Memperluas fungsi `tryMergeChunks` di `subscriber.py` dan `app.js` agar mampu menyambung data pecah baik yang bertumpuk (*overlap*), terbelah bersih (*clean split*), maupun yang kehilangan byte di tengah (memiliki *gap*, misal kata `"st":"logout"` terpotong menjadi `"s` dan `login"`) dengan menyisipkan kandidat jembatan karakter umum.
+  * **Pembersihan Newline/Carriage Return Mentah**: Melakukan pembersihan otomatis terhadap karakter `\r` dan `\n` yang terselip di dalam string JSON sebelum di-parse.
+  * **UI Safety Guard**: Membentengi fungsi rendering dashboard dari crash Javascript dengan menambahkan penanganan tipe data `null` / `NaN` pada field koordinat, kecepatan, dan baterai unit.
