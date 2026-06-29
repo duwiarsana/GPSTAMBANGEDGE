@@ -816,9 +816,6 @@ bool publishOneWithAck(const String &line, const String &msgId,
       esp_task_wdt_reset();
       mqtt.loop();
 
-      // Anti-blocking: tetap proses GPS saat nunggu ACK MQTT
-      handleDTGps();
-
       if (ackReceived && lastAckMsgId == msgId) {
         statMqttSent++;
         return true;
@@ -896,8 +893,7 @@ bool publishQueueFile(const char *logPath, const char *offsetPath) {
     writeUint(offsetPath, currentPos);
     sentCount++;
 
-    // Anti-blocking: tetap proses GPS tiap selesai publish 1 baris
-    handleDTGps();
+    delay(1);
   }
 
   f.close();

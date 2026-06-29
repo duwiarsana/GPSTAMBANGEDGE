@@ -382,8 +382,6 @@ bool waitAck(WiFiClient &c, String expect){
     esp_task_wdt_reset();
     if(!c.connected() || millis()-t>3000) return false;
     
-    // Anti-blocking: tetap proses GPS saat menunggu response WiFi
-    handleGPS();
     delay(1);
   }
 
@@ -472,8 +470,7 @@ void handleClient(WiFiClient c) {
       }
       bytesSent += bytesRead;
     }
-    // Anti-blocking: tetap proses GPS
-    handleGPS();
+    delay(1);
   }
 
   f.close();

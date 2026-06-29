@@ -210,13 +210,78 @@ client.on('error', (err) => {
   updateStatus(false);
 });
 
+const partialBuffers = {};
+
+function tryMergeChunks(s1, s2) {
+  // 1. Try overlap matching
+  const maxLen = Math.min(s1.length, s2.length);
+  for (let k = maxLen; k > 0; k--) {
+    const prefix = s2.substring(0, k);
+    if (s1.endsWith(prefix)) {
+      const merged = s1 + s2.substring(k);
+      try {
+        JSON.parse(merged);
+        return merged;
+      } catch (e) {}
+    }
+  }
+
+  // 2. Try candidate bridges (direct concatenation and common gap fillers)
+  const candidates = ["", "t\":\"", "\":\"", "st\":\"", "\":", ",", "\":{", "\":[\"", "t\":"];
+  for (const bridge of candidates) {
+    const merged = s1 + bridge + s2;
+    try {
+      JSON.parse(merged);
+      return merged;
+    } catch (e) {}
+  }
+  return null;
+}
+
 client.on('message', (topic, message) => {
-  const rawPayload = message.toString();
+  const rawPayload = message.toString().replace(/\r/g, '').replace(/\n/g, '').trim();
   try {
     const data = JSON.parse(rawPayload);
+    const src = data.src || data.source;
+    if (src) {
+      delete partialBuffers[src];
+    }
     handleIncomingData(data, rawPayload);
   } catch (e) {
-    addLogSystem(`Non-JSON message on <code>${topic}</code>: ${rawPayload}`, 'warn');
+    let recovered = false;
+    if (rawPayload.startsWith('{')) {
+      const match = rawPayload.match(/"src"\s*:\s*"([^"]+)"/);
+      const srcKey = match ? match[1] : 'unknown';
+      
+      // If we already had a pending partial buffer for this device, it means it was orphaned
+      const orphaned = partialBuffers[srcKey];
+      if (orphaned) {
+        addLogSystem(`Non-JSON message on <code>${topic}</code> (Orphaned): ${orphaned}`, 'warn');
+      }
+      
+      partialBuffers[srcKey] = rawPayload;
+      recovered = true; // Avoid warning for this chunk yet
+    } else {
+      for (const srcKey in partialBuffers) {
+        const pending = partialBuffers[srcKey];
+        const merged = tryMergeChunks(pending, rawPayload);
+        if (merged) {
+          try {
+            const data = JSON.parse(merged);
+            delete partialBuffers[srcKey];
+            handleIncomingData(data, merged);
+            recovered = true;
+            break;
+          } catch (err) {
+            // Still not valid JSON
+          }
+        }
+      }
+    }
+
+    if (!recovered) {
+      addLogSystem(`Non-JSON message on <code>${topic}</code>: ${rawPayload}`, 'warn');
+    }
   }
 });
 
@@ -280,9 +345,6 @@ function handleIncomingData(data, rawJson) {
   // Map marker (only update if not currently focused on history route)
   if (!isNaN(latitude) && !isNaN(longitude)) {
     updateMapMarker(src, isDT, latitude, longitude, speed, timestamp);
-    if (!historyPolyline) {
-      map.panTo([latitude, longitude]);
-    }
   }
 
   // Telemetry state update & render
@@ -385,7 +447,7 @@ function updateTelemetryTableFromState() {
     }
     const shortId = r.msgId ? r.msgId.split('-').pop() : '—';
 
-    html += `<tr>
+    html += `<tr data-device="${key}" style="cursor: pointer;">
       <td><span class="badge ${badge}">${key}</span></td>
       <td style="font-family:var(--mono); font-size:0.8rem;">${time}</td>
       <td>${ignHtml}</td>
@@ -396,6 +458,18 @@ function updateTelemetryTableFromState() {
   });
 
   telemetryRowsEl.innerHTML = html;
+
+  // Add click listeners to rows to center map on the device
+  telemetryRowsEl.querySelectorAll('tr[data-device]').forEach(row => {
+    row.addEventListener('click', () => {
+      const devId = row.getAttribute('data-device');
+      const marker = fleetMarkers[devId];
+      if (marker) {
+        map.panTo(marker.getLatLng());
+        marker.openPopup();
+      }
+    });
+  });
 }
 
 // ===== Log Utilities =====

@@ -157,9 +157,41 @@ def handle_telemetry_message(client, data, payload_str):
     except Exception as e:
         logger.error(f"❌ Error in telemetry processing thread: {e}")
 
+# Buffer for fragmented/corrupted JSON payloads
+partial_buffers = {}
+
+def try_merge_chunks(s1, s2):
+    """
+    Tries to merge two chunks where a suffix of s1 overlaps with a prefix of s2,
+    or joins them using candidate bridges to fix gaps.
+    """
+    # 1. Try overlap matching
+    max_len = min(len(s1), len(s2))
+    for k in range(max_len, 0, -1):
+        prefix = s2[:k]
+        if s1.endswith(prefix):
+            merged = s1 + s2[k:]
+            try:
+                json.loads(merged)
+                return merged
+            except ValueError:
+                pass
+
+    # 2. Try candidate bridges (direct concatenation and common gap fillers)
+    candidates = ["", "t\":\"", "\":\"", "st\":\"", "\":", ",", "\":{", "\":[\"", "t\":"]
+    for bridge in candidates:
+        merged = s1 + bridge + s2
+        try:
+            json.loads(merged)
+            return merged
+        except ValueError:
+            pass
+
+    return None
+
 def on_message(client, userdata, msg):
     try:
-        payload_str = msg.payload.decode('utf-8')
+        payload_str = msg.payload.decode('utf-8').replace('\r', '').replace('\n', '').strip()
         
         if msg.topic.startswith("kutai/fleet/ack/"):
             # Handle ACK Mirroring
@@ -179,12 +211,42 @@ def on_message(client, userdata, msg):
         else:
             # Handle Telemetry Message
             logger.info(f"📥 Received MQTT telemetry message on {msg.topic}")
-            data = json.loads(payload_str)
-            # Submit to thread pool for concurrent processing
-            executor.submit(handle_telemetry_message, client, data, payload_str)
+            
+            # Try parsing directly
+            try:
+                data = json.loads(payload_str)
+                # Parse success: remove any existing partial buffer for this device if present
+                src = data.get("src") or data.get("source")
+                if src:
+                    partial_buffers.pop(src, None)
+                executor.submit(handle_telemetry_message, client, data, payload_str)
+            except json.JSONDecodeError:
+                # Failed to parse. Try to reconstruct if it is a fragmented message
+                recovered = False
+                if payload_str.startswith("{"):
+                    import re
+                    match = re.search(r'"src"\s*:\s*"([^"]+)"', payload_str)
+                    src_key = match.group(1) if match else "unknown"
+                    partial_buffers[src_key] = payload_str
+                    logger.warning(f"⚠️ Received partial JSON start for {src_key}. Buffered.")
+                else:
+                    # Attempt to merge with any pending first-halves from all buffered devices
+                    for src_key, pending in list(partial_buffers.items()):
+                        merged = try_merge_chunks(pending, payload_str)
+                        if merged:
+                            try:
+                                data = json.loads(merged)
+                                partial_buffers.pop(src_key, None)
+                                logger.info(f"❇️ Successfully recovered and merged fragmented JSON for {src_key}!")
+                                executor.submit(handle_telemetry_message, client, data, merged)
+                                recovered = True
+                                break
+                            except json.JSONDecodeError:
+                                pass
                 
-    except json.JSONDecodeError:
-        logger.error(f"❌ Failed to parse MQTT payload as JSON on topic {msg.topic}")
+                if not recovered:
+                    logger.error(f"❌ Failed to parse MQTT payload as JSON on topic {msg.topic}: {payload_str}")
+                
     except Exception as e:
         logger.error(f"❌ Error in on_message: {e}")
 
