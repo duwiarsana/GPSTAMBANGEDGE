@@ -95,6 +95,19 @@
             <div class="info-row"><span>Pts:</span> <strong id="hist-pts-val">-</strong></div>
             <div class="info-row"><span>Avg Spd:</span> <strong id="hist-spd-val">-</strong></div>
           </div>
+          
+          <!-- Timeline Slider -->
+          <div class="timeline-slider-wrap" style="margin-top: 12px; margin-bottom: 8px; background: rgba(255,255,255,0.03); padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
+            <div class="info-row" style="margin-bottom: 6px; font-size: 0.75rem; justify-content: space-between;">
+              <span>Waktu:</span> <strong id="timeline-time-val" style="color: var(--blue);">—</strong>
+            </div>
+            <input type="range" id="history-timeline-slider" min="0" max="0" value="0" style="width: 100%; accent-color: var(--blue); cursor: pointer; height: 6px; border-radius: 3px; outline: none; background: rgba(255,255,255,0.1);">
+            <div class="info-row" style="font-size: 0.65rem; color: var(--text-muted); justify-content: space-between; margin-top: 4px;">
+              <span id="timeline-start-index">1</span>
+              <span id="timeline-current-index">Point — / —</span>
+            </div>
+          </div>
+
           <button class="btn btn-outline btn-play mt-2" id="play-history-btn">
             <i class="fa-solid fa-play"></i> Play Replay
           </button>

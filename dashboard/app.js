@@ -48,6 +48,9 @@ const liveBadge = document.getElementById('live-badge');
 
 const playbackControls = document.getElementById('history-playback-wrap');
 const playHistoryBtn = document.getElementById('play-history-btn');
+const timelineSlider = document.getElementById('history-timeline-slider');
+const timelineTimeVal = document.getElementById('timeline-time-val');
+const timelineCurrentIndex = document.getElementById('timeline-current-index');
 
 // ===== Live Clock =====
 function updateClock() {
@@ -725,6 +728,26 @@ function resetPlayback() {
   playHistoryBtn.className = 'btn btn-outline';
   playHistoryBtn.style.borderColor = 'var(--blue)';
   playHistoryBtn.style.color = 'var(--blue)';
+
+  // Reset timeline slider to initial state
+  if (timelineSlider) {
+    timelineSlider.min = 0;
+    timelineSlider.max = historicalDataList.length > 0 ? historicalDataList.length - 1 : 0;
+    timelineSlider.value = 0;
+  }
+  if (timelineCurrentIndex) {
+    timelineCurrentIndex.textContent = historicalDataList.length > 0 
+      ? `Point 1 / ${historicalDataList.length}` 
+      : 'Point — / —';
+  }
+  if (timelineTimeVal) {
+    if (historicalDataList.length > 0 && historicalDataList[0]) {
+      const ts = historicalDataList[0].ts;
+      timelineTimeVal.textContent = ts.includes('T') ? ts.replace('T', ' ').substring(0, 19) : ts;
+    } else {
+      timelineTimeVal.textContent = '—';
+    }
+  }
 }
 
 playHistoryBtn.addEventListener('click', () => {
@@ -738,6 +761,11 @@ playHistoryBtn.addEventListener('click', () => {
     clearInterval(playbackInterval);
     playHistoryBtn.innerHTML = '<i class="fa-solid fa-play"></i> Play Replay';
   } else {
+    // If we were at the end, restart from 0
+    if (playbackIndex >= historicalDataList.length - 1) {
+      playbackIndex = 0;
+    }
+
     playbackActive = true;
     playHistoryBtn.innerHTML = '<i class="fa-solid fa-pause"></i> Pause Replay';
 
@@ -776,10 +804,82 @@ playHistoryBtn.addEventListener('click', () => {
       `).openPopup();
 
       map.panTo([item.lat, item.lon]);
+
+      // Update Timeline Slider and labels
+      if (timelineSlider) {
+        timelineSlider.value = playbackIndex;
+      }
+      if (timelineCurrentIndex) {
+        timelineCurrentIndex.textContent = `Point ${playbackIndex + 1} / ${historicalDataList.length}`;
+      }
+      if (timelineTimeVal) {
+        timelineTimeVal.textContent = item.ts.includes('T') ? item.ts.replace('T', ' ').substring(0, 19) : item.ts;
+      }
+
       playbackIndex++;
     }, 400);
   }
 });
+
+function renderReplayPoint(index) {
+  if (historicalDataList.length === 0 || index < 0 || index >= historicalDataList.length) return;
+
+  const src = historyDeviceSelect.value;
+  const item = historicalDataList[index];
+
+  const replayIcon = L.divIcon({
+    className: 'map-marker-replay',
+    html: `<div class="marker-dot" style="background:#8b5cf6;box-shadow:0 0 14px #8b5cf6;border:3px solid #fff;"><i class="fa-solid fa-play"></i></div>`,
+    iconSize: [36, 36],
+    iconAnchor: [18, 18]
+  });
+
+  if (!playbackMarker) {
+    playbackMarker = L.marker([item.lat, item.lon], { icon: replayIcon }).addTo(map);
+  } else {
+    playbackMarker.setLatLng([item.lat, item.lon]);
+  }
+
+  const displayTime = item.ts.includes('T') ? item.ts.split('T')[1].substring(0, 8) : item.ts;
+
+  playbackMarker.bindPopup(`
+    <div style="font-family:'Outfit',sans-serif;color:#0f172a;font-size:12px;line-height:1.6;min-width:140px">
+      <strong style="font-size:13px;color:#8b5cf6;display:block;margin-bottom:4px">Replay: ${src}</strong>
+      <b>Speed:</b> ${item.spd.toFixed(1)} km/h<br>
+      <b>Battery:</b> ${item.bat.toFixed(1)} V<br>
+      <b>Time:</b> ${displayTime}<br>
+      <span style="color:#64748b;font-size:10px;display:block;margin-top:6px">Point ${index + 1} of ${historicalDataList.length}</span>
+    </div>
+  `).openPopup();
+
+  map.panTo([item.lat, item.lon]);
+
+  if (timelineCurrentIndex) {
+    timelineCurrentIndex.textContent = `Point ${index + 1} / ${historicalDataList.length}`;
+  }
+  if (timelineTimeVal) {
+    timelineTimeVal.textContent = item.ts.includes('T') ? item.ts.replace('T', ' ').substring(0, 19) : item.ts;
+  }
+}
+
+// Bind slider input events
+if (timelineSlider) {
+  timelineSlider.addEventListener('input', () => {
+    // Pause playback if actively playing
+    if (playbackActive) {
+      playbackActive = false;
+      if (playbackInterval) {
+        clearInterval(playbackInterval);
+        playbackInterval = null;
+      }
+      playHistoryBtn.innerHTML = '<i class="fa-solid fa-play"></i> Play Replay';
+    }
+
+    const idx = parseInt(timelineSlider.value);
+    playbackIndex = idx;
+    renderReplayPoint(idx);
+  });
+}
 
 
 
