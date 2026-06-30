@@ -862,8 +862,12 @@ function renderReplayPoint(index) {
   }
 }
 
-// Bind slider input events
+// Bind slider input events and prevent Leaflet from hijacking drag/mouse events
 if (timelineSlider) {
+  L.DomEvent.disableClickPropagation(timelineSlider);
+  L.DomEvent.disableScrollPropagation(timelineSlider);
+  L.DomEvent.on(timelineSlider, 'mousedown touchstart', L.DomEvent.stopPropagation);
+
   timelineSlider.addEventListener('input', () => {
     // Pause playback if actively playing
     if (playbackActive) {
