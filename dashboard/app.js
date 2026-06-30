@@ -803,7 +803,7 @@ playHistoryBtn.addEventListener('click', () => {
         </div>
       `).openPopup();
 
-      map.panTo([item.lat, item.lon]);
+
 
       // Update Timeline Slider and labels
       if (timelineSlider) {
@@ -852,7 +852,7 @@ function renderReplayPoint(index) {
     </div>
   `).openPopup();
 
-  map.panTo([item.lat, item.lon]);
+
 
   if (timelineCurrentIndex) {
     timelineCurrentIndex.textContent = `Point ${index + 1} / ${historicalDataList.length}`;
