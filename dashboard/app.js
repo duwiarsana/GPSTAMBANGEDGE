@@ -408,6 +408,17 @@ function updateMapMarker(src, isDT, lat, lon, speed, timestamp) {
   } else {
     const marker = L.marker([lat, lon], { icon: isDT ? dtIcon : excaIcon }).addTo(map);
     marker.bindPopup(popupHTML(src, lat, lon, speed, timestamp));
+    
+    // Auto-load history route and play controls on click
+    marker.on('click', () => {
+      if (historyDeviceSelect) {
+        historyDeviceSelect.value = src;
+        if (loadHistoryBtn) {
+          loadHistoryBtn.click();
+        }
+      }
+    });
+    
     fleetMarkers[src] = marker;
   }
 }
