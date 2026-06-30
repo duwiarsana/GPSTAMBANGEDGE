@@ -153,7 +153,9 @@ def get_devices():
         cursor.execute("""
             SELECT t.* FROM telemetry t
             INNER JOIN (
-                SELECT src, MAX(ts) as max_ts FROM telemetry GROUP BY src
+                SELECT src, MAX(ts) as max_ts FROM telemetry 
+                WHERE lat IS NOT NULL AND lat != 0 AND lon IS NOT NULL AND lon != 0 AND ts LIKE '%T%'
+                GROUP BY src
             ) tm ON t.src = tm.src AND t.ts = tm.max_ts
         """)
         rows = cursor.fetchall()

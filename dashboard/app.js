@@ -311,9 +311,16 @@ function handleIncomingData(data, rawJson) {
     }
   }
 
-  const timestamp = data.ts || data.timestamp || new Date().toISOString();
+  const timestamp = data.ts || data.timestamp;
   const latitude = parseFloat(data.lat || data.latitude);
   const longitude = parseFloat(data.lon || data.longitude);
+
+  // Validation guard: reject messages with missing/zero coordinates or invalid timestamp format
+  if (isNaN(latitude) || isNaN(longitude) || latitude === 0 || longitude === 0 || !timestamp || typeof timestamp !== 'string' || !timestamp.includes('T')) {
+    console.warn(`Ignoring invalid/incomplete telemetry data for ${src}`);
+    return;
+  }
+
   const speed = parseFloat(data.spd || data.speed || 0);
   const battery = parseFloat(data.bat || data.external || 0);
   const ignition = data.ign !== undefined ? data.ign : (data.ignition !== undefined ? data.ignition : -1);
