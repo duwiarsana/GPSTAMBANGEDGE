@@ -79,6 +79,14 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 // Add history group to map
 historyMarkersGroup.addTo(map);
 
+// Clear track history when clicking on empty map space
+map.on('click', () => {
+  clearHistoryTrack();
+  if (historyDeviceSelect) {
+    historyDeviceSelect.value = "";
+  }
+});
+
 // Custom Marker Icons
 const dtIcon = L.divIcon({
   className: 'map-marker-dt',
@@ -410,7 +418,12 @@ function updateMapMarker(src, isDT, lat, lon, speed, timestamp) {
     marker.bindPopup(popupHTML(src, lat, lon, speed, timestamp));
     
     // Auto-load history route and play controls on click
-    marker.on('click', () => {
+    marker.on('click', (e) => {
+      if (e && e.originalEvent) {
+        e.originalEvent.stopPropagation();
+      }
+      L.DomEvent.stopPropagation(e);
+      
       if (historyDeviceSelect) {
         historyDeviceSelect.value = src;
         if (loadHistoryBtn) {
