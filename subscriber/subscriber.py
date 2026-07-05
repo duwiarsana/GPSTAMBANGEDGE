@@ -102,13 +102,14 @@ def forward_telemetry(client, payload_dict):
 
     try:
         response = requests.post(ingest_endpoint, json=payload_dict, headers=headers, timeout=10)
-        if response.status_code in (200, 202):
-            logger.info(f"✅ Telemetry ingest successful for device src: {payload_dict.get('src')} [ID: {payload_dict.get('id')}]")
-            return True
-        elif response.status_code == 409:
+        if response.status_code in (200, 202, 409):
             msg_id = payload_dict.get('id') or payload_dict.get('msg_id')
             src = payload_dict.get('src') or payload_dict.get('source')
-            logger.warning(f"⚠️ Telemetry duplicate (409 Conflict) for device src: {src} [ID: {msg_id}]. Sending ACK to unblock client.")
+            
+            if response.status_code == 409:
+                logger.warning(f"⚠️ Telemetry duplicate (409 Conflict) for device src: {src} [ID: {msg_id}]. Sending ACK to unblock client.")
+            else:
+                logger.info(f"✅ Telemetry ingest successful for device src: {src} [ID: {msg_id}]")
             
             if msg_id and src:
                 ack_payload = json.dumps({"id": msg_id, "status": "ok"})
