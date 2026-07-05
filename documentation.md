@@ -133,3 +133,37 @@ Untuk mempermudah verifikasi identitas fisik perangkat di lapangan, firmware **E
   * **Penyambungan Pintar (Robust Merge)**: Memperluas fungsi `tryMergeChunks` di `subscriber.py` dan `app.js` agar mampu menyambung data pecah baik yang bertumpuk (*overlap*), terbelah bersih (*clean split*), maupun yang kehilangan byte di tengah (memiliki *gap*, misal kata `"st":"logout"` terpotong menjadi `"s` dan `login"`) dengan menyisipkan kandidat jembatan karakter umum.
   * **Pembersihan Newline/Carriage Return Mentah**: Melakukan pembersihan otomatis terhadap karakter `\r` dan `\n` yang terselip di dalam string JSON sebelum di-parse.
   * **UI Safety Guard**: Membentengi fungsi rendering dashboard dari crash Javascript dengan menambahkan penanganan tipe data `null` / `NaN` pada field koordinat, kecepatan, dan baterai unit.
+
+---
+
+### 8. Penyaringan Data Telemetri Corrupt (Waktu `-605` & Koordinat Kosong)
+* **Masalah**: GPS Tracker sesekali mempublikasikan paket kosong saat booting atau kehilangan sinyal satelit, menghasilkan timestamp `-605` dan koordinat kosong/`null`.
+* **Solusi**:
+  * **Sisi API Server (`server.py`)**: Query API `/api/devices` ditambahkan filter ketat `WHERE lat IS NOT NULL AND lat != 0 AND lon IS NOT NULL AND lon != 0 AND ts LIKE '%T%'` agar database hanya mengambil koordinat valid terakhir dari memori SQLite.
+  * **Sisi Web UI (`app.js`)**: Ditambahkan *validation guard* pada fungsi `handleIncomingData` untuk langsung mengabaikan live message yang memiliki timestamp non-string atau koordinat `0.0`/`null`.
+
+---
+
+### 9. Peta Interaktif & Timeline Playback Replay
+* **Masalah**: Pengguna ingin navigasi peta yang dinamis, bisa klik marker secara langsung untuk memuat jalur history, serta bisa memutar/menggeser timeline secara presisi.
+* **Solusi**:
+  * **Marker Click Integration**: Mengklik marker unit pada peta langsung memilih unit tersebut di dropdown history dan menembak request load track rute perjalanan.
+  * **Interactive Timeline Slider (Seek Bar)**: Menyediakan slider linimasa di panel kiri untuk menggeser index perjalanan secara manual (dilengkapi `L.DomEvent.stopPropagation` agar drag slider tidak terinterupsi oleh event drag peta utama Leaflet).
+  * **Viewport Focus Lock**: Menonaktifkan pemusatan kamera otomatis (`map.panTo`) saat simulasi replay berjalan agar user bebas melakukan zoom dan pan manual untuk meneliti pergerakan marker.
+  * **Peta Dinamis**: Mengklik area kosong peta otomatis membersihkan layer polyline history dan mereset dropdown pemilihan unit.
+
+---
+
+### 10. Folder Project Varian Real-Time Priority
+* **Masalah**: Pengiriman data antrean log SD Card bersifat FIFO. Ketika unit kembali mendapat sinyal internet, posisi map tidak ter-update ke lokasi saat ini secara langsung karena harus mengunggah ribuan baris log mati sinyal terlebih dahulu.
+* **Solusi**: Dibuatkan folder project terpisah berkode `_realtime`:
+  * **[gpstambangdt_realtime](file:///Users/duwiarsana/.gemini/antigravity/scratch/GPSTAMBANGEDGE/gpstambangdt_realtime/)**
+  * **[gpstambangexca_realtime](file:///Users/duwiarsana/.gemini/antigravity/scratch/GPSTAMBANGEDGE/gpstambangexca_realtime/)**
+  * **[gpstambangexca_hybrid_realtime](file:///Users/duwiarsana/.gemini/antigravity/scratch/GPSTAMBANGEDGE/gpstambangexca_hybrid_realtime/)**
+  * **Logika Dual-Publishing**: Jika online, koordinat GPS terbaru dikirim seketika sebagai prioritas realtime. Di saat bersamaan, background loop mencicil pengiriman log SD Card secara bertahap. Jika antrean backlog MicroSD kosong, offset antrean langsung dimajukan secara otomatis agar tidak terjadi duplikasi kirim.
+
+---
+
+### 11. Penanganan Sinyal ACK Tersumbat di Server VPS
+* **Masalah**: Sebelumnya, subscriber service hanya mengirimkan sinyal ACK ke unit fisik jika API backend mendeteksi data duplikat (`409 Conflict`). Jika data baru berhasil tersimpan (`200 OK` atau `202 Accepted`), subscriber lupa mengirimkan ACK. Akibatnya unit fisik terus-menerus mengulang pengiriman data yang sama dan tersumbat ketika dashboard browser ditutup (fitur Auto-ACK mati).
+* **Solusi**: Memperbarui berkas [subscriber.py](file:///Users/duwiarsana/.gemini/antigravity/scratch/GPSTAMBANGEDGE/subscriber/subscriber.py) agar **selalu mengirimkan respons ACK (`status: ok`)** kembali ke unit fisik untuk semua status keberhasilan penyimpanan, baik itu data baru (`200`/`202`) maupun data duplikat (`409`). Layanan subscriber telah sukses di-deploy dan berjalan normal tanpa hambatan di VPS.
