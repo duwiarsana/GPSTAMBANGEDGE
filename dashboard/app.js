@@ -170,12 +170,14 @@ async function initializeData() {
         }
         
         // Store in fleetData
+        const initImei = (device.raw_payload && device.raw_payload.imei) || (device.id ? device.id.split('-')[1] : '') || '';
         fleetData[src] = {
           timestamp: device.ts,
           ignition: device.ign,
           speed: device.spd,
           battery: device.bat,
-          msgId: device.id
+          msgId: device.id,
+          imei: initImei
         };
 
         // Render markers
@@ -389,7 +391,8 @@ function handleIncomingData(data, rawJson) {
   }
 
   // Telemetry state update & render
-  fleetData[src] = { timestamp, ignition, speed, battery, msgId: id };
+  const incomingImei = data.imei || (id ? id.split('-')[1] : '') || '';
+  fleetData[src] = { timestamp, ignition, speed, battery, msgId: id, imei: incomingImei };
   updateTelemetryTableFromState();
 
   // Auto-ACK
@@ -507,7 +510,10 @@ function updateTelemetryTableFromState() {
     const displayBattery = (typeof r.battery === 'number' && !isNaN(r.battery)) ? r.battery.toFixed(1) : '0.0';
 
     html += `<tr data-device="${key}" style="cursor: pointer;">
-      <td><span class="badge ${badge}">${key}</span></td>
+      <td>
+        <span class="badge ${badge}">${key}</span>
+        <div style="font-size:0.68rem; color:var(--text-muted); margin-top:4px; font-family:var(--mono);">${r.imei || '—'}</div>
+      </td>
       <td style="font-family:var(--mono); font-size:0.8rem;">${time}</td>
       <td>${ignHtml}</td>
       <td><strong>${displaySpeed}</strong> <span style="color:var(--text-secondary)">km/h</span></td>
