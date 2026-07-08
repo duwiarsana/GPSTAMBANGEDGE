@@ -247,6 +247,16 @@ body {
   box-shadow: var(--shadow-sm);
 }
 .form-select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-dim); }
+.form-input {
+  flex: 1;
+  font-family: var(--font); font-size: 0.85rem; font-weight: 500;
+  padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--bg-panel-solid); color: var(--text-primary);
+  outline: none; transition: 0.2s;
+  box-shadow: var(--shadow-sm);
+  color-scheme: dark; /* ensures browser date-picker inherits dark theme if available */
+}
+.form-input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-dim); }
 .action-row { display: flex; gap: 10px; }
 
 .btn {

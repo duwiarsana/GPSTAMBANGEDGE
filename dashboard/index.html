@@ -83,11 +83,6 @@
           </button>
         </div>
 
-        <div class="action-row" style="margin-top: 8px;">
-          <button class="btn btn-danger-outline" id="wipe-device-db-btn" style="width: 100%;">
-            <i class="fa-solid fa-trash-can"></i> Wipe DB Data
-          </button>
-        </div>
 
         <!-- History Stats & Playback -->
         <div id="history-playback-wrap" style="display: none; margin-top: 10px;">
@@ -110,6 +105,41 @@
 
           <button class="btn btn-outline btn-play mt-2" id="play-history-btn">
             <i class="fa-solid fa-play"></i> Play Replay
+          </button>
+        </div>
+
+        <hr class="divider">
+
+        <!-- Export Telemetry Data -->
+        <div class="section-title"><i class="fa-solid fa-download"></i> Export SQL Dump</div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div class="form-row">
+            <select id="export-device-select" class="form-select">
+              <option value="">-- All Units --</option>
+            </select>
+          </div>
+          
+          <div style="display: flex; gap: 16px; margin: 4px 0; font-size: 0.8rem; color: var(--text-secondary);">
+            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+              <input type="radio" name="export-scope" value="range" checked style="accent-color: var(--blue);"> Rentang Waktu
+            </label>
+            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+              <input type="radio" name="export-scope" value="all" style="accent-color: var(--blue);"> Semua Data (Awal-Akhir)
+            </label>
+          </div>
+
+          <div id="export-range-inputs" class="form-row" style="flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 100px; display: flex; flex-direction: column; gap: 4px;">
+              <span style="font-size: 0.7rem; color: var(--text-muted);">Mulai</span>
+              <input type="datetime-local" id="export-start-time" class="form-input">
+            </div>
+            <div style="flex: 1; min-width: 100px; display: flex; flex-direction: column; gap: 4px;">
+              <span style="font-size: 0.7rem; color: var(--text-muted);">Selesai</span>
+              <input type="datetime-local" id="export-end-time" class="form-input">
+            </div>
+          </div>
+          <button class="btn btn-outline" id="export-db-btn" style="width: 100%; margin-top: 4px;">
+            <i class="fa-solid fa-file-export"></i> Export SQL
           </button>
         </div>
 

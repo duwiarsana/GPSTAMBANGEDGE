@@ -6,7 +6,7 @@ import logging
 import threading
 import time
 from datetime import datetime
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
 import paho.mqtt.client as mqtt
 
@@ -295,27 +295,98 @@ def get_device_stats():
         logger.error(f"Error serving /api/stats: {e}")
         return jsonify({"error": str(e)}), 500
 
-@app.route("/api/clear", methods=["POST"])
-def clear_device_data():
+@app.route("/api/export", methods=["GET"])
+def export_data():
     try:
-        req_data = request.get_json() or {}
-        src = req_data.get("src")
-        if not src:
-            return jsonify({"error": "Missing required parameter 'src'"}), 400
+        src = request.args.get("src")
+        start = request.args.get("start")
+        end = request.args.get("end")
+        
+        query = "SELECT id, src, ts, lat, lon, spd, bat, ign, raw_payload, created_at FROM telemetry WHERE 1=1"
+        params = []
+        
+        if src:
+            query += " AND src = ?"
+            params.append(src)
+        if start:
+            query += " AND created_at >= ?"
+            params.append(start)
+        if end:
+            query += " AND created_at <= ?"
+            params.append(end)
             
-        with db_lock:
+        query += " ORDER BY created_at ASC"
+        
+        filename = f"telemetry_dump_{src or 'all'}"
+        if start:
+            filename += f"_{start.replace(' ', '_').replace(':', '')}"
+        if end:
+            filename += f"_to_{end.replace(' ', '_').replace(':', '')}"
+        filename += ".sql"
+
+        def generate_sql():
+            yield "-- Kutai Fleet Telemetry SQL Dump\n"
+            yield f"-- Exported on (UTC): {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}\n"
+            yield f"-- Filters - Unit: {src or 'All'}, Start: {start or 'Any'}, End: {end or 'Any'}\n\n"
+            
+            yield """CREATE TABLE IF NOT EXISTS telemetry (
+    id TEXT PRIMARY KEY,
+    src TEXT,
+    ts TEXT,
+    lat REAL,
+    lon REAL,
+    spd REAL,
+    bat REAL,
+    ign INTEGER,
+    raw_payload TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);\n\n"""
+
             conn = sqlite3.connect(DB_PATH)
             cursor = conn.cursor()
-            cursor.execute("DELETE FROM telemetry WHERE src = ?", (src,))
-            deleted = cursor.rowcount
-            conn.commit()
-            conn.close()
+            cursor.execute(query, params)
             
-        logger.info(f"🧹 Cleaned database telemetry for device: {src}. Deleted {deleted} rows.")
-        return jsonify({"success": True, "deleted_rows": deleted})
+            def escape_val(v):
+                if v is None:
+                    return "NULL"
+                if isinstance(v, (int, float)):
+                    return str(v)
+                escaped_str = str(v).replace("'", "''")
+                return f"'{escaped_str}'"
+
+            first = True
+            while True:
+                chunk = cursor.fetchmany(1000)
+                if not chunk:
+                    break
+                
+                chunk_lines = []
+                for r in chunk:
+                    escaped_vals = [escape_val(val) for val in r]
+                    row_str = f"({', '.join(escaped_vals)})"
+                    if first:
+                        chunk_lines.append("INSERT INTO telemetry (id, src, ts, lat, lon, spd, bat, ign, raw_payload, created_at) VALUES\n" + row_str)
+                        first = False
+                    else:
+                        chunk_lines.append(",\n" + row_str)
+                yield "".join(chunk_lines)
+                
+            if not first:
+                yield ";\n"
+            else:
+                yield "-- No matching telemetry records found.\n"
+                
+            conn.close()
+        
+        return Response(
+            generate_sql(),
+            mimetype="text/plain",
+            headers={"Content-disposition": f"attachment; filename={filename}"}
+        )
     except Exception as e:
-        logger.error(f"Error serving /api/clear: {e}")
+        logger.error(f"Error exporting database data: {e}")
         return jsonify({"error": str(e)}), 500
+
 
 def run_mqtt():
     logger.info("Starting MQTT thread...")

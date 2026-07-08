@@ -40,11 +40,17 @@ const historyDeviceSelect = document.getElementById('history-device-select');
 const historyRangeSelect = document.getElementById('history-range-select');
 const loadHistoryBtn = document.getElementById('load-history-btn');
 const clearHistoryBtn = document.getElementById('clear-history-btn');
-const wipeDeviceDbBtn = document.getElementById('wipe-device-db-btn');
 const historyStatsEl = document.getElementById('history-stats');
 const histPtsVal = document.getElementById('hist-pts-val');
 const histSpdVal = document.getElementById('hist-spd-val');
 const liveBadge = document.getElementById('live-badge');
+
+// Export Elements
+const exportDeviceSelect = document.getElementById('export-device-select');
+const exportStartTimeInput = document.getElementById('export-start-time');
+const exportEndTimeInput = document.getElementById('export-end-time');
+const exportDbBtn = document.getElementById('export-db-btn');
+const exportRangeInputs = document.getElementById('export-range-inputs');
 
 const playbackControls = document.getElementById('history-playback-wrap');
 const playHistoryBtn = document.getElementById('play-history-btn');
@@ -141,6 +147,9 @@ async function initializeData() {
       
       // Clear dropdown
       historyDeviceSelect.innerHTML = '<option value="">-- Choose Unit --</option>';
+      if (exportDeviceSelect) {
+        exportDeviceSelect.innerHTML = '<option value="">-- All Units --</option>';
+      }
       
       devices.forEach(device => {
         // Populate local state
@@ -152,6 +161,13 @@ async function initializeData() {
         opt.value = src;
         opt.textContent = src;
         historyDeviceSelect.appendChild(opt);
+        
+        if (exportDeviceSelect) {
+          const optExport = document.createElement('option');
+          optExport.value = src;
+          optExport.textContent = src;
+          exportDeviceSelect.appendChild(optExport);
+        }
         
         // Store in fleetData
         fleetData[src] = {
@@ -355,6 +371,13 @@ function handleIncomingData(data, rawJson) {
     opt.value = src;
     opt.textContent = src;
     historyDeviceSelect.appendChild(opt);
+  }
+
+  if (exportDeviceSelect && ![...exportDeviceSelect.options].some(opt => opt.value === src)) {
+    const opt = document.createElement('option');
+    opt.value = src;
+    opt.textContent = src;
+    exportDeviceSelect.appendChild(opt);
   }
 
   // Log entry
@@ -642,51 +665,76 @@ clearHistoryBtn.addEventListener('click', () => {
   addLogSystem('Historical track cleared', 'info');
 });
 
-if (wipeDeviceDbBtn) {
-  wipeDeviceDbBtn.addEventListener('click', async () => {
-    const src = historyDeviceSelect.value;
-    if (!src) {
-      alert('Silakan pilih unit terlebih dahulu.');
-      return;
-    }
-
-    const confirmed = confirm(`Apakah Anda yakin ingin menghapus semua data telemetry untuk unit "${src}" dari database? Tindakan ini tidak dapat dibatalkan.`);
-    if (!confirmed) return;
-
-    try {
-      wipeDeviceDbBtn.disabled = true;
-      wipeDeviceDbBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Wiping...';
-
-      const res = await fetch(`${API_BASE}/clear`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ src })
-      });
-
-      if (!res.ok) throw new Error('API Request error');
-      const result = await res.json();
-
-      if (result.success) {
-        alert(`Berhasil menghapus ${result.deleted_rows} baris data telemetry untuk unit "${src}" dari database.`);
-        addLogSystem(`Database telemetry wiped for unit ${src} (${result.deleted_rows} rows)`, 'info');
-        if (historyDeviceSelect.value === src) {
-          clearHistoryTrack();
+if (exportDbBtn) {
+  // Listen for radio button changes to toggle inputs visibility
+  document.querySelectorAll('input[name="export-scope"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      if (exportRangeInputs) {
+        if (e.target.value === 'all') {
+          exportRangeInputs.style.display = 'none';
+        } else {
+          exportRangeInputs.style.display = 'flex';
         }
-        initializeData();
-      } else {
-        alert(`Gagal menghapus data: ${result.error || 'Unknown error'}`);
       }
-    } catch (err) {
-      console.error('Failed to wipe device data:', err);
-      alert(`Terjadi kesalahan: ${err.message}`);
-    } finally {
-      wipeDeviceDbBtn.disabled = false;
-      wipeDeviceDbBtn.innerHTML = '<i class="fa-solid fa-trash-can"></i> Wipe DB Data';
+    });
+  });
+
+  exportDbBtn.addEventListener('click', () => {
+    const src = exportDeviceSelect.value;
+    const scopeEl = document.querySelector('input[name="export-scope"]:checked');
+    const scope = scopeEl ? scopeEl.value : 'range';
+    
+    const params = new URLSearchParams();
+    if (src) params.append('src', src);
+    
+    let startUTC = '';
+    let endUTC = '';
+    
+    if (scope === 'range') {
+      const startVal = exportStartTimeInput.value;
+      const endVal = exportEndTimeInput.value;
+      
+      if (!src && !startVal && !endVal) {
+        alert('Silakan tentukan unit atau rentang waktu terlebih dahulu untuk diekspor.');
+        return;
+      }
+      
+      startUTC = localToUTCString(startVal);
+      endUTC = localToUTCString(endVal);
+      
+      if (startUTC) params.append('start', startUTC);
+      if (endUTC) params.append('end', endUTC);
     }
+    
+    const downloadUrl = `${API_BASE}/export?${params.toString()}`;
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.download = '';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    addLogSystem(`Exported SQL dump requested for unit: ${src || 'all'}, scope: ${scope === 'all' ? 'All Data' : (startUTC || 'any') + ' to ' + (endUTC || 'any')}`, 'info');
   });
 }
+
+function localToUTCString(localDateTimeStr) {
+  if (!localDateTimeStr) return '';
+  const date = new Date(localDateTimeStr);
+  if (isNaN(date.getTime())) return '';
+  
+  const pad = (num) => String(num).padStart(2, '0');
+  
+  const yyyy = date.getUTCFullYear();
+  const mm = pad(date.getUTCMonth() + 1);
+  const dd = pad(date.getUTCDate());
+  
+  const hh = pad(date.getUTCHours());
+  const min = pad(date.getUTCMinutes());
+  const ss = pad(date.getUTCSeconds());
+  
+  return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
+}
+
 
 function clearHistoryTrack() {
   if (historyPolyline) {
