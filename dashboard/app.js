@@ -516,8 +516,8 @@ function getActivityScore(device) {
   
   const elapsedMs = Date.now() - device.localReceivedTime;
   
-  // If the last update was more than 15 minutes ago, score is 0
-  if (elapsedMs > 15 * 60 * 1000) return 0;
+  // If the last update was more than 15 minutes ago, score is -1 (represents stale/inactive)
+  if (elapsedMs > 15 * 60 * 1000) return -1;
   
   // Recent update bonus (gives a high score if updated in the last 2 minutes, decaying to 0 in 5 minutes)
   const recentBonus = Math.max(0, 1 - (elapsedMs / (5 * 60 * 1000)));
@@ -567,8 +567,15 @@ function updateTelemetryTableFromState() {
     const displayBattery = (typeof r.battery === 'number' && !isNaN(r.battery)) ? r.battery.toFixed(1) : '0.0';
 
     const score = getActivityScore(r);
-    const rowBg = score > 0 ? `rgba(16, 185, 129, ${score * 0.15})` : 'transparent';
-    const borderLeft = score > 0 ? `4px solid rgba(16, 185, 129, ${score})` : '4px solid transparent';
+    let rowBg = 'transparent';
+    let borderLeft = '4px solid transparent';
+    if (score > 0) {
+      rowBg = `rgba(16, 185, 129, ${score * 0.15})`;
+      borderLeft = `4px solid rgba(16, 185, 129, ${score})`;
+    } else if (score < 0) {
+      rowBg = `rgba(239, 68, 68, 0.08)`;
+      borderLeft = `4px solid rgba(239, 68, 68, 0.8)`;
+    }
 
     html += `<tr data-device="${key}" style="cursor: pointer; background-color: ${rowBg}; border-left: ${borderLeft}; transition: background-color 0.5s ease, border-left 0.5s ease;">
       <td>
