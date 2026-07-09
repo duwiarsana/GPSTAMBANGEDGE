@@ -533,6 +533,25 @@ function getActivityScore(device) {
   return Math.max(recentBonus, baseScore * decay);
 }
 
+function getRelativeTimeString(localReceivedTime) {
+  if (!localReceivedTime) return '—';
+  const elapsedMs = Date.now() - localReceivedTime;
+  
+  if (elapsedMs < 60 * 1000) {
+    return 'Baru saja';
+  }
+  const mins = Math.floor(elapsedMs / (60 * 1000));
+  if (mins < 60) {
+    return `${mins} menit lalu`;
+  }
+  const hours = Math.floor(elapsedMs / (60 * 60 * 1000));
+  if (hours < 24) {
+    return `${hours} jam lalu`;
+  }
+  const days = Math.floor(elapsedMs / (24 * 60 * 60 * 1000));
+  return `${days} hari lalu`;
+}
+
 // ===== Telemetry Table updates =====
 function updateTelemetryTableFromState() {
   const keys = Object.keys(fleetData).sort();
@@ -583,7 +602,10 @@ function updateTelemetryTableFromState() {
         ${deviceAliases[key] ? `<span style="font-size:0.75rem;font-weight:600;color:var(--text-secondary);margin-left:4px;">${deviceAliases[key]}</span>` : ''}
         <div style="font-size:0.68rem; color:var(--text-muted); margin-top:4px; font-family:var(--mono);">${r.imei || '—'}</div>
       </td>
-      <td style="font-family:var(--mono); font-size:0.8rem;">${time}</td>
+      <td style="font-family:var(--mono); font-size:0.8rem;">
+        ${time}
+        <div style="font-size:0.68rem; color:var(--text-muted); margin-top:4px; font-family:'Outfit',sans-serif;">${getRelativeTimeString(r.localReceivedTime)}</div>
+      </td>
       <td>${ignHtml}</td>
       <td><strong>${displaySpeed}</strong> <span style="color:var(--text-secondary)">km/h</span></td>
       <td>${displayBattery} <span style="color:var(--text-secondary)">V</span></td>
