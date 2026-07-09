@@ -191,13 +191,16 @@ async function initializeData() {
         
         // Store in fleetData
         const initImei = (device.raw_payload && device.raw_payload.imei) || (device.id ? device.id.split('-')[1] : '') || '';
+        const localRecTime = device.created_at ? new Date(device.created_at.replace(' ', 'T') + 'Z').getTime() : Date.now();
         fleetData[src] = {
           timestamp: device.ts,
           ignition: device.ign,
           speed: device.spd,
           battery: device.bat,
           msgId: device.id,
-          imei: initImei
+          imei: initImei,
+          activity_count: device.activity_count || 0,
+          localReceivedTime: localRecTime
         };
 
         // Render markers
@@ -412,9 +415,18 @@ function handleIncomingData(data, rawJson) {
     updateMapMarker(src, isDT, latitude, longitude, speed, timestamp);
   }
 
-  // Telemetry state update & render
   const incomingImei = data.imei || (id ? id.split('-')[1] : '') || '';
-  fleetData[src] = { timestamp, ignition, speed, battery, msgId: id, imei: incomingImei };
+  const currentCount = ((fleetData[src] && fleetData[src].activity_count) || 0) + 1;
+  fleetData[src] = { 
+    timestamp, 
+    ignition, 
+    speed, 
+    battery, 
+    msgId: id, 
+    imei: incomingImei,
+    activity_count: currentCount,
+    localReceivedTime: Date.now()
+  };
   updateTelemetryTableFromState();
 
   // Auto-ACK
@@ -499,6 +511,28 @@ function popupHTML(src, lat, lon, speed, ts) {
     </div>`;
 }
 
+function getActivityScore(device) {
+  if (!device || !device.localReceivedTime) return 0;
+  
+  const elapsedMs = Date.now() - device.localReceivedTime;
+  
+  // If the last update was more than 15 minutes ago, score is 0
+  if (elapsedMs > 15 * 60 * 1000) return 0;
+  
+  // Recent update bonus (gives a high score if updated in the last 2 minutes, decaying to 0 in 5 minutes)
+  const recentBonus = Math.max(0, 1 - (elapsedMs / (5 * 60 * 1000)));
+  
+  // Base score from update count in the last hour (30 updates in 1 hour = active)
+  const count = device.activity_count || 0;
+  const baseScore = Math.min(count / 30, 1.0);
+  
+  // Decay factor based on elapsed time (decays over 10 minutes)
+  const decay = Math.max(0, 1 - (elapsedMs / (10 * 60 * 1000)));
+  
+  // The final score is the maximum of the recent bonus and the decayed historical score
+  return Math.max(recentBonus, baseScore * decay);
+}
+
 // ===== Telemetry Table updates =====
 function updateTelemetryTableFromState() {
   const keys = Object.keys(fleetData).sort();
@@ -532,7 +566,11 @@ function updateTelemetryTableFromState() {
     const displaySpeed = (typeof r.speed === 'number' && !isNaN(r.speed)) ? r.speed.toFixed(1) : '0.0';
     const displayBattery = (typeof r.battery === 'number' && !isNaN(r.battery)) ? r.battery.toFixed(1) : '0.0';
 
-    html += `<tr data-device="${key}" style="cursor: pointer;">
+    const score = getActivityScore(r);
+    const rowBg = score > 0 ? `rgba(16, 185, 129, ${score * 0.15})` : 'transparent';
+    const borderLeft = score > 0 ? `4px solid rgba(16, 185, 129, ${score})` : '4px solid transparent';
+
+    html += `<tr data-device="${key}" style="cursor: pointer; background-color: ${rowBg}; border-left: ${borderLeft}; transition: background-color 0.5s ease, border-left 0.5s ease;">
       <td>
         <span class="badge ${badge}">${key}</span>
         ${deviceAliases[key] ? `<span style="font-size:0.75rem;font-weight:600;color:var(--text-secondary);margin-left:4px;">${deviceAliases[key]}</span>` : ''}
@@ -1084,4 +1122,10 @@ async function loadDeviceStats() {
     statsCardsContainer.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 20px; color: var(--red);"><i class="fa-solid fa-triangle-exclamation"></i> Error: ${err.message}</div>`;
   }
 }
+
+// Periodically update telemetry table to refresh decay colors (every 10 seconds)
+setInterval(() => {
+  updateTelemetryTableFromState();
+}, 10000);
+
 

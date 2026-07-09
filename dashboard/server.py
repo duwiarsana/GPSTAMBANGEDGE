@@ -149,6 +149,15 @@ def get_devices():
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
+        
+        # Get count of updates in the last 1 hour for each device
+        cursor.execute("""
+            SELECT src, COUNT(*) FROM telemetry 
+            WHERE created_at >= datetime('now', '-1 hour')
+            GROUP BY src
+        """)
+        activity_counts = dict(cursor.fetchall())
+        
         # Find latest row for each unique src
         cursor.execute("""
             SELECT t.* FROM telemetry t
@@ -163,9 +172,10 @@ def get_devices():
         
         devices = []
         for r in rows:
+            src = r[1]
             devices.append({
                 "id": r[0],
-                "src": r[1],
+                "src": src,
                 "ts": r[2],
                 "lat": r[3],
                 "lon": r[4],
@@ -173,7 +183,8 @@ def get_devices():
                 "bat": r[6],
                 "ign": r[7],
                 "raw_payload": json.loads(r[8]) if r[8] else None,
-                "created_at": r[9]
+                "created_at": r[9],
+                "activity_count": activity_counts.get(src, 0)
             })
         return jsonify(devices)
     except Exception as e:
