@@ -88,6 +88,20 @@ def get_auth_token():
                 return None
         return access_token
 
+def send_mqtt_ack(client, src, msg_id):
+    if not msg_id or not src:
+        return
+    ack_payload = json.dumps({"id": msg_id, "status": "ok"})
+    # Send the ACK directly to the device's ACK topic
+    target_topic = f"kutai/fleet/ack/{src}"
+    client.publish(target_topic, ack_payload, qos=0)
+    
+    # Also mirror to active DTs if it's an EXCA device
+    if str(src).upper().startswith("EXCA"):
+        for dt in list(active_dts):
+            dt_topic = f"kutai/fleet/ack/{dt}"
+            client.publish(dt_topic, ack_payload, qos=0)
+
 def forward_telemetry(client, payload_dict):
     token = get_auth_token()
     if not token:
@@ -102,26 +116,16 @@ def forward_telemetry(client, payload_dict):
 
     try:
         response = requests.post(ingest_endpoint, json=payload_dict, headers=headers, timeout=10)
+        msg_id = payload_dict.get('id') or payload_dict.get('msg_id')
+        src = payload_dict.get('src') or payload_dict.get('source')
+
         if response.status_code in (200, 202, 409):
-            msg_id = payload_dict.get('id') or payload_dict.get('msg_id')
-            src = payload_dict.get('src') or payload_dict.get('source')
-            
             if response.status_code == 409:
                 logger.warning(f"⚠️ Telemetry duplicate (409 Conflict) for device src: {src} [ID: {msg_id}]. Sending ACK to unblock client.")
             else:
                 logger.info(f"✅ Telemetry ingest successful for device src: {src} [ID: {msg_id}]")
             
-            if msg_id and src:
-                ack_payload = json.dumps({"id": msg_id, "status": "ok"})
-                # Send the ACK directly to the device's ACK topic
-                target_topic = f"kutai/fleet/ack/{src}"
-                client.publish(target_topic, ack_payload, qos=0)
-                
-                # Also mirror to active DTs if it's an EXCA device
-                if str(src).upper().startswith("EXCA"):
-                    for dt in list(active_dts):
-                        dt_topic = f"kutai/fleet/ack/{dt}"
-                        client.publish(dt_topic, ack_payload, qos=0)
+            send_mqtt_ack(client, src, msg_id)
             return True
         elif response.status_code in (401, 403):
             logger.warning("⚠️ Ingest returned unauthorized. Clearing token to force re-login on next message.")
@@ -131,6 +135,10 @@ def forward_telemetry(client, payload_dict):
             return False
         else:
             logger.error(f"❌ Ingest failed. Status: {response.status_code}. Msg: {response.text}")
+            # If the backend actually replied with 400 or 500, it means it's a validation/processing failure.
+            # We must send an ACK to unblock the device, otherwise it will be locked in an infinite retry loop.
+            logger.warning(f"⚠️ Sending ACK to unblock device {src} from stuck invalid packet [ID: {msg_id}].")
+            send_mqtt_ack(client, src, msg_id)
             return False
     except Exception as e:
         logger.error(f"❌ Connection error during ingest: {e}")
