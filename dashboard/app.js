@@ -3,6 +3,25 @@ const BROKER_URL = 'ws://72.62.126.85:9001';
 const DATA_TOPIC = 'kutai/fleet/data';
 const DEFAULT_DT_ID = 'DT01';
 
+const deviceAliases = {
+  'DT010': 'DT-575',
+  'DT06': 'DT-577',
+  'DT012': 'DT-581',
+  'DT011': 'DT-582',
+  'DT05': 'DT-583',
+  'DT02': 'DT-584',
+  'DT09': 'DT-585',
+  'DT016': 'DT-586',
+  'DT013': 'DT-587',
+  'DT014': 'DT-588',
+  'DT08': 'DT-589',
+  'DT015': 'DT-590',
+  'DT01': 'DT-591',
+  'DT03': 'DT-592',
+  'DT07': 'DT-593',
+  'DT04': 'DT-594'
+};
+
 // API Base URL (Relative path since Nginx proxies /api/ to our backend server)
 const API_BASE = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
   ? 'http://72.62.126.85/api' // fallback during local development/preview
@@ -157,15 +176,16 @@ async function initializeData() {
         const isDT = src.toUpperCase().startsWith('DT');
         
         // Populate dropdown options
+        const optText = deviceAliases[src] ? `${src} (${deviceAliases[src]})` : src;
         const opt = document.createElement('option');
         opt.value = src;
-        opt.textContent = src;
+        opt.textContent = optText;
         historyDeviceSelect.appendChild(opt);
         
         if (exportDeviceSelect) {
           const optExport = document.createElement('option');
           optExport.value = src;
-          optExport.textContent = src;
+          optExport.textContent = optText;
           exportDeviceSelect.appendChild(optExport);
         }
         
@@ -369,16 +389,18 @@ function handleIncomingData(data, rawJson) {
 
   // Add option to dropdown if it doesn't exist
   if (![...historyDeviceSelect.options].some(opt => opt.value === src)) {
+    const optText = deviceAliases[src] ? `${src} (${deviceAliases[src]})` : src;
     const opt = document.createElement('option');
     opt.value = src;
-    opt.textContent = src;
+    opt.textContent = optText;
     historyDeviceSelect.appendChild(opt);
   }
 
   if (exportDeviceSelect && ![...exportDeviceSelect.options].some(opt => opt.value === src)) {
+    const optText = deviceAliases[src] ? `${src} (${deviceAliases[src]})` : src;
     const opt = document.createElement('option');
     opt.value = src;
-    opt.textContent = src;
+    opt.textContent = optText;
     exportDeviceSelect.appendChild(opt);
   }
 
@@ -466,9 +488,10 @@ function updateMapMarker(src, isDT, lat, lon, speed, timestamp) {
 }
 
 function popupHTML(src, lat, lon, speed, ts) {
+  const displayName = deviceAliases[src] ? `${src} (${deviceAliases[src]})` : src;
   return `
     <div style="font-family:'Outfit',sans-serif;color:#0f172a;font-size:12px;line-height:1.6;min-width:140px">
-      <strong style="font-size:13px;color:#0284c7;display:block;margin-bottom:4px">${src}</strong>
+      <strong style="font-size:13px;color:#0284c7;display:block;margin-bottom:4px">${displayName}</strong>
       <b>Lat:</b> ${lat.toFixed(6)}<br>
       <b>Lon:</b> ${lon.toFixed(6)}<br>
       <b>Speed:</b> ${speed.toFixed(1)} km/h<br>
@@ -512,6 +535,7 @@ function updateTelemetryTableFromState() {
     html += `<tr data-device="${key}" style="cursor: pointer;">
       <td>
         <span class="badge ${badge}">${key}</span>
+        ${deviceAliases[key] ? `<span style="font-size:0.75rem;font-weight:600;color:var(--text-secondary);margin-left:4px;">${deviceAliases[key]}</span>` : ''}
         <div style="font-size:0.68rem; color:var(--text-muted); margin-top:4px; font-family:var(--mono);">${r.imei || '—'}</div>
       </td>
       <td style="font-family:var(--mono); font-size:0.8rem;">${time}</td>
