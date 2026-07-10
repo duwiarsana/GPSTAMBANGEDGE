@@ -224,8 +224,15 @@ def forward_telemetry(client, payload_dict):
             # We must send an ACK to unblock the device, otherwise it will be locked in an infinite retry loop.
             logger.warning(f"⚠️ Sending ACK to unblock device {src} from stuck invalid packet [ID: {msg_id}].")
             log_device_alert(src, msg_id, response.status_code, f"Backend Reject: {response.text[:100]}")
+            
+            # Universal Mirroring for rejected/invalid packets as well to prevent relay stuck
+            ack_payload = json.dumps({"id": msg_id, "status": "ok"})
+            all_targets = [f"DT{i:02d}" for i in range(1, 21)] + [f"EXCA{i:02d}" for i in range(1, 10)]
+            for target in all_targets:
+                client.publish(f"kutai/fleet/ack/{target}", ack_payload, qos=0, retain=True)
+                
             send_mqtt_ack(client, src, msg_id, imei=imei)
-            return False
+            return True
     except Exception as e:
         logger.error(f"❌ Connection error during ingest: {e}")
         # Note: If it's a network/connection error, the device will retry, but it's not a server rejection. 
