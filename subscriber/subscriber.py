@@ -137,13 +137,25 @@ def get_auth_token():
                 return None
         return access_token
 
-def send_mqtt_ack(client, src, msg_id):
+def send_mqtt_ack(client, src, msg_id, imei=None):
     if not msg_id or not src:
         return
     ack_payload = json.dumps({"id": msg_id, "status": "ok"})
-    # Send the ACK directly to the device's ACK topic
-    target_topic = f"kutai/fleet/ack/{src}"
-    client.publish(target_topic, ack_payload, qos=0, retain=True)
+    
+    # 1. Send the ACK directly to the device's ACK topic based on payload src
+    target_topics = {f"kutai/fleet/ack/{src}"}
+    
+    # 2. Hardcoded IMEI mapping to resolve mismatched SD card testing data
+    imei_to_device = {
+        "864022083271527": "DT013",  # IMEI registered as DT013 but sending DT011 data from test SD
+    }
+    
+    if imei and str(imei) in imei_to_device:
+        mapped_src = imei_to_device[str(imei)]
+        target_topics.add(f"kutai/fleet/ack/{mapped_src}")
+        
+    for topic in target_topics:
+        client.publish(topic, ack_payload, qos=0, retain=True)
     
     # Mirror DT ACKs to EXCA devices so EXCAs can relay them to offline DTs
     if str(src).upper().startswith("DT"):
@@ -168,6 +180,7 @@ def forward_telemetry(client, payload_dict):
         response = requests.post(ingest_endpoint, json=payload_dict, headers=headers, timeout=10)
         msg_id = payload_dict.get('id') or payload_dict.get('msg_id')
         src = payload_dict.get('src') or payload_dict.get('source')
+        imei = payload_dict.get('imei')
 
         if response.status_code in (200, 202, 409):
             if response.status_code == 409:
@@ -177,7 +190,7 @@ def forward_telemetry(client, payload_dict):
                 logger.info(f"✅ Telemetry ingest successful for device src: {src} [ID: {msg_id}]")
                 clear_device_alert(src)
             
-            send_mqtt_ack(client, src, msg_id)
+            send_mqtt_ack(client, src, msg_id, imei=imei)
             return True
         elif response.status_code in (401, 403):
             logger.warning("⚠️ Ingest returned unauthorized. Clearing token to force re-login on next message.")
@@ -191,7 +204,7 @@ def forward_telemetry(client, payload_dict):
             # We must send an ACK to unblock the device, otherwise it will be locked in an infinite retry loop.
             logger.warning(f"⚠️ Sending ACK to unblock device {src} from stuck invalid packet [ID: {msg_id}].")
             log_device_alert(src, msg_id, response.status_code, f"Backend Reject: {response.text[:100]}")
-            send_mqtt_ack(client, src, msg_id)
+            send_mqtt_ack(client, src, msg_id, imei=imei)
             return False
     except Exception as e:
         logger.error(f"❌ Connection error during ingest: {e}")
