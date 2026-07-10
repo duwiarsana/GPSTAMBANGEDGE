@@ -200,6 +200,12 @@ def forward_telemetry(client, payload_dict):
             if response.status_code == 409:
                 logger.warning(f"⚠️ Telemetry duplicate (409 Conflict) for device src: {src} [ID: {msg_id}]. Sending ACK to unblock client.")
                 log_device_alert(src, msg_id, 409, "Duplicate / Conflict (Already Ingested)")
+                
+                # Universal Duplicate ACK Mirroring to unblock any relaying/stuck DT or EXCA
+                ack_payload = json.dumps({"id": msg_id, "status": "ok"})
+                all_targets = [f"DT{i:02d}" for i in range(1, 21)] + [f"EXCA{i:02d}" for i in range(1, 10)]
+                for target in all_targets:
+                    client.publish(f"kutai/fleet/ack/{target}", ack_payload, qos=0, retain=True)
             else:
                 logger.info(f"✅ Telemetry ingest successful for device src: {src} [ID: {msg_id}]")
                 clear_device_alert(src)
