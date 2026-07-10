@@ -1297,7 +1297,7 @@ function updateAlertsUI() {
       }
       
       html += `
-        <div class="alert-item">
+        <div class="alert-item" style="cursor: pointer;" onclick="toggleAlertDetail('${alert.src}')">
           <div class="alert-item-title">
             <span style="font-weight: bold; color: var(--text-primary);">${alert.src}${alias}</span>
             <span style="color: var(--red); font-weight: bold;">${alert.retry_count}x retries</span>
@@ -1307,6 +1307,10 @@ function updateAlertsUI() {
           </div>
           <div class="alert-item-time" style="margin-top: 2px; font-size: 0.68rem; color: var(--text-secondary);">
             <i class="fa-solid fa-clock"></i> ${time}
+          </div>
+          <div class="alert-item-detail" id="alert-detail-${alert.src}" style="display: none; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 0.72rem; line-height: 1.4; color: var(--text-secondary);">
+            <strong>Penyebab:</strong> Unit sukses mengirim data ke server, tetapi <strong>gagal menerima sinyal ACK kembali dari server</strong> untuk menghapus antreannya (karena sinyal Wi-Fi lemah/RX loss).<br>
+            <strong style="color: var(--blue);">Solusi:</strong> Dekatkan unit ke access point Wi-Fi dengan sinyal stabil agar unit dapat menerima ACK dan memajukan antrean MicroSD-nya.
           </div>
         </div>
       `;
@@ -1318,6 +1322,14 @@ function updateAlertsUI() {
     listContainer.innerHTML = '<div class="alert-empty-msg">No devices currently stuck</div>';
   }
 }
+
+window.toggleAlertDetail = function(src) {
+  const detailEl = document.getElementById(`alert-detail-${src}`);
+  if (detailEl) {
+    const isVisible = detailEl.style.display === 'block';
+    detailEl.style.display = isVisible ? 'none' : 'block';
+  }
+};
 
 
 
