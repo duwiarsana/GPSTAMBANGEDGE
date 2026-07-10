@@ -214,6 +214,11 @@ def get_alerts():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+        
+        # Delete stale alerts older than 2 minutes (meaning device is offline or unblocked)
+        cursor.execute("DELETE FROM device_alerts WHERE datetime(last_seen) < datetime('now', '-2 minutes')")
+        conn.commit()
+        
         cursor.execute("""
             SELECT src, msg_id, retry_count, alert_type, last_seen 
             FROM device_alerts 
