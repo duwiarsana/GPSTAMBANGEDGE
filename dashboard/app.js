@@ -607,7 +607,7 @@ function updateTelemetryTableFromState() {
     }
 
     const activeAlert = typeof activeAlerts !== 'undefined' ? activeAlerts.find(a => a.src === key) : null;
-    const stuckHtml = activeAlert ? `<span class="stuck-badge" title="Stuck on packet ID: ${activeAlert.msg_id}"><i class="fa-solid fa-triangle-exclamation"></i> Stuck (${activeAlert.retry_count})</span>` : '';
+    const stuckHtml = activeAlert ? `<span class="stuck-badge" title="Stuck on packet ID: ${activeAlert.msg_id}" onclick="showStuckAlertDetail(event, '${key}', '${activeAlert.msg_id}', ${activeAlert.retry_count}, '${time}')"><i class="fa-solid fa-triangle-exclamation"></i> Stuck (${activeAlert.retry_count})</span>` : '';
 
     html += `<tr data-device="${key}" style="cursor: pointer; background-color: ${rowBg}; border-left: ${borderLeft}; transition: background-color 0.5s ease, border-left 0.5s ease;">
       <td>
@@ -1329,6 +1329,25 @@ window.toggleAlertDetail = function(src) {
     const isVisible = detailEl.style.display === 'block';
     detailEl.style.display = isVisible ? 'none' : 'block';
   }
+};
+
+window.showStuckAlertDetail = function(event, src, msgId, retryCount, lastSeen) {
+  event.stopPropagation(); // Prevent centering map
+  
+  const alias = deviceAliases[src] ? ` (${deviceAliases[src]})` : '';
+  const message = `[ALARM STUCK TELEMETRI]
+Unit: ${src}${alias}
+Status: Stuck dalam pengiriman data (mengulang ${retryCount} kali)
+ID Data Tersumbat: ${msgId.split('-').pop()}
+Deteksi Terakhir: ${lastSeen}
+
+Penyebab:
+Unit sukses mengirim data ke broker MQTT di server, tetapi GAGAL menerima/mendengar respon ACK kembali dari server untuk menghapus antreannya. Ini biasanya disebabkan oleh kualitas sinyal Wi-Fi di area unit tersebut sangat lemah/tidak stabil (RX loss).
+
+Solusi:
+Dekatkan unit ${src} ke access point Wi-Fi yang stabil dan memiliki sinyal kuat selama beberapa menit agar unit dapat menangkap sinyal ACK dan melanjutkan pengiriman data berikutnya.`;
+
+  alert(message);
 };
 
 
