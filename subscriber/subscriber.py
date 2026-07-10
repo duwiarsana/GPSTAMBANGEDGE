@@ -169,6 +169,14 @@ def forward_telemetry(client, payload_dict):
         logger.warning(f"🧹 Filtering garbage DT011 data [ID: {msg_id}] with mismatch IMEI {imei}. Bypassing backend ingest and sending ACK.")
         clear_device_alert(src)
         send_mqtt_ack(client, src, msg_id, imei=imei)
+        
+        # Mirror to all DTs in case a DT (e.g., DT05) is relaying this garbage testing data
+        ack_payload = json.dumps({"id": msg_id, "status": "ok"})
+        active_dts = [f"DT{i:02d}" for i in range(1, 21)]
+        for dt in active_dts:
+            dt_topic = f"kutai/fleet/ack/{dt}"
+            client.publish(dt_topic, ack_payload, qos=0, retain=True)
+            
         return True
 
     token = get_auth_token()
