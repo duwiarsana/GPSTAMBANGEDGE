@@ -200,7 +200,8 @@ async function initializeData() {
           msgId: device.id,
           imei: initImei,
           activity_count: device.activity_count || 0,
-          localReceivedTime: localRecTime
+          localReceivedTime: localRecTime,
+          raw_payload: device.raw_payload
         };
 
         // Render markers
@@ -428,7 +429,8 @@ function handleIncomingData(data, rawJson) {
       msgId: id, 
       imei: incomingImei,
       activity_count: currentCount,
-      localReceivedTime: Date.now()
+      localReceivedTime: Date.now(),
+      raw_payload: data
     };
   } else if (fleetData[src]) {
     fleetData[src].activity_count = currentCount;
@@ -1054,18 +1056,22 @@ if (menuToggleBtn && sidebarContent) {
 const toggleTableBtn = document.getElementById('toggle-table-btn');
 const toggleStatsBtn = document.getElementById('toggle-stats-btn');
 const toggleLogBtn = document.getElementById('toggle-log-btn');
+const toggleRawBtn = document.getElementById('toggle-raw-btn');
 const panelTelemetry = document.getElementById('panel-telemetry');
 const panelStats = document.getElementById('panel-stats');
 const panelLog = document.getElementById('panel-log');
+const panelRaw = document.getElementById('panel-raw');
 const statsCardsContainer = document.getElementById('stats-cards-container');
 
 function closeAllSheets() {
   if (panelTelemetry) panelTelemetry.classList.remove('active');
   if (panelStats) panelStats.classList.remove('active');
   if (panelLog) panelLog.classList.remove('active');
+  if (panelRaw) panelRaw.classList.remove('active');
   if (toggleTableBtn) toggleTableBtn.classList.remove('active');
   if (toggleStatsBtn) toggleStatsBtn.classList.remove('active');
   if (toggleLogBtn) toggleLogBtn.classList.remove('active');
+  if (toggleRawBtn) toggleRawBtn.classList.remove('active');
 }
 
 if (toggleTableBtn && panelTelemetry) {
@@ -1098,6 +1104,18 @@ if (toggleLogBtn && panelLog) {
     if (!isActive) {
       panelLog.classList.add('active');
       toggleLogBtn.classList.add('active');
+    }
+  });
+}
+
+if (toggleRawBtn && panelRaw) {
+  toggleRawBtn.addEventListener('click', () => {
+    const isActive = panelRaw.classList.contains('active');
+    closeAllSheets();
+    if (!isActive) {
+      panelRaw.classList.add('active');
+      toggleRawBtn.classList.add('active');
+      updateRawDeviceList();
     }
   });
 }
@@ -1161,6 +1179,59 @@ async function loadDeviceStats() {
 // Periodically update telemetry table to refresh decay colors (every 10 seconds)
 setInterval(() => {
   updateTelemetryTableFromState();
+  if (panelRaw && panelRaw.classList.contains('active')) {
+    updateRawDeviceList();
+    if (selectedRawDevice) {
+      viewRawPayload(selectedRawDevice);
+    }
+  }
 }, 10000);
+
+let selectedRawDevice = null;
+
+function updateRawDeviceList() {
+  const container = document.getElementById('raw-device-list');
+  if (!container) return;
+  
+  const keys = Object.keys(fleetData).sort();
+  let html = '';
+  keys.forEach(key => {
+    const isSelected = (selectedRawDevice === key);
+    const activeStyle = isSelected ? 'style="background: var(--blue-dim); color: var(--blue); font-weight: 600; border-radius: 4px;"' : '';
+    html += `<div class="raw-device-item" data-device="${key}" ${activeStyle} style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--border); font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center; transition: background 0.2s;">
+      <span>${key}</span>
+      <span style="font-size: 0.7rem; color: var(--text-muted);">${deviceAliases[key] || ''}</span>
+    </div>`;
+  });
+  
+  container.innerHTML = html || '<div style="color: var(--text-muted); padding: 10px; font-size: 0.8rem;">No devices found</div>';
+  
+  // Add click listeners
+  container.querySelectorAll('.raw-device-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const dev = item.getAttribute('data-device');
+      viewRawPayload(dev);
+    });
+  });
+}
+
+function viewRawPayload(dev) {
+  selectedRawDevice = dev;
+  updateRawDeviceList();
+  
+  const viewer = document.getElementById('raw-payload-viewer');
+  if (!viewer) return;
+  
+  const r = fleetData[dev];
+  if (!r || !r.raw_payload) {
+    viewer.innerHTML = `<div style="color: #64748b; text-align: center; margin-top: 50px;">No raw payload recorded for ${dev}</div>`;
+    return;
+  }
+  
+  // Format JSON beautifully
+  const formattedJson = JSON.stringify(r.raw_payload, null, 2);
+  viewer.innerHTML = `<pre style="margin: 0; white-space: pre-wrap; word-break: break-all; font-family: var(--mono); font-size: 0.82rem; line-height: 1.5; color: #34d399;">${formattedJson}</pre>`;
+}
+
 
 

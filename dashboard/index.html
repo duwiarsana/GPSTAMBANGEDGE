@@ -184,6 +184,9 @@
       <button class="fab-btn" id="toggle-log-btn">
         <i class="fa-solid fa-terminal"></i> <span class="fab-label">Logs</span>
       </button>
+      <button class="fab-btn" id="toggle-raw-btn">
+        <i class="fa-solid fa-code"></i> <span class="fab-label">Raw Data</span>
+      </button>
     </div>
 
     <!-- BOTTOM SHEET: Fleet Record Statistics -->
@@ -235,6 +238,24 @@
       </div>
       <div class="log-scroll" id="log-stream">
         <div class="log-empty">Waiting for MQTT broadcast on <code>kutai/fleet/data</code>…</div>
+      </div>
+    </div>
+
+    <!-- BOTTOM SHEET: Raw Payloads -->
+    <div class="floating-panel bottom-sheet pointer-events-auto" id="panel-raw" style="display: none;">
+      <div class="sheet-header">
+        <h3><i class="fa-solid fa-code"></i> Latest Raw Payloads</h3>
+        <button class="icon-btn close-sheet-btn" data-target="panel-raw"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div style="display: flex; height: calc(100% - 50px); overflow: hidden;">
+        <!-- Left: Device List -->
+        <div style="width: 200px; border-right: 1px solid var(--border); overflow-y: auto; padding: 10px;" id="raw-device-list">
+          <!-- Populated dynamically -->
+        </div>
+        <!-- Right: Raw Payload Code Block -->
+        <div style="flex: 1; padding: 15px; overflow-y: auto; background: #0f172a; color: #34d399; font-family: var(--mono); font-size: 0.85rem; border-radius: 0 0 8px 0; border: 1px solid var(--border);" id="raw-payload-viewer">
+          <div style="color: #64748b; text-align: center; margin-top: 50px;">Select a device to view its last raw payload</div>
+        </div>
       </div>
     </div>
 
