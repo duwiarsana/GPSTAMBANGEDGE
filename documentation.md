@@ -202,3 +202,28 @@ Untuk mempermudah verifikasi identitas fisik perangkat di lapangan, firmware **E
   * Mengaktifkan bendera **`retain=True`** pada penerbitan ACK agar broker MQTT menyimpan pesan ACK terakhir di memori dan langsung menyerahkannya ke unit seketika setelah unit terhubung kembali.
   * Memperbaiki alur mirroring di subscriber agar **hanya mendistribusikan ACK yang relevan** (tidak ada lagi banjir ACK EXCA ke topik DT). Alur mirroring dibalik: ACK DT disalin ke EXCA agar EXCA dapat membantu me-relay ACK ke DT saat mode offline hybrid.
 
+---
+
+### 16. Penyaringan Bypass Data Sampah DT011
+* **Masalah**: Unit fisik uji coba (`DT013` dengan IMEI `864022083271527`) memiliki sisa log lama pengujian di SD Card-nya yang bertuliskan nama perangkat `DT011`. Saat dikirim, data ini ditolak oleh backend inti (`409 Conflict`) karena ketidakcocokan identitas dengan database pusat, sehingga unit terus mengulang kiriman data sampah tersebut tanpa henti.
+* **Solusi**: Menambahkan sistem filter *bypass* di [subscriber.py](file:///Users/duwiarsana/.gemini/antigravity/scratch/GPSTAMBANGEDGE/subscriber/subscriber.py). Jika mendeteksi data dari IMEI `864022083271527` dengan nama `DT011`:
+  * Data langsung diblokir agar tidak masuk ke database utama (mencegah polusi data).
+  * Server langsung memberikan balasan ACK sukses secara instan ke topik MQTT agar unit fisik segera menghapus log tersebut dari MicroSD dan berjalan maju.
+
+---
+
+### 17. Koreksi Arah Hybrid Mirroring & Universal Duplicate ACK Mirroring
+* **Masalah**: 
+  * Kemarin disepakati arah mode hybrid yang benar adalah **EXCA menitipkan data ke DT** (bukan sebaliknya). Maka, ketika DT selesai mengunggah data titipan EXCA, DT harus menerima ACK untuk EXCA tersebut agar ia bisa menghapusnya dari memorinya.
+  * Masih tersisa data uji coba silang lama di memori card unit yang menyebabkan unit DT (seperti `DT01` dengan ID `-1`) atau EXCA terblokir karena tidak menerima ACK saat me-relay data.
+* **Solusi**:
+  * **Koreksi Arah Mirroring**: Membalikkan logika di `subscriber.py` sehingga ACK berawalan `EXCA` (misal `EXCA02`) secara otomatis diduplikasi ke seluruh topik DT (`DT01` s.d. `DT20`).
+  * **Universal Duplicate ACK Mirroring**: Ketika server mendeteksi status duplikat (`409 Conflict`), server akan secara otomatis mendistribusikan ACK tersebut ke **seluruh topik DT dan EXCA sekaligus**. Ini secara instan membebaskan perangkat mana pun yang tersangkut data sampah lama pengujian di memorinya.
+
+---
+
+### 18. Dashboard Auto-Cleanup untuk Stuck Alert
+* **Masalah**: Ketika perangkat berhasil terbebas (unblocked) dari status stuck lalu langsung masuk ke mode offline (misal dimatikan), database `device_alerts` tetap menyimpan status stuck lama tersebut karena belum ada koordinat baru (`200 OK`) yang dikirim untuk menghapusnya. Dashboard pun terus menampilkan status `⚠️ Stuck` palsu.
+* **Solusi**: Menambahkan logika pembersihan otomatis (*auto-cleanup*) di file API dashboard [server.py](file:///Users/duwiarsana/.gemini/antigravity/scratch/GPSTAMBANGEDGE/dashboard/server.py). Setiap kali data alarm diminta, sistem akan menghapus seluruh alarm di database yang **sudah tidak aktif/tidak di-update selama lebih dari 2 menit** (tanda perangkat sudah lolos atau offline). Dashboard kini terbebas dari alarm stuck palsu.
+
+
