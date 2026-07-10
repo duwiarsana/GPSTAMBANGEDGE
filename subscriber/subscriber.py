@@ -169,9 +169,10 @@ def forward_telemetry(client, payload_dict):
     src = payload_dict.get('src') or payload_dict.get('source')
     imei = payload_dict.get('imei')
 
-    # Bypass ingest for garbage DT011 data (IMEI is not the correct one)
+    # Bypass ingest for garbage DT011 data (IMEI is not the median one)
     if str(src).upper() == "DT011" and str(imei) != "864022083263987":
         logger.warning(f"🧹 Filtering garbage DT011 data [ID: {msg_id}] with mismatch IMEI {imei}. Bypassing backend ingest and sending ACK.")
+        clear_device_alert(src)
         send_mqtt_ack(client, src, msg_id, imei=imei)
         return True
 
