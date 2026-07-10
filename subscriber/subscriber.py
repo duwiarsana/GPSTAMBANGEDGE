@@ -282,17 +282,17 @@ def on_message(client, userdata, msg):
             topic_parts = msg.topic.split('/')
             src = topic_parts[-1]
             
-            if src.upper().startswith("DT"):
+            if src.upper().startswith("EXCA"):
                 data = json.loads(payload_str)
                 status = data.get("status")
                 msg_id = data.get("id") or data.get("msg_id")
                 
                 if status == "ok" and msg_id:
-                    logger.info(f"🔄 Mirroring DT ACK for {msg_id} (from {src}) to EXCA devices")
-                    active_excas = [f"EXCA{i:02d}" for i in range(1, 10)]
-                    for exca in active_excas:
-                        exca_topic = f"kutai/fleet/ack/{exca}"
-                        client.publish(exca_topic, msg.payload, qos=0, retain=True)
+                    logger.info(f"🔄 Mirroring EXCA ACK for {msg_id} (from {src}) to DT devices")
+                    active_dts = [f"DT{i:02d}" for i in range(1, 21)]
+                    for dt in active_dts:
+                        dt_topic = f"kutai/fleet/ack/{dt}"
+                        client.publish(dt_topic, msg.payload, qos=0, retain=True)
         else:
             # Handle Telemetry Message
             logger.info(f"📥 Received MQTT telemetry message on {msg.topic}")
