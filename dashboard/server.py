@@ -148,6 +148,8 @@ def on_message(client, userdata, msg):
 
 # Flask Web Server
 app = Flask(__name__)
+app.json.sort_keys = False
+app.config['JSON_SORT_KEYS'] = False
 CORS(app)
 
 @app.route("/api/devices", methods=["GET"])
