@@ -607,7 +607,8 @@ function updateTelemetryTableFromState() {
     }
 
     const activeAlert = typeof activeAlerts !== 'undefined' ? activeAlerts.find(a => a.src === key) : null;
-    const stuckHtml = activeAlert ? `<span class="stuck-badge" title="Stuck on packet ID: ${activeAlert.msg_id}" onclick="showStuckAlertDetail(event, '${key}', '${activeAlert.msg_id}', ${activeAlert.retry_count}, '${time}')"><i class="fa-solid fa-triangle-exclamation"></i> Stuck (${activeAlert.retry_count})</span>` : '';
+    const alertLocalTime = activeAlert ? utcToLocalString(activeAlert.last_seen) : '';
+    const stuckHtml = activeAlert ? `<span class="stuck-badge" title="Stuck on packet ID: ${activeAlert.msg_id}" onclick="showStuckAlertDetail(event, '${key}', '${activeAlert.msg_id}', ${activeAlert.retry_count}, '${alertLocalTime}')"><i class="fa-solid fa-triangle-exclamation"></i> Stuck (${activeAlert.retry_count})</span>` : '';
 
     html += `<tr data-device="${key}" style="cursor: pointer; background-color: ${rowBg}; border-left: ${borderLeft}; transition: background-color 0.5s ease, border-left 0.5s ease;">
       <td>
@@ -1288,13 +1289,7 @@ function updateAlertsUI() {
     let html = '';
     activeAlerts.forEach(alert => {
       const alias = deviceAliases[alert.src] ? ` (${deviceAliases[alert.src]})` : '';
-      let time = alert.last_seen;
-      if (typeof time === 'string' && time.includes(' ')) {
-        const parts = time.split(' ');
-        const datePart = parts[0].split('-').reverse().join('/');
-        const timePart = parts[1].substring(0, 8);
-        time = `${datePart} ${timePart}`;
-      }
+      const localTimeStr = utcToLocalString(alert.last_seen);
       
       html += `
         <div class="alert-item" style="cursor: pointer;" onclick="toggleAlertDetail('${alert.src}')">
@@ -1306,7 +1301,7 @@ function updateAlertsUI() {
             Stuck ID: ${alert.msg_id.split('-').pop()}
           </div>
           <div class="alert-item-time" style="margin-top: 2px; font-size: 0.68rem; color: var(--text-secondary);">
-            <i class="fa-solid fa-clock"></i> ${time}
+            <i class="fa-solid fa-clock"></i> ${localTimeStr}
           </div>
           <div class="alert-item-detail" id="alert-detail-${alert.src}" style="display: none; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 0.72rem; line-height: 1.4; color: var(--text-secondary);">
             <strong>Penyebab:</strong> Unit sukses mengirim data ke server, tetapi <strong>gagal menerima sinyal ACK kembali dari server</strong> untuk menghapus antreannya (karena sinyal Wi-Fi lemah/RX loss).<br>
@@ -1350,5 +1345,17 @@ Dekatkan unit ${src} ke access point Wi-Fi yang stabil dan memiliki sinyal kuat 
   alert(message);
 };
 
-
-
+function utcToLocalString(utcString) {
+  if (!utcString) return '—';
+  const utcDate = new Date(utcString.replace(' ', 'T') + 'Z');
+  if (isNaN(utcDate.getTime())) return utcString;
+  
+  const day = String(utcDate.getDate()).padStart(2, '0');
+  const month = String(utcDate.getMonth() + 1).padStart(2, '0');
+  const year = utcDate.getFullYear();
+  const hours = String(utcDate.getHours()).padStart(2, '0');
+  const minutes = String(utcDate.getMinutes()).padStart(2, '0');
+  const seconds = String(utcDate.getSeconds()).padStart(2, '0');
+  
+  return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+}
