@@ -33,6 +33,7 @@ let countEXCA = 0;
 let countACK = 0;
 const fleetMarkers = {};
 const fleetData = {};
+let activeAlerts = [];
 let historyPolyline = null;
 let historyMarkersGroup = L.featureGroup();
 
@@ -210,6 +211,7 @@ async function initializeData() {
         }
       });
       
+      await fetchAlerts();
       updateTelemetryTableFromState();
     }
 
@@ -604,10 +606,14 @@ function updateTelemetryTableFromState() {
       borderLeft = `4px solid rgba(239, 68, 68, 0.8)`;
     }
 
+    const activeAlert = typeof activeAlerts !== 'undefined' ? activeAlerts.find(a => a.src === key) : null;
+    const stuckHtml = activeAlert ? `<span class="stuck-badge" title="Stuck on packet ID: ${activeAlert.msg_id}"><i class="fa-solid fa-triangle-exclamation"></i> Stuck (${activeAlert.retry_count})</span>` : '';
+
     html += `<tr data-device="${key}" style="cursor: pointer; background-color: ${rowBg}; border-left: ${borderLeft}; transition: background-color 0.5s ease, border-left 0.5s ease;">
       <td>
         <span class="badge ${badge}">${key}</span>
         ${deviceAliases[key] ? `<span style="font-size:0.75rem;font-weight:600;color:var(--text-secondary);margin-left:4px;">${deviceAliases[key]}</span>` : ''}
+        ${stuckHtml}
         <div style="font-size:0.68rem; color:var(--text-muted); margin-top:4px; font-family:var(--mono);">${r.imei || '—'}</div>
       </td>
       <td style="font-family:var(--mono); font-size:0.8rem;">
@@ -1178,6 +1184,7 @@ async function loadDeviceStats() {
 
 // Periodically update telemetry table to refresh decay colors (every 10 seconds)
 setInterval(() => {
+  fetchAlerts();
   updateTelemetryTableFromState();
   if (panelRaw && panelRaw.classList.contains('active')) {
     updateRawDeviceList();
@@ -1231,6 +1238,85 @@ function viewRawPayload(dev) {
   // Format JSON beautifully
   const formattedJson = JSON.stringify(r.raw_payload, null, 2);
   viewer.innerHTML = `<pre style="margin: 0; white-space: pre-wrap; word-break: break-all; font-family: var(--mono); font-size: 0.82rem; line-height: 1.5; color: #34d399;">${formattedJson}</pre>`;
+}
+
+// Alert Bell Actions
+const alertBellBtn = document.getElementById('alert-bell-btn');
+const alertsDropdownPanel = document.getElementById('alerts-dropdown-panel');
+
+if (alertBellBtn && alertsDropdownPanel) {
+  alertBellBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isVisible = alertsDropdownPanel.style.display === 'block';
+    alertsDropdownPanel.style.display = isVisible ? 'none' : 'block';
+  });
+  
+  // Close dropdown when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!alertBellBtn.contains(e.target) && !alertsDropdownPanel.contains(e.target)) {
+      alertsDropdownPanel.style.display = 'none';
+    }
+  });
+}
+
+async function fetchAlerts() {
+  try {
+    const res = await fetch(`${API_BASE}/alerts`);
+    if (res.ok) {
+      activeAlerts = await res.json();
+      updateAlertsUI();
+    }
+  } catch (err) {
+    console.error("Failed to fetch alerts:", err);
+  }
+}
+
+function updateAlertsUI() {
+  const bellBtn = document.getElementById('alert-bell-btn');
+  const countBadge = document.getElementById('alert-count-badge');
+  const listContainer = document.getElementById('alerts-list-container');
+  
+  if (!bellBtn || !countBadge || !listContainer) return;
+  
+  const count = activeAlerts.length;
+  
+  if (count > 0) {
+    bellBtn.classList.add('flashing');
+    countBadge.textContent = count;
+    countBadge.style.display = 'block';
+    
+    let html = '';
+    activeAlerts.forEach(alert => {
+      const alias = deviceAliases[alert.src] ? ` (${deviceAliases[alert.src]})` : '';
+      let time = alert.last_seen;
+      if (typeof time === 'string' && time.includes(' ')) {
+        const parts = time.split(' ');
+        const datePart = parts[0].split('-').reverse().join('/');
+        const timePart = parts[1].substring(0, 8);
+        time = `${datePart} ${timePart}`;
+      }
+      
+      html += `
+        <div class="alert-item">
+          <div class="alert-item-title">
+            <span style="font-weight: bold; color: var(--text-primary);">${alert.src}${alias}</span>
+            <span style="color: var(--red); font-weight: bold;">${alert.retry_count}x retries</span>
+          </div>
+          <div class="alert-item-desc" style="font-family: var(--mono); font-size: 0.72rem; color: var(--text-muted); margin-top: 4px;">
+            Stuck ID: ${alert.msg_id.split('-').pop()}
+          </div>
+          <div class="alert-item-time" style="margin-top: 2px; font-size: 0.68rem; color: var(--text-secondary);">
+            <i class="fa-solid fa-clock"></i> ${time}
+          </div>
+        </div>
+      `;
+    });
+    listContainer.innerHTML = html;
+  } else {
+    bellBtn.classList.remove('flashing');
+    countBadge.style.display = 'none';
+    listContainer.innerHTML = '<div class="alert-empty-msg">No devices currently stuck</div>';
+  }
 }
 
 

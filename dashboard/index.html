@@ -38,6 +38,20 @@
         </button>
         <div class="brand-title">Kutai Fleet Monitor</div>
         <div class="brand-badge" id="live-badge">Live</div>
+        <div class="alert-bell-container" id="alert-bell-box">
+          <button class="icon-btn" id="alert-bell-btn" title="Stuck Device Alerts">
+            <i class="fa-solid fa-bell"></i>
+            <span class="alert-badge" id="alert-count-badge" style="display: none;">0</span>
+          </button>
+          <div class="alert-dropdown" id="alerts-dropdown-panel" style="display: none;">
+            <div class="alert-dropdown-header">
+              <h4>⚠️ Stuck Device Alerts</h4>
+            </div>
+            <div class="alert-dropdown-list" id="alerts-list-container">
+              <div class="alert-empty-msg">No devices currently stuck</div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Collapsible Main Content -->

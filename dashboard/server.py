@@ -51,6 +51,15 @@ def init_db():
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_telemetry_src_ts ON telemetry(src, ts)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_telemetry_created_at ON telemetry(created_at)")
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS device_alerts (
+            src TEXT PRIMARY KEY,
+            msg_id TEXT,
+            retry_count INTEGER,
+            alert_type TEXT,
+            last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
     conn.commit()
     conn.close()
     logger.info(f"Database initialized at: {DB_PATH}")
@@ -114,6 +123,24 @@ def save_telemetry(data, raw_payload):
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
+            
+            # Check if this msg_id already exists (duplicate retry)
+            cursor.execute("SELECT COUNT(*) FROM telemetry WHERE id = ?", (msg_id,))
+            exists = cursor.fetchone()[0] > 0
+            
+            if exists:
+                cursor.execute("""
+                    INSERT INTO device_alerts (src, msg_id, retry_count, alert_type, last_seen)
+                    VALUES (?, ?, 1, 'duplicate_retry', CURRENT_TIMESTAMP)
+                    ON CONFLICT(src) DO UPDATE SET
+                        retry_count = CASE WHEN msg_id = excluded.msg_id THEN retry_count + 1 ELSE 1 END,
+                        msg_id = excluded.msg_id,
+                        alert_type = 'duplicate_retry',
+                        last_seen = CURRENT_TIMESTAMP
+                """, (src, msg_id))
+            else:
+                cursor.execute("DELETE FROM device_alerts WHERE src = ?", (src,))
+
             cursor.execute("""
                 INSERT OR REPLACE INTO telemetry (id, src, ts, lat, lon, spd, bat, ign, raw_payload)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -197,6 +224,34 @@ def get_devices():
         return jsonify(devices)
     except Exception as e:
         logger.error(f"Error serving /api/devices: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/alerts", methods=["GET"])
+def get_alerts():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT src, msg_id, retry_count, alert_type, last_seen 
+            FROM device_alerts 
+            WHERE retry_count >= 1
+            ORDER BY last_seen DESC
+        """)
+        rows = cursor.fetchall()
+        conn.close()
+        
+        alerts = []
+        for r in rows:
+            alerts.append({
+                "src": r[0],
+                "msg_id": r[1],
+                "retry_count": r[2],
+                "alert_type": r[3],
+                "last_seen": r[4]
+            })
+        return jsonify(alerts)
+    except Exception as e:
+        logger.error(f"Error serving /api/alerts: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route("/api/recent", methods=["GET"])
