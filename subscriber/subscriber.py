@@ -165,6 +165,16 @@ def send_mqtt_ack(client, src, msg_id, imei=None):
             client.publish(exca_topic, ack_payload, qos=0, retain=True)
 
 def forward_telemetry(client, payload_dict):
+    msg_id = payload_dict.get('id') or payload_dict.get('msg_id')
+    src = payload_dict.get('src') or payload_dict.get('source')
+    imei = payload_dict.get('imei')
+
+    # Bypass ingest for garbage DT011 data (IMEI is not the correct one)
+    if str(src).upper() == "DT011" and str(imei) != "864022083263987":
+        logger.warning(f"🧹 Filtering garbage DT011 data [ID: {msg_id}] with mismatch IMEI {imei}. Bypassing backend ingest and sending ACK.")
+        send_mqtt_ack(client, src, msg_id, imei=imei)
+        return True
+
     token = get_auth_token()
     if not token:
         logger.error("Cannot forward telemetry: Authorization token is unavailable.")
