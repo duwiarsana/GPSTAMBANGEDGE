@@ -157,12 +157,7 @@ def send_mqtt_ack(client, src, msg_id, imei=None):
     for topic in target_topics:
         client.publish(topic, ack_payload, qos=0, retain=True)
     
-    # Mirror DT ACKs to EXCA devices so EXCAs can relay them to offline DTs
-    if str(src).upper().startswith("DT"):
-        active_excas = [f"EXCA{i:02d}" for i in range(1, 10)]
-        for exca in active_excas:
-            exca_topic = f"kutai/fleet/ack/{exca}"
-            client.publish(exca_topic, ack_payload, qos=0, retain=True)
+
 
 def forward_telemetry(client, payload_dict):
     msg_id = payload_dict.get('id') or payload_dict.get('msg_id')
@@ -297,7 +292,7 @@ def on_message(client, userdata, msg):
                     active_excas = [f"EXCA{i:02d}" for i in range(1, 10)]
                     for exca in active_excas:
                         exca_topic = f"kutai/fleet/ack/{exca}"
-                        client.publish(exca_topic, msg.payload, qos=0)
+                        client.publish(exca_topic, msg.payload, qos=0, retain=True)
         else:
             # Handle Telemetry Message
             logger.info(f"📥 Received MQTT telemetry message on {msg.topic}")
