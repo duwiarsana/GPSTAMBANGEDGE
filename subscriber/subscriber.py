@@ -91,7 +91,7 @@ def clear_device_alert(src):
             conn = sqlite3.connect(DB_PATH, timeout=30.0)
             conn.execute("PRAGMA journal_mode=WAL")
             cursor = conn.cursor()
-            cursor.execute("DELETE FROM device_alerts WHERE src = ?")
+            cursor.execute("DELETE FROM device_alerts WHERE src = ?", (src,))
             conn.commit()
             conn.close()
             logger.info(f"🔕 Alert cleared for {src}")
