@@ -123,23 +123,6 @@ def save_telemetry(data, raw_payload):
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
-            
-            # Check if this msg_id already exists (duplicate retry)
-            cursor.execute("SELECT COUNT(*) FROM telemetry WHERE id = ?", (msg_id,))
-            exists = cursor.fetchone()[0] > 0
-            
-            if exists:
-                cursor.execute("""
-                    INSERT INTO device_alerts (src, msg_id, retry_count, alert_type, last_seen)
-                    VALUES (?, ?, 1, 'duplicate_retry', CURRENT_TIMESTAMP)
-                    ON CONFLICT(src) DO UPDATE SET
-                        retry_count = CASE WHEN msg_id = excluded.msg_id THEN retry_count + 1 ELSE 1 END,
-                        msg_id = excluded.msg_id,
-                        alert_type = 'duplicate_retry',
-                        last_seen = CURRENT_TIMESTAMP
-                """, (src, msg_id))
-            else:
-                cursor.execute("DELETE FROM device_alerts WHERE src = ?", (src,))
 
             cursor.execute("""
                 INSERT OR REPLACE INTO telemetry (id, src, ts, lat, lon, spd, bat, ign, raw_payload)

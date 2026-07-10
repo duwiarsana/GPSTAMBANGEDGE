@@ -608,7 +608,7 @@ function updateTelemetryTableFromState() {
 
     const activeAlert = typeof activeAlerts !== 'undefined' ? activeAlerts.find(a => a.src === key) : null;
     const alertLocalTime = activeAlert ? utcToLocalString(activeAlert.last_seen) : '';
-    const stuckHtml = activeAlert ? `<span class="stuck-badge" title="Stuck on packet ID: ${activeAlert.msg_id}" onclick="showStuckAlertDetail(event, '${key}', '${activeAlert.msg_id}', ${activeAlert.retry_count}, '${alertLocalTime}')"><i class="fa-solid fa-triangle-exclamation"></i> Stuck (${activeAlert.retry_count})</span>` : '';
+    const stuckHtml = activeAlert ? `<span class="stuck-badge" title="Stuck on packet ID: ${activeAlert.msg_id}" onclick="showStuckAlertDetail(event, '${key}', '${activeAlert.msg_id}', ${activeAlert.retry_count}, '${alertLocalTime}', '${activeAlert.alert_type}')"><i class="fa-solid fa-triangle-exclamation"></i> Stuck (${activeAlert.retry_count})</span>` : '';
 
     html += `<tr data-device="${key}" style="cursor: pointer; background-color: ${rowBg}; border-left: ${borderLeft}; transition: background-color 0.5s ease, border-left 0.5s ease;">
       <td>
@@ -1304,6 +1304,7 @@ function updateAlertsUI() {
             <i class="fa-solid fa-clock"></i> ${localTimeStr}
           </div>
           <div class="alert-item-detail" id="alert-detail-${alert.src}" style="display: none; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 0.72rem; line-height: 1.4; color: var(--text-secondary);">
+            <strong>Respon API Server:</strong> <span style="color: var(--amber); font-family: var(--mono);">${alert.alert_type}</span><br>
             <strong>Penyebab:</strong> Unit sukses mengirim data ke server, tetapi <strong>gagal menerima sinyal ACK kembali dari server</strong> untuk menghapus antreannya (karena sinyal Wi-Fi lemah/RX loss).<br>
             <strong style="color: var(--blue);">Solusi:</strong> Dekatkan unit ke access point Wi-Fi dengan sinyal stabil agar unit dapat menerima ACK dan memajukan antrean MicroSD-nya.
           </div>
@@ -1326,7 +1327,7 @@ window.toggleAlertDetail = function(src) {
   }
 };
 
-window.showStuckAlertDetail = function(event, src, msgId, retryCount, lastSeen) {
+window.showStuckAlertDetail = function(event, src, msgId, retryCount, lastSeen, alertType) {
   event.stopPropagation(); // Prevent centering map
   
   const alias = deviceAliases[src] ? ` (${deviceAliases[src]})` : '';
@@ -1335,6 +1336,7 @@ Unit: ${src}${alias}
 Status: Stuck dalam pengiriman data (mengulang ${retryCount} kali)
 ID Data Tersumbat: ${msgId.split('-').pop()}
 Deteksi Terakhir: ${lastSeen}
+Respon API Server: ${alertType || 'Tidak diketahui'}
 
 Penyebab:
 Unit sukses mengirim data ke broker MQTT di server, tetapi GAGAL menerima/mendengar respon ACK kembali dari server untuk menghapus antreannya. Ini biasanya disebabkan oleh kualitas sinyal Wi-Fi di area unit tersebut sangat lemah/tidak stabil (RX loss).

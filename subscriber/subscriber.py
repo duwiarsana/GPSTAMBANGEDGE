@@ -8,6 +8,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 import paho.mqtt.client as mqtt
+import sqlite3
 
 # Configure Logging
 logging.basicConfig(
@@ -48,6 +49,54 @@ token_expires_at = 0
 executor = ThreadPoolExecutor(max_workers=10)
 token_lock = threading.Lock()
 active_dts = set(f"DT{i:02d}" for i in range(1, 21))
+
+DB_PATH = os.getenv("DB_PATH", "/opt/kutai-dashboard-backend/telemetry.db")
+db_write_lock = threading.Lock()
+
+def log_device_alert(src, msg_id, status_code, response_msg):
+    with db_write_lock:
+        try:
+            conn = sqlite3.connect(DB_PATH, timeout=30.0)
+            conn.execute("PRAGMA journal_mode=WAL")
+            cursor = conn.cursor()
+            
+            # Check if alert exists
+            cursor.execute("SELECT retry_count, msg_id FROM device_alerts WHERE src = ?", (src,))
+            row = cursor.fetchone()
+            
+            if row:
+                curr_count, curr_msg_id = row
+                new_count = curr_count + 1 if curr_msg_id == msg_id else 1
+            else:
+                new_count = 1
+                
+            cursor.execute("""
+                INSERT INTO device_alerts (src, msg_id, retry_count, alert_type, last_seen)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(src) DO UPDATE SET
+                    retry_count = excluded.retry_count,
+                    msg_id = excluded.msg_id,
+                    alert_type = excluded.alert_type,
+                    last_seen = CURRENT_TIMESTAMP
+            """, (src, msg_id, new_count, f"HTTP {status_code}: {response_msg}"))
+            conn.commit()
+            conn.close()
+            logger.info(f"🔔 Alert logged for {src} (Status: {status_code}, Retry: {new_count})")
+        except Exception as e:
+            logger.error(f"❌ Failed to log device alert to DB: {e}")
+
+def clear_device_alert(src):
+    with db_write_lock:
+        try:
+            conn = sqlite3.connect(DB_PATH, timeout=30.0)
+            conn.execute("PRAGMA journal_mode=WAL")
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM device_alerts WHERE src = ?")
+            conn.commit()
+            conn.close()
+            logger.info(f"🔕 Alert cleared for {src}")
+        except Exception as e:
+            logger.error(f"❌ Failed to clear device alert in DB: {e}")
 
 def login_to_backend():
     global access_token, token_expires_at
@@ -122,8 +171,10 @@ def forward_telemetry(client, payload_dict):
         if response.status_code in (200, 202, 409):
             if response.status_code == 409:
                 logger.warning(f"⚠️ Telemetry duplicate (409 Conflict) for device src: {src} [ID: {msg_id}]. Sending ACK to unblock client.")
+                log_device_alert(src, msg_id, 409, "Duplicate / Conflict (Already Ingested)")
             else:
                 logger.info(f"✅ Telemetry ingest successful for device src: {src} [ID: {msg_id}]")
+                clear_device_alert(src)
             
             send_mqtt_ack(client, src, msg_id)
             return True
@@ -138,10 +189,14 @@ def forward_telemetry(client, payload_dict):
             # If the backend actually replied with 400 or 500, it means it's a validation/processing failure.
             # We must send an ACK to unblock the device, otherwise it will be locked in an infinite retry loop.
             logger.warning(f"⚠️ Sending ACK to unblock device {src} from stuck invalid packet [ID: {msg_id}].")
+            log_device_alert(src, msg_id, response.status_code, f"Backend Reject: {response.text[:100]}")
             send_mqtt_ack(client, src, msg_id)
             return False
     except Exception as e:
         logger.error(f"❌ Connection error during ingest: {e}")
+        # Note: If it's a network/connection error, the device will retry, but it's not a server rejection. 
+        # We can still track it as a network timeout issue alert.
+        log_device_alert(src, payload_dict.get('id', 'unknown'), 599, f"Network Error: {str(e)[:100]}")
         return False
 
 # MQTT Event Callbacks
