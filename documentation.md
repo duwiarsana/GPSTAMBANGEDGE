@@ -167,3 +167,38 @@ Untuk mempermudah verifikasi identitas fisik perangkat di lapangan, firmware **E
 ### 11. Penanganan Sinyal ACK Tersumbat di Server VPS
 * **Masalah**: Sebelumnya, subscriber service hanya mengirimkan sinyal ACK ke unit fisik jika API backend mendeteksi data duplikat (`409 Conflict`). Jika data baru berhasil tersimpan (`200 OK` atau `202 Accepted`), subscriber lupa mengirimkan ACK. Akibatnya unit fisik terus-menerus mengulang pengiriman data yang sama dan tersumbat ketika dashboard browser ditutup (fitur Auto-ACK mati).
 * **Solusi**: Memperbarui berkas [subscriber.py](file:///Users/duwiarsana/.gemini/antigravity/scratch/GPSTAMBANGEDGE/subscriber/subscriber.py) agar **selalu mengirimkan respons ACK (`status: ok`)** kembali ke unit fisik untuk semua status keberhasilan penyimpanan, baik itu data baru (`200`/`202`) maupun data duplikat (`409`). Layanan subscriber telah sukses di-deploy dan berjalan normal tanpa hambatan di VPS.
+
+---
+
+### 12. SQLite WAL Mode & Concurrency Write Optimization
+* **Masalah**: Pengiriman backlog data antrean dalam skala besar secara beruntun dari 18 unit seringkali menyebabkan database SQLite di server backend terkunci (*database is locked*), mengganggu dashboard dalam membaca data telemetri.
+* **Solusi**: 
+  * Mengubah mode jurnal SQLite backend menjadi **Write-Ahead Logging (WAL)** di [server.py](file:///Users/duwiarsana/.gemini/antigravity/scratch/GPSTAMBANGEDGE/dashboard/server.py).
+  * Menambahkan parameter `timeout=30.0` pada setiap inisialisasi koneksi database untuk memberi toleransi waktu tunggu yang aman selama antrean tulis yang padat.
+
+---
+
+### 13. Real-Time Stuck Device Alarm System
+* **Masalah**: Operator tidak memiliki cara untuk mengetahui unit mana saja di lapangan yang sedang tersumbat antrean datanya (stuck dalam retry loop) akibat tidak menerima balasan ACK dari server.
+* **Solusi**:
+  * **Database tracking**: Membuat tabel `device_alerts` di database untuk menyimpan unit bermasalah, ID pesan yang tersumbat, dan jumlah pengulangan (`retry_count`).
+  * **Auto-detect & Auto-resolve**: Subscriber mendeteksi pesan duplikat/gagal, mencatatnya sebagai alarm aktif, dan secara otomatis **menghapusnya seketika** setelah unit berhasil mengirimkan data baru (ID baru).
+  * **Lonceng Peringatan (Web UI)**: Menambahkan tombol Lonceng Alarm berkedip merah di header dashboard dengan dropdown list unit stuck yang dinamis.
+  * **Badge Peringatan di Tabel**: Menambahkan badge interaktif berkedip merah `⚠️ Stuck (X)` di samping nama unit pada tabel utama. Jika diklik, dialog pop-up akan menampilkan analisis penyebab lengkap dengan saran solusinya.
+
+---
+
+### 14. Konversi Waktu Lokal (Timezone conversion WITA)
+* **Masalah**: Waktu deteksi alarm stuck di database direkam dalam standar UTC (GMT+0), sehingga memicu kebingungan pengguna karena selisih 8 jam dengan jam lokal laptop (WITA / GMT+8).
+* **Solusi**: Menambahkan fungsi JavaScript `utcToLocalString` di [app.js](file:///Users/duwiarsana/.gemini/antigravity/scratch/GPSTAMBANGEDGE/dashboard/app.js) untuk secara dinamis mengonversi waktu UTC dari database ke zona waktu lokal pengguna sebelum ditampilkan di dashboard.
+
+---
+
+### 15. MQTT Retained ACK & Mirroring Bug Fix
+* **Masalah**: 
+  * Unit sering terputus (*keepalive timeout*) karena gangguan sinyal Wi-Fi satu arah (RX loss), sehingga sering melewatkan sinyal ACK reguler yang dikirim server saat proses reconnect.
+  * Adanya bug mirroring di subscriber lama yang membanjiri semua topik DT dengan ACK milik EXCA02, sehingga variabel pencocokan ACK di memori ESP32 DT terus-menerus tertimpa dan membuat unit terblokir selamanya.
+* **Solusi**:
+  * Mengaktifkan bendera **`retain=True`** pada penerbitan ACK agar broker MQTT menyimpan pesan ACK terakhir di memori dan langsung menyerahkannya ke unit seketika setelah unit terhubung kembali.
+  * Memperbaiki alur mirroring di subscriber agar **hanya mendistribusikan ACK yang relevan** (tidak ada lagi banjir ACK EXCA ke topik DT). Alur mirroring dibalik: ACK DT disalin ke EXCA agar EXCA dapat membantu me-relay ACK ke DT saat mode offline hybrid.
+

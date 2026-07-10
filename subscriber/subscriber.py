@@ -143,13 +143,14 @@ def send_mqtt_ack(client, src, msg_id):
     ack_payload = json.dumps({"id": msg_id, "status": "ok"})
     # Send the ACK directly to the device's ACK topic
     target_topic = f"kutai/fleet/ack/{src}"
-    client.publish(target_topic, ack_payload, qos=0)
+    client.publish(target_topic, ack_payload, qos=0, retain=True)
     
-    # Also mirror to active DTs if it's an EXCA device
-    if str(src).upper().startswith("EXCA"):
-        for dt in list(active_dts):
-            dt_topic = f"kutai/fleet/ack/{dt}"
-            client.publish(dt_topic, ack_payload, qos=0)
+    # Mirror DT ACKs to EXCA devices so EXCAs can relay them to offline DTs
+    if str(src).upper().startswith("DT"):
+        active_excas = [f"EXCA{i:02d}" for i in range(1, 10)]
+        for exca in active_excas:
+            exca_topic = f"kutai/fleet/ack/{exca}"
+            client.publish(exca_topic, ack_payload, qos=0, retain=True)
 
 def forward_telemetry(client, payload_dict):
     token = get_auth_token()
