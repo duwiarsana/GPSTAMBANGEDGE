@@ -410,23 +410,29 @@ function handleIncomingData(data, rawJson) {
   // Log entry
   addLogEntry(src, isDT ? 'dt' : 'exca', rawJson);
 
-  // Map marker (only update if not currently focused on history route)
-  if (!isNaN(latitude) && !isNaN(longitude)) {
+  const isNewer = !fleetData[src] || !fleetData[src].timestamp || new Date(timestamp) >= new Date(fleetData[src].timestamp);
+  const incomingImei = data.imei || (id ? id.split('-')[1] : '') || '';
+  const currentCount = ((fleetData[src] && fleetData[src].activity_count) || 0) + 1;
+
+  // Map marker (only update if newer and not currently focused on history route)
+  if (isNewer && !isNaN(latitude) && !isNaN(longitude)) {
     updateMapMarker(src, isDT, latitude, longitude, speed, timestamp);
   }
 
-  const incomingImei = data.imei || (id ? id.split('-')[1] : '') || '';
-  const currentCount = ((fleetData[src] && fleetData[src].activity_count) || 0) + 1;
-  fleetData[src] = { 
-    timestamp, 
-    ignition, 
-    speed, 
-    battery, 
-    msgId: id, 
-    imei: incomingImei,
-    activity_count: currentCount,
-    localReceivedTime: Date.now()
-  };
+  if (isNewer) {
+    fleetData[src] = { 
+      timestamp, 
+      ignition, 
+      speed, 
+      battery, 
+      msgId: id, 
+      imei: incomingImei,
+      activity_count: currentCount,
+      localReceivedTime: Date.now()
+    };
+  } else if (fleetData[src]) {
+    fleetData[src].activity_count = currentCount;
+  }
   updateTelemetryTableFromState();
 
   // Auto-ACK

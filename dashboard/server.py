@@ -24,10 +24,16 @@ MQTT_PORT = int(os.environ.get("MQTT_PORT", 1883))
 MQTT_TOPIC = os.environ.get("MQTT_TOPIC", "kutai/fleet/data")
 PORT = int(os.environ.get("PORT", 5000))
 
+def get_db_connection():
+    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    return conn
+
 # Initialize Database
 def init_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS telemetry (
@@ -62,7 +68,7 @@ def clean_old_records():
     
     with db_lock:
         try:
-            conn = sqlite3.connect(DB_PATH)
+            conn = get_db_connection()
             cursor = conn.cursor()
             # Delete records older than 30 days
             cursor.execute("DELETE FROM telemetry WHERE created_at < datetime('now', '-30 days')")
@@ -106,7 +112,7 @@ def save_telemetry(data, raw_payload):
 
     with db_lock:
         try:
-            conn = sqlite3.connect(DB_PATH)
+            conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT OR REPLACE INTO telemetry (id, src, ts, lat, lon, spd, bat, ign, raw_payload)
@@ -147,7 +153,7 @@ CORS(app)
 @app.route("/api/devices", methods=["GET"])
 def get_devices():
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         cursor = conn.cursor()
         
         # Get count of updates in the last 1 hour for each device
@@ -195,7 +201,7 @@ def get_devices():
 def get_recent():
     limit = request.args.get("limit", 100, type=int)
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
             SELECT id, src, ts, lat, lon, spd, bat, ign, raw_payload, created_at
@@ -233,7 +239,7 @@ def get_history():
         return jsonify({"error": "Missing required parameter 'src'"}), 400
         
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
             SELECT id, src, ts, lat, lon, spd, bat, ign, created_at
@@ -275,7 +281,7 @@ def get_device_stats():
         expected_devices.append(f"EXCA{i:02d}")
         
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT src, COUNT(*), MAX(ts) FROM telemetry GROUP BY src")
         rows = cursor.fetchall()
@@ -353,7 +359,7 @@ def export_data():
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );\n\n"""
 
-            conn = sqlite3.connect(DB_PATH)
+            conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute(query, params)
             
