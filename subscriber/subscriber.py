@@ -338,10 +338,7 @@ def handle_telemetry_message(client, data, payload_str):
                     client.publish(f"kutai/fleet/ack/{dt}", ack_payload, qos=0, retain=False)
             return
 
-        # 2. For normal messages, immediately save to local queue
-        save_pending_ingest(msg_id, payload_str)
-
-        # 3. Immediately send unblocking ACK to MQTT so the device advances
+        # 2. Immediately send unblocking ACK to MQTT so the device advances
         send_mqtt_ack(client, src, msg_id, imei=imei)
         
         # Mirror EXCA ACKs to DT devices (with retain=True) to prevent relay stuck
@@ -350,8 +347,9 @@ def handle_telemetry_message(client, data, payload_str):
             for dt in get_all_dt_names():
                 client.publish(f"kutai/fleet/ack/{dt}", ack_payload, qos=0, retain=True)
 
-        # 4. Asynchronously attempt to forward to the backend remote server
+        # 3. Asynchronously save to local queue and attempt to forward to the backend remote server
         def task():
+            save_pending_ingest(msg_id, payload_str)
             if attempt_forward_payload(data):
                 remove_pending_ingest(msg_id)
         executor.submit(task)
