@@ -45,10 +45,17 @@ BACKEND_PASSWORD = os.getenv("BACKEND_PASSWORD", "")
 access_token = None
 token_expires_at = 0
 
+def get_all_dt_names():
+    names = []
+    for i in range(1, 21):
+        names.append(f"DT{i:02d}")  # e.g., DT05, DT15
+        names.append(f"DT0{i}")     # e.g., DT05, DT015
+    return list(set(names))
+
 # Thread pool, thread locks, and active DTs tracking
 executor = ThreadPoolExecutor(max_workers=10)
 token_lock = threading.Lock()
-active_dts = set(f"DT{i:02d}" for i in range(1, 21))
+active_dts = set(get_all_dt_names())
 
 DB_PATH = os.getenv("DB_PATH", "/opt/kutai-dashboard-backend/telemetry.db")
 db_write_lock = threading.Lock()
@@ -156,29 +163,55 @@ def send_mqtt_ack(client, src, msg_id, imei=None):
         
     for topic in target_topics:
         client.publish(topic, ack_payload, qos=0, retain=True)
-    
 
+def init_db():
+    with db_write_lock:
+        try:
+            conn = sqlite3.connect(DB_PATH, timeout=30.0)
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS pending_ingests (
+                    id TEXT PRIMARY KEY,
+                    payload TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            conn.commit()
+            conn.close()
+            logger.info("✅ Database initialized (pending_ingests table checked)")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize pending_ingests table: {e}")
 
-def forward_telemetry(client, payload_dict):
+def save_pending_ingest(msg_id, payload_str):
+    with db_write_lock:
+        try:
+            conn = sqlite3.connect(DB_PATH, timeout=30.0)
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT OR IGNORE INTO pending_ingests (id, payload)
+                VALUES (?, ?)
+            """, (msg_id, payload_str))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"❌ Failed to save pending ingest to DB: {e}")
+
+def remove_pending_ingest(msg_id):
+    with db_write_lock:
+        try:
+            conn = sqlite3.connect(DB_PATH, timeout=30.0)
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM pending_ingests WHERE id = ?", (msg_id,))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"❌ Failed to remove pending ingest from DB: {e}")
+
+def attempt_forward_payload(payload_dict):
     msg_id = payload_dict.get('id') or payload_dict.get('msg_id')
     src = payload_dict.get('src') or payload_dict.get('source')
     imei = payload_dict.get('imei')
-
-    # Bypass ingest for garbage DT011 data (IMEI is not the median one)
-    if str(src).upper() == "DT011" and str(imei) != "864022083263987":
-        logger.warning(f"🧹 Filtering garbage DT011 data [ID: {msg_id}] with mismatch IMEI {imei}. Bypassing backend ingest and sending ACK.")
-        clear_device_alert(src)
-        send_mqtt_ack(client, src, msg_id, imei=imei)
-        
-        # Mirror to all DTs in case a DT (e.g., DT05) is relaying this garbage testing data
-        ack_payload = json.dumps({"id": msg_id, "status": "ok"})
-        active_dts = [f"DT{i:02d}" for i in range(1, 21)]
-        for dt in active_dts:
-            dt_topic = f"kutai/fleet/ack/{dt}"
-            client.publish(dt_topic, ack_payload, qos=0, retain=True)
-            
-        return True
-
+    
     token = get_auth_token()
     if not token:
         logger.error("Cannot forward telemetry: Authorization token is unavailable.")
@@ -191,54 +224,73 @@ def forward_telemetry(client, payload_dict):
     }
 
     try:
-        response = requests.post(ingest_endpoint, json=payload_dict, headers=headers, timeout=10)
-        msg_id = payload_dict.get('id') or payload_dict.get('msg_id')
-        src = payload_dict.get('src') or payload_dict.get('source')
-        imei = payload_dict.get('imei')
+        # Increase timeout to 25 seconds for slow remote backend
+        response = requests.post(ingest_endpoint, json=payload_dict, headers=headers, timeout=25)
 
         if response.status_code in (200, 202, 409):
             if response.status_code == 409:
-                logger.warning(f"⚠️ Telemetry duplicate (409 Conflict) for device src: {src} [ID: {msg_id}]. Sending ACK to unblock client.")
+                logger.warning(f"⚠️ Telemetry duplicate (409 Conflict) for device src: {src} [ID: {msg_id}].")
                 log_device_alert(src, msg_id, 409, "Duplicate / Conflict (Already Ingested)")
-                
-                # Universal Duplicate ACK Mirroring to unblock any relaying/stuck DT or EXCA
-                ack_payload = json.dumps({"id": msg_id, "status": "ok"})
-                all_targets = [f"DT{i:02d}" for i in range(1, 21)] + [f"EXCA{i:02d}" for i in range(1, 10)]
-                for target in all_targets:
-                    client.publish(f"kutai/fleet/ack/{target}", ack_payload, qos=0, retain=True)
             else:
                 logger.info(f"✅ Telemetry ingest successful for device src: {src} [ID: {msg_id}]")
                 clear_device_alert(src)
-            
-            send_mqtt_ack(client, src, msg_id, imei=imei)
             return True
         elif response.status_code in (401, 403):
             logger.warning("⚠️ Ingest returned unauthorized. Clearing token to force re-login on next message.")
             global access_token
             with token_lock:
-                access_token = None # Clear token
+                access_token = None
             return False
+        elif response.status_code == 400:
+            logger.error(f"❌ Ingest bad request (400). Invalid payload for [ID: {msg_id}]. Msg: {response.text}")
+            log_device_alert(src, msg_id, 400, f"Backend Reject: {response.text[:100]}")
+            return True # Do not retry invalid payloads
         else:
             logger.error(f"❌ Ingest failed. Status: {response.status_code}. Msg: {response.text}")
-            # If the backend actually replied with 400 or 500, it means it's a validation/processing failure.
-            # We must send an ACK to unblock the device, otherwise it will be locked in an infinite retry loop.
-            logger.warning(f"⚠️ Sending ACK to unblock device {src} from stuck invalid packet [ID: {msg_id}].")
             log_device_alert(src, msg_id, response.status_code, f"Backend Reject: {response.text[:100]}")
-            
-            # Universal Mirroring for rejected/invalid packets as well to prevent relay stuck
-            ack_payload = json.dumps({"id": msg_id, "status": "ok"})
-            all_targets = [f"DT{i:02d}" for i in range(1, 21)] + [f"EXCA{i:02d}" for i in range(1, 10)]
-            for target in all_targets:
-                client.publish(f"kutai/fleet/ack/{target}", ack_payload, qos=0, retain=True)
-                
-            send_mqtt_ack(client, src, msg_id, imei=imei)
-            return True
+            return False # Retry later on server error
     except Exception as e:
-        logger.error(f"❌ Connection error during ingest: {e}")
-        # Note: If it's a network/connection error, the device will retry, but it's not a server rejection. 
-        # We can still track it as a network timeout issue alert.
-        log_device_alert(src, payload_dict.get('id', 'unknown'), 599, f"Network Error: {str(e)[:100]}")
-        return False
+        logger.error(f"❌ Connection error during ingest for [ID: {msg_id}]: {e}")
+        log_device_alert(src, msg_id, 599, f"Network Error: {str(e)[:100]}")
+        return False # Retry later on network error
+
+def run_background_forwarder():
+    logger.info("Starting background forwarder thread...")
+    while True:
+        try:
+            time.sleep(30)
+            
+            # Read pending items
+            conn = None
+            rows = []
+            with db_write_lock:
+                try:
+                    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT id, payload FROM pending_ingests ORDER BY created_at ASC LIMIT 50")
+                    rows = cursor.fetchall()
+                    conn.close()
+                except Exception as e:
+                    logger.error(f"❌ Error reading pending_ingests: {e}")
+                    if conn: conn.close()
+                    continue
+
+            if not rows:
+                continue
+
+            logger.info(f"⏳ Background forwarder: attempting to process {len(rows)} pending telemetry packets...")
+            for msg_id, payload_str in rows:
+                try:
+                    data = json.loads(payload_str)
+                    if attempt_forward_payload(data):
+                        remove_pending_ingest(msg_id)
+                except Exception as ex:
+                    logger.error(f"❌ Background forwarder failed for {msg_id}: {ex}")
+                    if "JSONDecodeError" in str(type(ex).__name__):
+                        remove_pending_ingest(msg_id)
+                        
+        except Exception as e:
+            logger.error(f"❌ Error in background forwarder loop: {e}")
 
 # MQTT Event Callbacks
 def on_connect(client, userdata, flags, rc, properties=None):
@@ -252,15 +304,60 @@ def on_connect(client, userdata, flags, rc, properties=None):
 
 def handle_telemetry_message(client, data, payload_str):
     try:
+        msg_id = data.get('id') or data.get('msg_id')
+        src = data.get('src') or data.get('source')
+        imei = data.get('imei')
+        if not msg_id or not src:
+            return
+
         # Dynamically record active DTs
-        src = data.get("src") or data.get("source")
         if src and str(src).upper().startswith("DT"):
             active_dts.add(str(src))
+
+        # 1. Run bypass checks first
+        # Garbage DT011
+        if str(src).upper() == "DT011" and str(imei) != "864022083263987":
+            logger.warning(f"🧹 Filtering garbage DT011 data [ID: {msg_id}] with mismatch IMEI {imei}. Bypassing backend ingest.")
+            clear_device_alert(src)
+            send_mqtt_ack(client, src, msg_id, imei=imei)
+            return
+
+        # Stuck message IDs
+        if msg_id in [
+            "EXCA03-864022083269463-20260709T174219Z-282525",
+            "EXCA03-864022083269463-20260710T115011Z-293400",
+            "DT01-861327085560279-20260621T123502Z-227"
+        ]:
+            logger.warning(f"🧹 Filtering stuck message [ID: {msg_id}]. Bypassing backend ingest.")
+            clear_device_alert(src)
+            # Publish ACK to the source and, if EXCA, mirror to all DTs
+            send_mqtt_ack(client, src, msg_id, imei=imei)
+            if src.upper().startswith("EXCA"):
+                ack_payload = json.dumps({"id": msg_id, "status": "ok"})
+                for dt in get_all_dt_names():
+                    client.publish(f"kutai/fleet/ack/{dt}", ack_payload, qos=0, retain=False)
+            return
+
+        # 2. For normal messages, immediately save to local queue
+        save_pending_ingest(msg_id, payload_str)
+
+        # 3. Immediately send unblocking ACK to MQTT so the device advances
+        send_mqtt_ack(client, src, msg_id, imei=imei)
         
-        # Forward telemetry to backend
-        forward_telemetry(client, data)
+        # Mirror EXCA ACKs to DT devices (with retain=True) to prevent relay stuck
+        if src.upper().startswith("EXCA"):
+            ack_payload = json.dumps({"id": msg_id, "status": "ok"})
+            for dt in get_all_dt_names():
+                client.publish(f"kutai/fleet/ack/{dt}", ack_payload, qos=0, retain=True)
+
+        # 4. Asynchronously attempt to forward to the backend remote server
+        def task():
+            if attempt_forward_payload(data):
+                remove_pending_ingest(msg_id)
+        executor.submit(task)
+
     except Exception as e:
-        logger.error(f"❌ Error in telemetry processing thread: {e}")
+        logger.error(f"❌ Error in handle_telemetry_message: {e}")
 
 # Buffer for fragmented/corrupted JSON payloads
 partial_buffers = {}
@@ -310,8 +407,8 @@ def on_message(client, userdata, msg):
                 
                 if status == "ok" and msg_id:
                     logger.info(f"🔄 Mirroring EXCA ACK for {msg_id} (from {src}) to DT devices")
-                    active_dts = [f"DT{i:02d}" for i in range(1, 21)]
-                    for dt in active_dts:
+                    active_dts_list = get_all_dt_names()
+                    for dt in active_dts_list:
                         dt_topic = f"kutai/fleet/ack/{dt}"
                         client.publish(dt_topic, msg.payload, qos=0, retain=True)
         else:
@@ -359,8 +456,15 @@ def on_message(client, userdata, msg):
 def main():
     logger.info("Starting Kutai Fleet MQTT to Backend Subscriber Service...")
     
+    # Initialize DB schema
+    init_db()
+    
     # Try initial login to verify credentials configuration
     login_to_backend()
+
+    # Start background forwarder daemon thread
+    bg_thread = threading.Thread(target=run_background_forwarder, daemon=True)
+    bg_thread.start()
 
     # Setup MQTT Client (Supports Paho MQTT v2 API compatibility)
     client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)

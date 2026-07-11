@@ -34,6 +34,7 @@ let countACK = 0;
 const fleetMarkers = {};
 const fleetData = {};
 let activeAlerts = [];
+const seenMessageIds = [];
 let historyPolyline = null;
 let historyMarkersGroup = L.featureGroup();
 
@@ -357,6 +358,19 @@ function updateStatus(isConnected) {
 // ===== Data Handler =====
 function handleIncomingData(data, rawJson) {
   const id = data.id || data.msg_id;
+  
+  // Guard against duplicate telemetry packets in the UI
+  if (id) {
+    if (seenMessageIds.includes(id)) {
+      console.log(`Duplicate UI packet ignored: ${id}`);
+      return;
+    }
+    seenMessageIds.push(id);
+    if (seenMessageIds.length > 500) {
+      seenMessageIds.shift();
+    }
+  }
+
   let src = data.src || data.source || 'UNKNOWN';
   
   if (src === 'UNKNOWN' && id) {

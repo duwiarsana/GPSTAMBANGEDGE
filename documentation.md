@@ -226,4 +226,25 @@ Untuk mempermudah verifikasi identitas fisik perangkat di lapangan, firmware **E
 * **Masalah**: Ketika perangkat berhasil terbebas (unblocked) dari status stuck lalu langsung masuk ke mode offline (misal dimatikan), database `device_alerts` tetap menyimpan status stuck lama tersebut karena belum ada koordinat baru (`200 OK`) yang dikirim untuk menghapusnya. Dashboard pun terus menampilkan status `⚠️ Stuck` palsu.
 * **Solusi**: Menambahkan logika pembersihan otomatis (*auto-cleanup*) di file API dashboard [server.py](file:///Users/duwiarsana/.gemini/antigravity/scratch/GPSTAMBANGEDGE/dashboard/server.py). Setiap kali data alarm diminta, sistem akan menghapus seluruh alarm di database yang **sudah tidak aktif/tidak di-update selama lebih dari 2 menit** (tanda perangkat sudah lolos atau offline). Dashboard kini terbebas dari alarm stuck palsu.
 
+---
+
+### 19. Decoupled ACK & Non-Blocking SQLite Telemetry Buffer
+* **Masalah**: Gangguan sinyal internet atau perlambatan respons (timeout) dari remote backend server (`34.101.245.159`) menyebabkan subscriber menunda pengiriman MQTT ACK ke unit pengirim. Akibatnya, unit fisik (seperti `DT01`) tidak menerima ACK dan terus mengulang pengiriman paket telemetry yang sama secara terus-menerus.
+* **Solusi**:
+  * **Pemisahan Alur (Decoupled ACK)**: Mengubah logika di [subscriber.py](file:///Users/duwiarsana/.gemini/antigravity/scratch/GPSTAMBANGEDGE/subscriber/subscriber.py) agar langsung mengirimkan MQTT ACK seketika saat data diterima dari broker, tanpa harus menunggu respons dari remote backend.
+  * **SQLite Telemetry Queue**: Data yang masuk langsung disimpan ke tabel lokal `pending_ingests` dalam SQLite DB.
+  * **Async Forwarding**: Proses forwarding ke remote backend dijalankan secara asinkron menggunakan ThreadPoolExecutor.
+  * **Background Forwarder**: Ditambahkan thread latar belakang yang berjalan setiap 30 detik untuk mencoba kembali mengirimkan data antrean dari SQLite ke remote backend apabila koneksi sempat terganggu.
+
+---
+
+### 20. Retained EXCA ACK Mirroring Collision Fix
+* **Masalah**: 
+  * Saat subscriber me-mirror ACK ke seluruh topik DT dengan bendera `retain=True`, broker menimpa pesan ACK tersimpan dari DT offline lain dengan ID pesan dari perangkat aktif saat itu. Hal ini memicu tabrakan retained ACK yang membuat DT lain macet saat tersambung kembali.
+  * Setelah diubah menjadi `retain=False`, unit `EXCA02` menjadi macet total karena DT yang me-relay datanya sering mengalami putus koneksi di lapangan dan melewatkan ACK real-time.
+* **Solusi**:
+  * **Targeted Retained Mirroring**: Sinyal mirrored ACK dikembalikan menjadi **`retain=True`**, namun dibatasi **hanya untuk pesan EXCA**. Data dari perangkat DT sendiri tidak lagi di-mirror ke DT lainnya.
+  * **Bebas Hambatan**: Dengan diaktifkannya retained ACK eksklusif untuk EXCA, DT perantara yang sempat terputus koneksinya tetap dapat mengambil ACK EXCA tersebut begitu tersambung kembali, membebaskan `EXCA02` dari stuck data secara permanen.
+
+
 
