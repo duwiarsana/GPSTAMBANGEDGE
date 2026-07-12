@@ -229,8 +229,8 @@ def attempt_forward_payload(payload_dict):
 
         if response.status_code in (200, 202, 409):
             if response.status_code == 409:
-                logger.warning(f"⚠️ Telemetry duplicate (409 Conflict) for device src: {src} [ID: {msg_id}].")
-                log_device_alert(src, msg_id, 409, "Duplicate / Conflict (Already Ingested)")
+                logger.warning(f"⚠️ Telemetry duplicate (409 Conflict) for device src: {src} [ID: {msg_id}]. Data already in backend - treating as success.")
+                clear_device_alert(src)   # 409 = already received = success, not an error
             else:
                 logger.info(f"✅ Telemetry ingest successful for device src: {src} [ID: {msg_id}]")
                 clear_device_alert(src)
@@ -322,11 +322,13 @@ def handle_telemetry_message(client, data, payload_str):
             send_mqtt_ack(client, src, msg_id, imei=imei)
             return
 
-        # Stuck message IDs
+        # Stuck message IDs - data lama/sampah yang selalu di-reject backend (409)
+        # sehingga ESP32 tidak bisa maju. Langsung di-ACK dan di-bypass.
         if msg_id in [
             "EXCA03-864022083269463-20260709T174219Z-282525",
             "EXCA03-864022083269463-20260710T115011Z-293400",
-            "DT01-861327085560279-20260621T123502Z-227"
+            "DT01-861327085560279-20260621T123502Z-227",
+            "DT01-864022083265024-20260617T033948Z-1",   # DT01 stuck - data Juni 2026, 409 terus
         ]:
             logger.warning(f"🧹 Filtering stuck message [ID: {msg_id}]. Bypassing backend ingest.")
             clear_device_alert(src)
