@@ -358,19 +358,6 @@ function updateStatus(isConnected) {
 // ===== Data Handler =====
 function handleIncomingData(data, rawJson) {
   const id = data.id || data.msg_id;
-  
-  // Guard against duplicate telemetry packets in the UI
-  if (id) {
-    if (seenMessageIds.includes(id)) {
-      console.log(`Duplicate UI packet ignored: ${id}`);
-      return;
-    }
-    seenMessageIds.push(id);
-    if (seenMessageIds.length > 500) {
-      seenMessageIds.shift();
-    }
-  }
-
   let src = data.src || data.source || 'UNKNOWN';
   
   if (src === 'UNKNOWN' && id) {
@@ -390,21 +377,45 @@ function handleIncomingData(data, rawJson) {
     return;
   }
 
+  // Detect duplicate telemetry packet
+  let isDuplicate = false;
+  if (id && seenMessageIds.includes(id)) {
+    isDuplicate = true;
+  }
+  
+  // Also check if coordinates and timestamp match previous state
+  const previousData = fleetData[src];
+  if (previousData) {
+    if (previousData.msgId === id || (previousData.latitude === latitude && previousData.longitude === longitude && previousData.timestamp === timestamp)) {
+      isDuplicate = true;
+    }
+  }
+
+  // Save ID to seenMessageIds if not a duplicate
+  if (id && !seenMessageIds.includes(id)) {
+    seenMessageIds.push(id);
+    if (seenMessageIds.length > 500) {
+      seenMessageIds.shift();
+    }
+  }
+
   const speed = parseFloat(data.spd || data.speed || 0);
   const battery = parseFloat(data.bat || data.external || 0);
   const ignition = data.ign !== undefined ? data.ign : (data.ignition !== undefined ? data.ignition : -1);
 
   const isDT = src.toUpperCase().startsWith('DT');
 
-  // Update counters
-  if (isDT) {
-    countDT++;
-    countDtEl.textContent = countDT;
-    animateStat('stat-dt');
-  } else {
-    countEXCA++;
-    countExcaEl.textContent = countEXCA;
-    animateStat('stat-exca');
+  // Update counters (skip duplicate for totals but we can still log it)
+  if (!isDuplicate) {
+    if (isDT) {
+      countDT++;
+      countDtEl.textContent = countDT;
+      animateStat('stat-dt');
+    } else {
+      countEXCA++;
+      countExcaEl.textContent = countEXCA;
+      animateStat('stat-exca');
+    }
   }
 
   // Add option to dropdown if it doesn't exist
@@ -424,15 +435,19 @@ function handleIncomingData(data, rawJson) {
     exportDeviceSelect.appendChild(opt);
   }
 
-  // Log entry
-  addLogEntry(src, isDT ? 'dt' : 'exca', rawJson);
+  // Log entry (with special duplicate label)
+  if (isDuplicate) {
+    addLogEntry(src, 'duplicate-log', `[SAMA/DUPLIKAT] ${rawJson}`);
+  } else {
+    addLogEntry(src, isDT ? 'dt' : 'exca', rawJson);
+  }
 
   const isNewer = !fleetData[src] || !fleetData[src].timestamp || new Date(timestamp) >= new Date(fleetData[src].timestamp);
   const incomingImei = data.imei || (id ? id.split('-')[1] : '') || '';
   const currentCount = ((fleetData[src] && fleetData[src].activity_count) || 0) + 1;
 
   // Map marker (only update if newer and not currently focused on history route)
-  if (isNewer && !isNaN(latitude) && !isNaN(longitude)) {
+  if (isNewer && !isDuplicate && !isNaN(latitude) && !isNaN(longitude)) {
     updateMapMarker(src, isDT, latitude, longitude, speed, timestamp);
   }
 
@@ -446,10 +461,12 @@ function handleIncomingData(data, rawJson) {
       imei: incomingImei,
       activity_count: currentCount,
       localReceivedTime: Date.now(),
-      raw_payload: data
+      raw_payload: data,
+      isDuplicate: isDuplicate
     };
   } else if (fleetData[src]) {
     fleetData[src].activity_count = currentCount;
+    fleetData[src].isDuplicate = isDuplicate;
   }
   updateTelemetryTableFromState();
 
@@ -623,12 +640,14 @@ function updateTelemetryTableFromState() {
     const activeAlert = typeof activeAlerts !== 'undefined' ? activeAlerts.find(a => a.src === key) : null;
     const alertLocalTime = activeAlert ? utcToLocalString(activeAlert.last_seen) : '';
     const stuckHtml = activeAlert ? `<span class="stuck-badge" title="Stuck on packet ID: ${activeAlert.msg_id}" onclick="showStuckAlertDetail(event, '${key}', '${activeAlert.msg_id}', ${activeAlert.retry_count}, '${alertLocalTime}', '${activeAlert.alert_type}')"><i class="fa-solid fa-triangle-exclamation"></i> Stuck (${activeAlert.retry_count})</span>` : '';
+    const duplicateHtml = r.isDuplicate ? `<span class="sama-badge" style="background-color: var(--amber); color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: bold; margin-left: 4px; display: inline-flex; align-items: center; gap: 3px;" title="Data ini sama/duplikat dengan data sebelumnya"><i class="fa-solid fa-copy"></i> Sama</span>` : '';
 
     html += `<tr data-device="${key}" style="cursor: pointer; background-color: ${rowBg}; border-left: ${borderLeft}; transition: background-color 0.5s ease, border-left 0.5s ease;">
       <td>
         <span class="badge ${badge}">${key}</span>
         ${deviceAliases[key] ? `<span style="font-size:0.75rem;font-weight:600;color:var(--text-secondary);margin-left:4px;">${deviceAliases[key]}</span>` : ''}
         ${stuckHtml}
+        ${duplicateHtml}
         <div style="font-size:0.68rem; color:var(--text-muted); margin-top:4px; font-family:var(--mono);">${r.imei || '—'}</div>
       </td>
       <td style="font-family:var(--mono); font-size:0.8rem;">

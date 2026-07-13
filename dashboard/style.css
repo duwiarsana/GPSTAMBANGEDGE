@@ -412,6 +412,9 @@ input:checked + .slider-track::before { transform: translateX(18px); }
 .log-entry.dt   { border-left-color: var(--blue); }
 .log-entry.exca { border-left-color: var(--amber); }
 .log-entry.ack  { border-left-color: var(--green); }
+.log-entry.duplicate-log { border-left: 4px dashed var(--amber); background: rgba(217, 119, 6, 0.04); }
+.log-entry.duplicate-log .log-meta { color: var(--amber); }
+.log-entry.duplicate-log .log-body { color: var(--text-secondary); opacity: 0.85; }
 .log-meta { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 4px; font-family: var(--font); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
 .log-body { color: var(--text-primary); word-break: break-all; line-height: 1.5; font-weight: 500; }
 
