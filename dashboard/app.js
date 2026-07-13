@@ -525,13 +525,13 @@ function sendAutoACK(msgId, src) {
 }
 
 // ===== Map Marker =====
-function updateMapMarker(src, isDT, lat, lon, speed, timestamp) {
+function updateMapMarker(src, isDT, lat, lon, speed, timestamp, isDuplicate = false) {
   if (fleetMarkers[src]) {
     fleetMarkers[src].setLatLng([lat, lon]);
-    fleetMarkers[src].getPopup().setContent(popupHTML(src, lat, lon, speed, timestamp));
+    fleetMarkers[src].getPopup().setContent(popupHTML(src, lat, lon, speed, timestamp, isDuplicate));
   } else {
     const marker = L.marker([lat, lon], { icon: isDT ? dtIcon : excaIcon }).addTo(map);
-    marker.bindPopup(popupHTML(src, lat, lon, speed, timestamp));
+    marker.bindPopup(popupHTML(src, lat, lon, speed, timestamp, isDuplicate));
     
     // Auto-load history route and play controls on click
     marker.on('click', (e) => {
@@ -552,11 +552,15 @@ function updateMapMarker(src, isDT, lat, lon, speed, timestamp) {
   }
 }
 
-function popupHTML(src, lat, lon, speed, ts) {
+function popupHTML(src, lat, lon, speed, ts, isDuplicate = false) {
   const displayName = deviceAliases[src] ? `${src} (${deviceAliases[src]})` : src;
+  const duplicateBadge = isDuplicate ? `<span style="background-color: var(--amber); color: #fff; padding: 1px 4px; border-radius: 3px; font-size: 10px; font-weight: bold; margin-left: 6px; display: inline-block;">Sama</span>` : '';
   return `
     <div style="font-family:'Outfit',sans-serif;color:#0f172a;font-size:12px;line-height:1.6;min-width:140px">
-      <strong style="font-size:13px;color:#0284c7;display:block;margin-bottom:4px">${displayName}</strong>
+      <strong style="font-size:13px;color:#0284c7;display:block;margin-bottom:4px">
+        ${displayName}
+        ${duplicateBadge}
+      </strong>
       <b>Lat:</b> ${lat.toFixed(6)}<br>
       <b>Lon:</b> ${lon.toFixed(6)}<br>
       <b>Speed:</b> ${speed.toFixed(1)} km/h<br>
@@ -669,7 +673,10 @@ function updateTelemetryTableFromState() {
       <td>${ignHtml}</td>
       <td><strong>${displaySpeed}</strong> <span style="color:var(--text-secondary)">km/h</span></td>
       <td>${displayBattery} <span style="color:var(--text-secondary)">V</span></td>
-      <td style="font-family:var(--mono);color:var(--text-muted);font-size:0.7rem">${shortId}</td>
+      <td style="font-family:var(--mono);color:var(--text-muted);font-size:0.7rem">
+        ${shortId}
+        ${r.isDuplicate ? `<div style="color:var(--amber);font-weight:bold;margin-top:2px;">(Sama)</div>` : ''}
+      </td>
     </tr>`;
   });
 
