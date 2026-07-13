@@ -254,6 +254,7 @@ client.on('connect', () => {
     }
   });
   client.subscribe('kutai/fleet/system_log');
+  client.subscribe('kutai/fleet/backend_status/+');
 });
 
 client.on('close', () => {
@@ -307,6 +308,24 @@ client.on('message', (topic, message) => {
       }
     } catch (e) {
       console.error('Failed to parse system status log:', e);
+    }
+    return;
+  }
+
+  // Handle backend ACK LED status channel
+  if (topic.startsWith('kutai/fleet/backend_status/')) {
+    try {
+      const data = JSON.parse(rawPayload);
+      const device = topic.split('/').pop();
+      if (device) {
+        if (!fleetData[device]) {
+          fleetData[device] = { activity_count: 0 };
+        }
+        fleetData[device].backendStatus = data.status; // 'green' or 'red'
+        updateTelemetryTableFromState();
+      }
+    } catch (e) {
+      console.error('Failed to parse backend status log:', e);
     }
     return;
   }
@@ -658,13 +677,30 @@ function updateTelemetryTableFromState() {
     const stuckHtml = activeAlert ? `<span class="stuck-badge" title="Stuck on packet ID: ${activeAlert.msg_id}" onclick="showStuckAlertDetail(event, '${key}', '${activeAlert.msg_id}', ${activeAlert.retry_count}, '${alertLocalTime}', '${activeAlert.alert_type}')"><i class="fa-solid fa-triangle-exclamation"></i> Stuck (${activeAlert.retry_count})</span>` : '';
     const duplicateHtml = r.isDuplicate ? `<span class="sama-badge" style="background-color: var(--amber); color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: bold; margin-left: 4px; display: inline-flex; align-items: center; gap: 3px;" title="Data ini sama/duplikat dengan data sebelumnya"><i class="fa-solid fa-copy"></i> Sama</span>` : '';
 
+    let ledColor = '#94a3b8'; // default grey
+    let ledGlow = 'none';
+    let ledTitle = 'Belum ada status respon backend';
+    if (r.backendStatus === 'green') {
+      ledColor = '#10b981'; // green
+      ledGlow = '0 0 8px #10b981';
+      ledTitle = 'Respon backend: ACK OK (Sukses/Duplikat)';
+    } else if (r.backendStatus === 'red') {
+      ledColor = '#ef4444'; // red
+      ledGlow = '0 0 8px #ef4444';
+      ledTitle = 'Respon backend: ERROR / NO ACK';
+    }
+    const ledHtml = `<span class="backend-led" style="display:inline-block;width:8px;height:8px;border-radius:50%;background-color:${ledColor};box-shadow:${ledGlow};margin-right:6px;transition:all 0.3s ease;" title="${ledTitle}"></span>`;
+
     html += `<tr data-device="${key}" style="cursor: pointer; background-color: ${rowBg}; border-left: ${borderLeft}; transition: background-color 0.5s ease, border-left 0.5s ease;">
       <td>
-        <span class="badge ${badge}">${key}</span>
-        ${deviceAliases[key] ? `<span style="font-size:0.75rem;font-weight:600;color:var(--text-secondary);margin-left:4px;">${deviceAliases[key]}</span>` : ''}
-        ${stuckHtml}
-        ${duplicateHtml}
-        <div style="font-size:0.68rem; color:var(--text-muted); margin-top:4px; font-family:var(--mono);">${r.imei || '—'}</div>
+        <div style="display:flex;align-items:center;">
+          ${ledHtml}
+          <span class="badge ${badge}">${key}</span>
+          ${deviceAliases[key] ? `<span style="font-size:0.75rem;font-weight:600;color:var(--text-secondary);margin-left:4px;">${deviceAliases[key]}</span>` : ''}
+          ${stuckHtml}
+          ${duplicateHtml}
+        </div>
+        <div style="font-size:0.68rem; color:var(--text-muted); margin-top:4px; font-family:var(--mono); margin-left:14px;">${r.imei || '—'}</div>
       </td>
       <td style="font-family:var(--mono); font-size:0.8rem;">
         ${time}
