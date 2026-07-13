@@ -44,6 +44,86 @@ BACKEND_PASSWORD = os.getenv("BACKEND_PASSWORD", "")
 # App State
 access_token = None
 token_expires_at = 0
+mqtt_client = None
+
+def publish_system_log(message, level="info"):
+    """
+    Publishes a system status log to MQTT topic kutai/fleet/system_log.
+    This allows the web dashboard to display backend responses in real-time.
+    """
+    global mqtt_client
+    if not mqtt_client:
+        return
+    try:
+        log_payload = json.dumps({
+            "message": message,
+            "level": level,
+            "timestamp": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+        })
+        mqtt_client.publish("kutai/fleet/system_log", log_payload, qos=0, retain=False)
+    except Exception as e:
+        logger.error(f"❌ Failed to publish system log to MQTT: {e}")
+
+def publish_backend_status(src, msg_id, status):
+    """
+    Publishes a backend status update (green/red) for a specific device.
+    Uses retain=True so the broker stores the last known status for each device.
+    """
+    global mqtt_client
+    if not mqtt_client:
+        return
+    try:
+        status_payload = json.dumps({
+            "src": src,
+            "id": msg_id,
+            "status": status,
+            "timestamp": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+        })
+        mqtt_client.publish(f"kutai/fleet/backend_status/{src}", status_payload, qos=0, retain=True)
+    except Exception as e:
+        logger.error(f"❌ Failed to publish backend status for {src}: {e}")
+
+def sanitize_payload(payload):
+    """
+    Sanitizes the telemetry payload to replace None/null values with safe defaults
+    and wrap angles (heading) into [0, 360] range.
+    This prevents backend database/validation crashes (500 errors).
+    """
+    if not isinstance(payload, dict):
+        return payload
+        
+    p = payload.copy()
+    
+    # Sanitize heading to [0, 360]
+    if p.get('hdg') is not None:
+        try:
+            val = int(float(p['hdg']))
+            if val < 0 or val > 360:
+                p['hdg'] = val % 360
+        except (ValueError, TypeError):
+            p['hdg'] = 0
+    else:
+        p['hdg'] = 0
+
+    # Ensure required numeric fields are not null
+    for field in ['alt', 'bat', 'odo', 'hdop', 'temp', 'lat', 'lon', 'spd']:
+        if p.get(field) is None:
+            p[field] = 0
+            
+    # Ensure ign is not null
+    if p.get('ign') is None:
+        p['ign'] = -1
+        
+    # Ensure string inputs/outputs are not null
+    for field in ['in', 'out']:
+        if p.get(field) is None:
+            p[field] = ""
+            
+    # Ensure gs object is present
+    if p.get('gs') is None:
+        p['gs'] = {"x": 0, "y": 0, "z": 0}
+        
+    return p
 
 def get_all_dt_names():
     names = []
@@ -212,6 +292,9 @@ def attempt_forward_payload(payload_dict):
     src = payload_dict.get('src') or payload_dict.get('source')
     imei = payload_dict.get('imei')
     
+    # Sanitize payload to wrap heading angles and replace nulls with safe defaults
+    sanitized_payload = sanitize_payload(payload_dict)
+    
     token = get_auth_token()
     if not token:
         logger.error("Cannot forward telemetry: Authorization token is unavailable.")
@@ -225,18 +308,23 @@ def attempt_forward_payload(payload_dict):
 
     try:
         # Increase timeout to 25 seconds for slow remote backend
-        response = requests.post(ingest_endpoint, json=payload_dict, headers=headers, timeout=25)
+        response = requests.post(ingest_endpoint, json=sanitized_payload, headers=headers, timeout=25)
 
         if response.status_code in (200, 202, 409):
             if response.status_code == 409:
                 logger.warning(f"⚠️ Telemetry duplicate (409 Conflict) for device src: {src} [ID: {msg_id}]. Data already in backend - treating as success.")
                 clear_device_alert(src)   # 409 = already received = success, not an error
+                publish_system_log(f"⚠️ Duplicate (409) for {src} [ID: {msg_id}]. Data already in backend.", "warning")
             else:
                 logger.info(f"✅ Telemetry ingest successful for device src: {src} [ID: {msg_id}]")
                 clear_device_alert(src)
+                publish_system_log(f"✅ Ingest success for {src} [ID: {msg_id}]", "info")
+            publish_backend_status(src, msg_id, "green")
             return True
         elif response.status_code in (401, 403):
             logger.warning("⚠️ Ingest returned unauthorized. Clearing token to force re-login on next message.")
+            publish_system_log(f"⚠️ Auth error (401/403) forwarding payload for {src} [ID: {msg_id}]. Re-logging in.", "warning")
+            publish_backend_status(src, msg_id, "red")
             global access_token
             with token_lock:
                 access_token = None
@@ -244,14 +332,20 @@ def attempt_forward_payload(payload_dict):
         elif response.status_code == 400:
             logger.error(f"❌ Ingest bad request (400). Invalid payload for [ID: {msg_id}]. Msg: {response.text}")
             log_device_alert(src, msg_id, 400, f"Backend Reject: {response.text[:100]}")
+            publish_system_log(f"❌ Rejected (400) for {src} [ID: {msg_id}]: {response.text[:100]}", "error")
+            publish_backend_status(src, msg_id, "red")
             return True # Do not retry invalid payloads
         else:
             logger.error(f"❌ Ingest failed. Status: {response.status_code}. Msg: {response.text}")
             log_device_alert(src, msg_id, response.status_code, f"Backend Reject: {response.text[:100]}")
+            publish_system_log(f"❌ Ingest failed ({response.status_code}) for {src} [ID: {msg_id}]: {response.text[:100]}", "error")
+            publish_backend_status(src, msg_id, "red")
             return False # Retry later on server error
     except Exception as e:
         logger.error(f"❌ Connection error during ingest for [ID: {msg_id}]: {e}")
         log_device_alert(src, msg_id, 599, f"Network Error: {str(e)[:100]}")
+        publish_system_log(f"❌ Network Error for {src} [ID: {msg_id}]: {str(e)[:100]}", "error")
+        publish_backend_status(src, msg_id, "red")
         return False # Retry later on network error
 
 def run_background_forwarder():
@@ -332,12 +426,12 @@ def handle_telemetry_message(client, data, payload_str):
         ]:
             logger.warning(f"🧹 Filtering stuck message [ID: {msg_id}]. Bypassing backend ingest.")
             clear_device_alert(src)
-            # Publish ACK to the source and, if EXCA, mirror to all DTs
+            # Publish ACK to the source
             send_mqtt_ack(client, src, msg_id, imei=imei)
-            if src.upper().startswith("EXCA"):
-                ack_payload = json.dumps({"id": msg_id, "status": "ok"})
-                for dt in get_all_dt_names():
-                    client.publish(f"kutai/fleet/ack/{dt}", ack_payload, qos=0, retain=False)
+            # Broadcast to all DT devices (with retain=True) to handle SD card swaps/mismatched client IDs
+            ack_payload = json.dumps({"id": msg_id, "status": "ok"})
+            for dt in get_all_dt_names():
+                client.publish(f"kutai/fleet/ack/{dt}", ack_payload, qos=0, retain=True)
             return
 
         # 2. Immediately send unblocking ACK to MQTT so the device advances
@@ -467,7 +561,9 @@ def main():
     bg_thread.start()
 
     # Setup MQTT Client (Supports Paho MQTT v2 API compatibility)
+    global mqtt_client
     client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
+    mqtt_client = client
     client.on_connect = on_connect
     client.on_message = on_message
 
