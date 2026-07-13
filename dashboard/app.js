@@ -253,6 +253,7 @@ client.on('connect', () => {
       addLogSystem(`Subscription error: ${err.message}`, 'error');
     }
   });
+  client.subscribe('kutai/fleet/system_log');
 });
 
 client.on('close', () => {
@@ -296,6 +297,20 @@ function tryMergeChunks(s1, s2) {
 
 client.on('message', (topic, message) => {
   const rawPayload = message.toString().replace(/\r/g, '').replace(/\n/g, '').trim();
+
+  // Handle system log channel
+  if (topic === 'kutai/fleet/system_log') {
+    try {
+      const data = JSON.parse(rawPayload);
+      if (data.message) {
+        addLogSystem(data.message, data.level || 'info');
+      }
+    } catch (e) {
+      console.error('Failed to parse system status log:', e);
+    }
+    return;
+  }
+
   try {
     const data = JSON.parse(rawPayload);
     const src = data.src || data.source;
@@ -451,23 +466,20 @@ function handleIncomingData(data, rawJson) {
     updateMapMarker(src, isDT, latitude, longitude, speed, timestamp);
   }
 
-  if (isNewer) {
-    fleetData[src] = { 
-      timestamp, 
-      ignition, 
-      speed, 
-      battery, 
-      msgId: id, 
-      imei: incomingImei,
-      activity_count: currentCount,
-      localReceivedTime: Date.now(),
-      raw_payload: data,
-      isDuplicate: isDuplicate
-    };
-  } else if (fleetData[src]) {
-    fleetData[src].activity_count = currentCount;
-    fleetData[src].isDuplicate = isDuplicate;
-  }
+  // Telemetry table state: ALWAYS update with the last received packet (not timestamp check)
+  fleetData[src] = { 
+    timestamp, 
+    ignition, 
+    speed, 
+    battery, 
+    msgId: id, 
+    imei: incomingImei,
+    activity_count: currentCount,
+    localReceivedTime: Date.now(),
+    raw_payload: data,
+    isDuplicate: isDuplicate
+  };
+  
   updateTelemetryTableFromState();
 
   // Auto-ACK
