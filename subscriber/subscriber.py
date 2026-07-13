@@ -409,12 +409,26 @@ def handle_telemetry_message(client, data, payload_str):
             active_dts.add(str(src))
 
         # 1. Run bypass checks first
-        # Garbage DT011
-        if str(src).upper() == "DT011" and str(imei) != "864022083263987":
-            logger.warning(f"🧹 Filtering garbage DT011 data [ID: {msg_id}] with mismatch IMEI {imei}. Bypassing backend ingest.")
-            clear_device_alert(src)
-            send_mqtt_ack(client, src, msg_id, imei=imei)
-            return
+        # strict IMEI verification for test units
+        CORRECT_IMEIS = {
+            "DT01": "864022083265024",
+            "DT09": "864022083271352",
+            "DT011": "864022083263987",
+            "DT013": "864022083271527"
+        }
+        
+        device_upper = str(src).upper()
+        if device_upper in CORRECT_IMEIS:
+            correct_imei = CORRECT_IMEIS[device_upper]
+            if str(imei) != correct_imei:
+                logger.warning(f"🚫 Mismatched IMEI for {src}: received {imei}, expected {correct_imei}. Dropping message but sending ACK to clear device.")
+                clear_device_alert(src)
+                send_mqtt_ack(client, src, msg_id, imei=imei)
+                # Broadcast ACK to all DT devices to ensure unblocking in case of SD swaps
+                ack_payload = json.dumps({"id": msg_id, "status": "ok"})
+                for dt in get_all_dt_names():
+                    client.publish(f"kutai/fleet/ack/{dt}", ack_payload, qos=0, retain=True)
+                return
 
         # Stuck message IDs - data lama/sampah yang selalu di-reject backend (409)
         # sehingga ESP32 tidak bisa maju. Langsung di-ACK dan di-bypass.
