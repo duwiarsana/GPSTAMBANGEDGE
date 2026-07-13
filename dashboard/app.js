@@ -691,6 +691,10 @@ function updateTelemetryTableFromState() {
 // ===== Log Utilities =====
 function addLogEntry(src, type, message) {
   clearEmptyLog();
+  
+  // Check if scroll is near bottom before appending new item
+  const isAtBottom = logStreamEl.scrollHeight - logStreamEl.clientHeight - logStreamEl.scrollTop <= 60;
+
   const entry = document.createElement('div');
   entry.className = `log-entry ${type}`;
   const time = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
@@ -699,12 +703,20 @@ function addLogEntry(src, type, message) {
     <div class="log-meta"><span>${label}</span><span>${time}</span></div>
     <div class="log-body">${message}</div>`;
   logStreamEl.appendChild(entry);
-  logStreamEl.scrollTop = logStreamEl.scrollHeight;
+  
+  if (isAtBottom) {
+    logStreamEl.scrollTop = logStreamEl.scrollHeight;
+  }
+  
   while (logStreamEl.children.length > 50) logStreamEl.removeChild(logStreamEl.firstChild);
 }
 
 function addLogSystem(message, level = 'info') {
   clearEmptyLog();
+  
+  // Check if scroll is near bottom before appending new item
+  const isAtBottom = logStreamEl.scrollHeight - logStreamEl.clientHeight - logStreamEl.scrollTop <= 60;
+
   const entry = document.createElement('div');
   entry.className = 'log-entry';
   entry.style.borderLeftColor = level === 'error' ? 'var(--red)' : 'var(--text-muted)';
@@ -713,7 +725,10 @@ function addLogSystem(message, level = 'info') {
     <div class="log-meta"><span>${level.toUpperCase()}</span><span>${time}</span></div>
     <div class="log-body" style="color:${level === 'error' ? 'var(--red)' : 'var(--text-secondary)'}">${message}</div>`;
   logStreamEl.appendChild(entry);
-  logStreamEl.scrollTop = logStreamEl.scrollHeight;
+  
+  if (isAtBottom) {
+    logStreamEl.scrollTop = logStreamEl.scrollHeight;
+  }
 }
 
 function clearEmptyLog() {
