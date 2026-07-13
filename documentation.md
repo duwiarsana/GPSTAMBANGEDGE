@@ -246,5 +246,33 @@ Untuk mempermudah verifikasi identitas fisik perangkat di lapangan, firmware **E
   * **Targeted Retained Mirroring**: Sinyal mirrored ACK dikembalikan menjadi **`retain=True`**, namun dibatasi **hanya untuk pesan EXCA**. Data dari perangkat DT sendiri tidak lagi di-mirror ke DT lainnya.
   * **Bebas Hambatan**: Dengan diaktifkannya retained ACK eksklusif untuk EXCA, DT perantara yang sempat terputus koneksinya tetap dapat mengambil ACK EXCA tersebut begitu tersambung kembali, membebaskan `EXCA02` dari stuck data secara permanen.
 
+---
+
+### 21. Penanda Data Duplikat "Sama" Secara Visual
+* **Masalah**: Pengguna memerlukan indikasi visual di dashboard untuk membedakan secara instan apakah data yang masuk adalah data baru atau duplikat (data yang sama dengan sebelumnya) guna melacak efektivitas ACK.
+* **Solusi**: 
+  * Menambahkan status `isDuplicate` pada data perangkat.
+  * Menampilkan badge **`Sama`** berwarna oranye di kolom Device dan teks **`(Sama)`** di bawah kolom Msg ID pada tabel Fleet Telemetry jika data yang baru masuk sama dengan data sebelumnya.
+  * Menambahkan indikator **`Sama`** pada popup marker di peta.
+
+---
+
+### 22. Indikator Glowing LED Status Backend ACK
+* **Masalah**: Pengguna kesulitan memantau apakah pengiriman data ke server backend berhasil di-ACK atau mengalami kegagalan/timeout secara real-time untuk masing-masing unit.
+* **Solusi**:
+  * Menambahkan topik MQTT retained `kutai/fleet/backend_status/{device}` yang mempublikasikan status `green` (sukses/409) atau `red` (gagal/timeout) untuk setiap pengiriman.
+  * Menampilkan dot LED yang menyala/glowing di sebelah badge nama perangkat pada tabel Fleet Telemetry: **Hijau** (sukses/duplikat), **Merah** (gagal/timeout), **Abu-abu** (belum ada status/unknown).
+  * Mempertahankan status LED ini agar tidak terhapus saat halaman di-refresh dengan melestarikan `backendStatus` di memori dashboard.
+
+---
+
+### 23. Payload Sanitization & Whitelist Validasi IMEI
+* **Masalah**: 
+  * Nilai heading kompas yang tidak valid (misal `8368` derajat) dan kolom-kolom data kosong (`null`) memicu crash `500 Internal Server Error` pada database backend, membuat antrean SQLite subscriber macet terus-menerus.
+  * Modul WiFi/SD card yang tertukar-tukar selama uji coba lapangan menyebabkan pengiriman data dengan IMEI tidak sesuai, memicu kegagalan respon dari backend.
+* **Solusi**:
+  * **Payload Sanitization**: Menambahkan fungsi pembersihan data otomatis di subscriber. Mengubah sudut heading ke rentang `0-360` menggunakan modulo 360, serta mengisi kolom `null` dengan default `0` atau `""` sebelum diteruskan ke backend.
+  * **Whitelist Validasi IMEI**: Membubuhi whitelist IMEI resmi untuk perangkat uji coba (`DT01`, `DT09`, `DT011`, `DT013`). Jika IMEI tidak cocok, data akan di-*drop* (tidak masuk backend/DB) namun balasan ACK tetap dikirimkan (dan di-broadcast ke seluruh DT) agar antrean SD Card perangkat langsung bersih dan melangkah maju.
+
 
 
