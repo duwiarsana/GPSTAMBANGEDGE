@@ -194,6 +194,10 @@ async function initializeData() {
         // Store in fleetData
         const initImei = (device.raw_payload && device.raw_payload.imei) || (device.id ? device.id.split('-')[1] : '') || '';
         const localRecTime = device.created_at ? new Date(device.created_at.replace(' ', 'T') + 'Z').getTime() : Date.now();
+        
+        // Preserve any MQTT retained backendStatus that might have loaded before the API finished
+        const existingStatus = fleetData[src] ? fleetData[src].backendStatus : undefined;
+        
         fleetData[src] = {
           timestamp: device.ts,
           ignition: device.ign,
@@ -203,7 +207,8 @@ async function initializeData() {
           imei: initImei,
           activity_count: device.activity_count || 0,
           localReceivedTime: localRecTime,
-          raw_payload: device.raw_payload
+          raw_payload: device.raw_payload,
+          backendStatus: existingStatus
         };
 
         // Render markers
