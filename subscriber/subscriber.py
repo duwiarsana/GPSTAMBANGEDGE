@@ -241,6 +241,10 @@ def send_mqtt_ack(client, src, msg_id, imei=None):
         mapped_src = imei_to_device[str(imei)]
         target_topics.add(f"kutai/fleet/ack/{mapped_src}")
         
+    # 3. Broadcast to all DT devices to support swapped SD cards and hybrid relaying
+    for dt in get_all_dt_names():
+        target_topics.add(f"kutai/fleet/ack/{dt}")
+        
     for topic in target_topics:
         client.publish(topic, ack_payload, qos=0, retain=True)
 
