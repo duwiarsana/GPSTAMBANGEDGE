@@ -1,5 +1,19 @@
+/**
+ * GPSTAMBANG DT HYBRID OPTIMIZED - Dump Truck Firmware
+ * 
+ * Features:
+ * 1. Persistent Fast WiFi Connect via NVS Preferences (<500ms) with Smart Scan Fallback
+ * 2. Dual Backlog Clearance (DT own log + Merged EXCA relay log)
+ * 3. Real-time Direct MQTT Publish when backlog is clean
+ * 4. P2P Data Harvester from EXCA AP with Verified Chunk ACK Protocol
+ * 5. SD Card Hot-Plug Self-Healing Recovery
+ * 6. Ignition 30s Cooldown State Machine & Modem-Sleep
+ * 7. Non-blocking UART GPS handling (<10ms polling)
+ */
+
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <Preferences.h>
 #include <PubSubClient.h>
 #include <SD.h>
 #include <SPI.h>
@@ -21,7 +35,7 @@
 #define HEAP_MIN_BYTES 20000 // Heap minimum: 20KB -> restart
 
 // ================= ID DEVICE =================
-// Ganti ID ini sesuai nomor armada DT
+// Ganti ID ini sesuai nomor armada DT (DT01, DT02, DT03, dst.)
 const char *DT_ID = "DT01";
 
 // ================= UART GPS =================
@@ -52,14 +66,22 @@ WifiCredential wifiList[] = {
 };
 const int wifiCount = sizeof(wifiList) / sizeof(wifiList[0]);
 
-// ================= FILESYSTEM PATHS =================
-const char *DT_LOG_FILE = "/dt_log.jsonl";
-const char *RELAY_LOG_FILE = "/relay_log.jsonl";
+// ================= PERSISTENT FAST WIFI (NVS) =================
+struct WifiCache {
+  bool valid;
+  int index;
+  uint8_t channel;
+  uint8_t bssid[6];
+};
 
-const char *DT_OFFSET_FILE = "/dt_offset.txt";
+// ================= FILESYSTEM PATHS =================
+const char *DT_LOG_FILE       = "/dt_log.jsonl";
+const char *RELAY_LOG_FILE    = "/relay_log.jsonl";
+
+const char *DT_OFFSET_FILE    = "/dt_offset.txt";
 const char *RELAY_OFFSET_FILE = "/relay_offset.txt";
 
-const char *DT_SEQ_FILE = "/dt_seq.txt";
+const char *DT_SEQ_FILE       = "/dt_seq.txt";
 
 // ================= BUFFER & PARSER =================
 #define BUF_SIZE 4096
@@ -89,12 +111,6 @@ const int MAX_UPLOAD_CHUNK = 50;                // Batch 50 data per siklus
 // ================= HARDWARE HEALTH & RECOVERY =================
 int sdErrorCount = 0;
 bool sdReady = false;
-
-// ================= FAST CONNECT CACHE =================
-int cachedChannel = 0;
-uint8_t cachedBSSID[6] = {0};
-bool hasCachedBSSID = false;
-int cachedWifiIdx = -1;
 
 // ================= ACK STATE =================
 String ackTopic = "";
@@ -158,7 +174,7 @@ bool ensureUintFile(const char *path, uint32_t defaultVal = 0) {
 
 // ================= INIT & AUTO-RECOVERY SD =================
 bool initStorage() {
-  SD.end(); // Bersihkan SPI bus
+  SD.end();
   delay(50);
   if (!SD.begin(SD_CS)) {
     logMsg("❌ SD fail (Periksa Micro SD)");
@@ -172,7 +188,6 @@ bool initStorage() {
 
   dtSeq = readUint(DT_SEQ_FILE, 0);
 
-  // Pastikan file penampung ada
   File f1 = SD.open(DT_LOG_FILE, FILE_APPEND);
   if (f1) f1.close();
   File f2 = SD.open(RELAY_LOG_FILE, FILE_APPEND);
@@ -209,6 +224,49 @@ bool appendLine(const char *path, const String &line) {
   return true;
 }
 
+// ================= NVS WIFI CACHE (PREFERENCES) =================
+bool loadWifiCache(WifiCache &cache) {
+  Preferences p;
+  if (!p.begin("wificache", true)) {
+    cache.valid = false;
+    return false;
+  }
+  cache.valid = p.getBool("valid", false);
+  cache.index = p.getInt("idx", -1);
+  cache.channel = (uint8_t)p.getUChar("ch", 0);
+  size_t len = p.getBytes("bssid", cache.bssid, 6);
+  p.end();
+
+  if (!cache.valid || cache.index < 0 || cache.index >= wifiCount ||
+      cache.channel < 1 || cache.channel > 14 || len != 6) {
+    cache.valid = false;
+    return false;
+  }
+  return true;
+}
+
+void saveWifiCache(int index, uint8_t channel, const uint8_t *bssid) {
+  if (index < 0 || index >= wifiCount || channel < 1 || channel > 14 || !bssid) return;
+
+  WifiCache current;
+  if (loadWifiCache(current)) {
+    if (current.valid && current.index == index && current.channel == channel &&
+        memcmp(current.bssid, bssid, 6) == 0) {
+      return; // Tidak berubah
+    }
+  }
+
+  Preferences p;
+  if (p.begin("wificache", false)) {
+    p.putBool("valid", true);
+    p.putInt("idx", index);
+    p.putUChar("ch", channel);
+    p.putBytes("bssid", bssid, 6);
+    p.end();
+    logMsg("💾 WiFi cache saved to NVS: " + String(wifiList[index].ssid) + " CH=" + String(channel));
+  }
+}
+
 // ================= UID GENERATOR =================
 String makeDTUID(JsonDocument &doc) {
   dtSeq++;
@@ -232,7 +290,6 @@ bool shouldRecord(JsonDocument &doc) {
     ignition = (inputStatus & 0x01) ? 1 : 0;
   }
 
-  // Audit trail ignition ON/OFF
   if (eventCode == 2 || eventCode == 3) {
     if (eventCode == 2) {
       recordState = REC_ACTIVE;
@@ -247,7 +304,6 @@ bool shouldRecord(JsonDocument &doc) {
     return true;
   }
 
-  // 30s Cooldown State Machine
   switch (recordState) {
   case REC_IDLE:
     if (ignition == 1) {
@@ -404,6 +460,16 @@ void handleDTGps() {
 
       String clean;
       if (processDTJson(gpsBuf, clean)) {
+        // Cek ukuran file sebelum append untuk memeriksa apakah ada backlog pending
+        uint32_t dtOff = readUint(DT_OFFSET_FILE, 0);
+        uint32_t sizeBefore = 0;
+        File fCheck = SD.open(DT_LOG_FILE, FILE_READ);
+        if (fCheck) {
+          sizeBefore = fCheck.size();
+          fCheck.close();
+        }
+        bool backlogClean = (dtOff >= sizeBefore);
+
         // 1. Simpan ke SD Card untuk backup
         if (appendLine(DT_LOG_FILE, clean)) {
           statGpsLogged++;
@@ -412,8 +478,8 @@ void handleDTGps() {
           logMsg("📍 DT logged #" + String(statGpsLogged));
         }
 
-        // 2. ⚡ REAL-TIME DIRECT PUBLISH: Kirim instan jika online
-        if (!busy && WiFi.status() == WL_CONNECTED && mqtt.connected()) {
+        // 2. ⚡ REAL-TIME DIRECT PUBLISH: Hanya jika online dan backlog DT bersih
+        if (!busy && backlogClean && WiFi.status() == WL_CONNECTED && mqtt.connected()) {
           StaticJsonDocument<256> idDoc;
           deserializeJson(idDoc, clean);
           String msgId = idDoc["id"] | "";
@@ -453,48 +519,59 @@ void flushStaleGpsData() {
   }
 }
 
-// ================= SMART ASYNC WIFI & FAST CONNECT =================
+// ================= PERSISTENT FAST WIFI CONNECT =================
 bool connectKnownInternet() {
   if (WiFi.status() == WL_CONNECTED) {
     return true;
   }
 
-  // ⚡ 1. FAST CONNECT DIRECT ATTEMPT
-  if (cachedWifiIdx >= 0 && cachedChannel > 0) {
-    logMsg("⚡ [Fast-Connect] Mencoba direct connect ke " + String(wifiList[cachedWifiIdx].ssid) + 
-           " (Ch: " + String(cachedChannel) + ")...");
-    
-    if (hasCachedBSSID) {
-      WiFi.begin(wifiList[cachedWifiIdx].ssid, wifiList[cachedWifiIdx].pass, cachedChannel, cachedBSSID);
-    } else {
-      WiFi.begin(wifiList[cachedWifiIdx].ssid, wifiList[cachedWifiIdx].pass, cachedChannel);
-    }
+  WiFi.setSleep(false);
+
+  // ⚡ 1. FAST CONNECT ATTEMPT DARI NVS CACHE
+  WifiCache cache;
+  if (loadWifiCache(cache)) {
+    char bssidStr[18];
+    snprintf(bssidStr, sizeof(bssidStr), "%02X:%02X:%02X:%02X:%02X:%02X",
+             cache.bssid[0], cache.bssid[1], cache.bssid[2],
+             cache.bssid[3], cache.bssid[4], cache.bssid[5]);
+    logMsg("⚡ WiFi cache loaded: " + String(wifiList[cache.index].ssid) + 
+           " CH=" + String(cache.channel) + " BSSID=" + String(bssidStr));
+    logMsg("⚡ Fast-connect attempt...");
 
     unsigned long tFast = millis();
-    while (WiFi.status() != WL_CONNECTED && millis() - tFast < 2000) {
+    WiFi.begin(wifiList[cache.index].ssid, wifiList[cache.index].pass, cache.channel, cache.bssid);
+
+    while (WiFi.status() != WL_CONNECTED && millis() - tFast < 3000) {
       esp_task_wdt_reset();
       handleDTGps();
-      delay(50);
+      delay(10);
     }
 
     if (WiFi.status() == WL_CONNECTED) {
-      logMsg("⚡ [Fast-Connect] ✅ Terhubung cepat dalam " + String(millis() - tFast) + "ms! IP: " + WiFi.localIP().toString());
+      unsigned long elapsed = millis() - tFast;
+      logMsg("⚡ Fast-connect success: " + String(elapsed) + " ms");
+      logMsg("📡 Connected: SSID=" + String(WiFi.SSID()) + 
+             " BSSID=" + WiFi.BSSIDstr() + 
+             " CH=" + String(WiFi.channel()) + 
+             " RSSI=" + String(WiFi.RSSI()) + " dBm" + 
+             " IP=" + WiFi.localIP().toString() + 
+             " Time=" + String(elapsed) + " ms");
       return true;
     } else {
-      logMsg("⚠️ Fast-connect miss, lanjut smart scan...");
+      logMsg("⚠️ Fast-connect failed after " + String(millis() - tFast) + " ms");
       WiFi.disconnect(false, true);
     }
   }
 
-  // 🔍 2. FULL ASYNC SCAN
-  logMsg("🔍 Smart scanning WiFi in background...");
+  // 🔍 2. FULL ASYNC SCAN FALLBACK
+  logMsg("🔍 Falling back to WiFi scan...");
   WiFi.scanNetworks(true);
 
   unsigned long tScan = millis();
   while (WiFi.scanComplete() < 0) {
     esp_task_wdt_reset();
     handleDTGps();
-    delay(50);
+    delay(10);
     if (millis() - tScan > 4000) {
       logMsg("⚠️ Scan timeout");
       WiFi.scanDelete();
@@ -532,36 +609,44 @@ bool connectKnownInternet() {
     return false;
   }
 
-  // Simpan Channel & BSSID untuk fast-connect berikutnya
-  cachedWifiIdx = bestIdx;
-  cachedChannel = WiFi.channel(bestScanIdx);
-  uint8_t *bssidPtr = WiFi.BSSID(bestScanIdx);
-  if (bssidPtr) {
-    memcpy(cachedBSSID, bssidPtr, 6);
-    hasCachedBSSID = true;
-  }
+  int ch = WiFi.channel(bestScanIdx);
+  uint8_t *bssid = WiFi.BSSID(bestScanIdx);
+  uint8_t bssidCopy[6];
+  if (bssid) memcpy(bssidCopy, bssid, 6);
   WiFi.scanDelete();
 
-  logMsg("🌐 Connecting to " + String(wifiList[bestIdx].ssid) + " (RSSI: " + String(bestRSSI) + " dBm, Ch: " + String(cachedChannel) + ")...");
-  if (hasCachedBSSID) {
-    WiFi.begin(wifiList[bestIdx].ssid, wifiList[bestIdx].pass, cachedChannel, cachedBSSID);
+  logMsg("🌐 Connecting to " + String(wifiList[bestIdx].ssid) + 
+         " (RSSI: " + String(bestRSSI) + " dBm, CH: " + String(ch) + ")...");
+
+  unsigned long t0 = millis();
+  if (bssid) {
+    WiFi.begin(wifiList[bestIdx].ssid, wifiList[bestIdx].pass, ch, bssidCopy);
   } else {
     WiFi.begin(wifiList[bestIdx].ssid, wifiList[bestIdx].pass);
   }
 
-  unsigned long t0 = millis();
   while (WiFi.status() != WL_CONNECTED) {
     esp_task_wdt_reset();
     handleDTGps();
-    delay(100);
-    if (millis() - t0 > 8000) {
+    delay(10);
+    if (millis() - t0 > 6000) {
       logMsg("❌ Connect timeout");
       WiFi.disconnect(false, true);
       return false;
     }
   }
 
-  logMsg("✅ Connected: " + WiFi.localIP().toString());
+  unsigned long totalTime = millis() - t0;
+  logMsg("✅ Connected: SSID=" + String(WiFi.SSID()) + 
+         " BSSID=" + WiFi.BSSIDstr() + 
+         " CH=" + String(WiFi.channel()) + 
+         " RSSI=" + String(WiFi.RSSI()) + " dBm" + 
+         " IP=" + WiFi.localIP().toString() + 
+         " Time=" + String(totalTime) + " ms");
+
+  if (bssid) {
+    saveWifiCache(bestIdx, ch, bssidCopy);
+  }
   return true;
 }
 
@@ -633,7 +718,7 @@ bool publishOneWithAck(const String &payload, const String &msgId, int maxRetrie
   return false;
 }
 
-// ================= QUEUE PUBLISHER (Per-Data with Granular Offset) =================
+// ================= QUEUE PUBLISHER =================
 bool publishQueueFileChunk(const char *logPath, const char *offsetPath, int maxRecords) {
   uint32_t offset = readUint(offsetPath, 0);
 
@@ -894,7 +979,6 @@ bool transferFromExca() {
     client.println("ACK " + String(totalSize));
     logMsg("📤 Sent ACK " + String(totalSize) + " to EXCA");
 
-    // Gabungkan tempFile ke RELAY_LOG_FILE
     File src = SD.open(tempPath, FILE_READ);
     File dst = SD.open(RELAY_LOG_FILE, FILE_APPEND);
     if (src && dst) {
@@ -1013,7 +1097,7 @@ void setup() {
   WiFi.mode(WIFI_STA);
   WiFi.disconnect(false, true);
 
-  logMsg("✅ " + String(DT_ID) + " READY | IGN Cooldown=30s");
+  logMsg("✅ " + String(DT_ID) + " READY | Fast-Connect Active");
 }
 
 // ================= LOOP =================
