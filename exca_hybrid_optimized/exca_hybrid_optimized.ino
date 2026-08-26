@@ -153,11 +153,24 @@ void writeUint(const char *path, uint32_t v) {
   }
 }
 
-// ================= INIT =================
-void initSD() {
+// ================= HARDWARE HEALTH & RECOVERY =================
+int sdErrorCount = 0;
+bool sdReady = false;
+
+// ================= FAST CONNECT CACHE =================
+int cachedChannel = 0;
+uint8_t cachedBSSID[6] = {0};
+bool hasCachedBSSID = false;
+int cachedWifiIdx = -1;
+
+// ================= INIT & AUTO-RECOVERY SD =================
+bool initSD() {
+  SD.end(); // Bersihkan bus SPI jika sebelumnya error
+  delay(50);
   if (!SD.begin(SD_CS)) {
-    logMsg("SD FAIL");
-    return;
+    logMsg("❌ SD Init FAIL (Periksa Micro SD)");
+    sdReady = false;
+    return false;
   }
 
   if (!SD.exists(OFFSET_FILE))
@@ -166,8 +179,21 @@ void initSD() {
     writeUint(SEQ_FILE, 0);
 
   seq = readUint(SEQ_FILE);
+  sdErrorCount = 0;
+  sdReady = true;
+  logMsg("✅ SD READY (Mounted)");
+  return true;
+}
 
-  logMsg("SD READY");
+void checkSDHealth() {
+  if (sdErrorCount >= 3 || !sdReady) {
+    logMsg("🔄 [Self-Healing] Mencoba re-mount Micro SD...");
+    if (initSD()) {
+      logMsg("✨ Micro SD berhasil dipulihkan (Hot-Plug Recovery OK)!");
+    } else {
+      sdErrorCount = 3; // Tetap kunci untuk retry di siklus berikutnya
+    }
+  }
 }
 
 // ================= RECORD FILTER (Ignition State Machine) =================
@@ -363,12 +389,14 @@ bool processGPSJson(const char *json, String &out) {
 bool appendLine(const char *path, const String &line) {
   File f = SD.open(path, FILE_APPEND);
   if (!f) {
-    logMsg(String("❌ open fail: ") + path);
+    sdErrorCount++;
+    logMsg(String("❌ open fail: ") + path + " (err #" + String(sdErrorCount) + ")");
     return false;
   }
   f.println(line);
   f.flush();
   f.close();
+  sdErrorCount = 0; // Reset error jika sukses menulis
   return true;
 }
 
@@ -460,7 +488,34 @@ bool connectKnownInternet() {
     return true;
   }
 
-  // Mulai Async Scan (non-blocking, tidak menghentikan perekaman GPS)
+  // ⚡ 1. FAST CONNECT ATTEMPT (Coba sambung langsung ke Channel & BSSID terakhir yang pernah sukses)
+  if (cachedWifiIdx >= 0 && cachedChannel > 0) {
+    logMsg("⚡ [Fast-Connect] Mencoba direct connect ke " + String(wifiList[cachedWifiIdx].ssid) + 
+           " (Ch: " + String(cachedChannel) + ")...");
+    
+    if (hasCachedBSSID) {
+      WiFi.begin(wifiList[cachedWifiIdx].ssid, wifiList[cachedWifiIdx].pass, cachedChannel, cachedBSSID);
+    } else {
+      WiFi.begin(wifiList[cachedWifiIdx].ssid, wifiList[cachedWifiIdx].pass, cachedChannel);
+    }
+
+    unsigned long tFast = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - tFast < 2000) { // Coba cepat max 2 detik
+      esp_task_wdt_reset();
+      handleGPS();
+      delay(50);
+    }
+
+    if (WiFi.status() == WL_CONNECTED) {
+      logMsg("⚡ [Fast-Connect] ✅ Terhubung cepat dalam " + String(millis() - tFast) + "ms! IP: " + WiFi.localIP().toString());
+      return true;
+    } else {
+      logMsg("⚠️ Fast-connect miss, lanjut smart scan...");
+      WiFi.disconnect(false, true);
+    }
+  }
+
+  // 🔍 2. FULL ASYNC SCAN (Jika fast-connect miss / belum ada cache)
   logMsg("🔍 Smart scanning WiFi in background...");
   WiFi.scanNetworks(true); // true = Async mode
 
@@ -485,6 +540,7 @@ bool connectKnownInternet() {
 
   // Temukan WiFi yang cocok dengan sinyal (RSSI) terkuat
   int bestIdx = -1;
+  int bestScanIdx = -1;
   int bestRSSI = -1000;
 
   for (int i = 0; i < wifiCount; i++) {
@@ -493,21 +549,35 @@ bool connectKnownInternet() {
         int rssi = WiFi.RSSI(j);
         if (rssi > bestRSSI) {
           bestIdx = i;
+          bestScanIdx = j;
           bestRSSI = rssi;
         }
       }
     }
   }
 
-  WiFi.scanDelete();
-
   if (bestIdx < 0) {
+    WiFi.scanDelete();
     logMsg("❌ Known internet WiFi not in range");
     return false;
   }
 
-  logMsg("🌐 Connecting to " + String(wifiList[bestIdx].ssid) + " (RSSI: " + String(bestRSSI) + " dBm)...");
-  WiFi.begin(wifiList[bestIdx].ssid, wifiList[bestIdx].pass);
+  // Simpan Channel & BSSID untuk Fast Connect berikutnya!
+  cachedWifiIdx = bestIdx;
+  cachedChannel = WiFi.channel(bestScanIdx);
+  uint8_t *bssidPtr = WiFi.BSSID(bestScanIdx);
+  if (bssidPtr) {
+    memcpy(cachedBSSID, bssidPtr, 6);
+    hasCachedBSSID = true;
+  }
+  WiFi.scanDelete();
+
+  logMsg("🌐 Connecting to " + String(wifiList[bestIdx].ssid) + " (RSSI: " + String(bestRSSI) + " dBm, Ch: " + String(cachedChannel) + ")...");
+  if (hasCachedBSSID) {
+    WiFi.begin(wifiList[bestIdx].ssid, wifiList[bestIdx].pass, cachedChannel, cachedBSSID);
+  } else {
+    WiFi.begin(wifiList[bestIdx].ssid, wifiList[bestIdx].pass);
+  }
 
   unsigned long t0 = millis();
   while (WiFi.status() != WL_CONNECTED) {
@@ -932,6 +1002,7 @@ void setup() {
 void loop() {
   esp_task_wdt_reset();
 
+  // 1. Tangani Data GPS UART
   handleGPS();
 
   if (digitalRead(LED_LOG) == HIGH && millis() - ledLogTimer > 100) {
@@ -940,29 +1011,45 @@ void loop() {
 
   updateLedRec();
 
+  // 2. Transisi State Cooldown
   if (recordState == REC_COOLDOWN && millis() - ignOffTime >= IGN_COOLDOWN_MS) {
     recordState = REC_IDLE;
-    logMsg("⏹️ → IDLE (cooldown selesai)");
+    logMsg("⏹️ → IDLE (cooldown 30s selesai, Logger Berhenti)");
   }
 
-  // Handle client local TCP (DT connecting)
+  // 3. Handle client local TCP (DT connecting)
   WiFiClient c = server.available();
   if (c) {
     handleClient(c);
   }
 
-  // Keep MQTT connection alive and process incoming packets
+  // 4. Jaga koneksi MQTT tetap aktif
   if (WiFi.status() == WL_CONNECTED && mqtt.connected()) {
     mqtt.loop();
   }
 
-  // OPTIMIZATION: Chunk-based upload with faster polling
+  // 5. Periodic Check & Recovery Hardware SD Card (Self-Healing)
+  static unsigned long lastSDCheck = 0;
+  if (millis() - lastSDCheck > 5000) {
+    lastSDCheck = millis();
+    checkSDHealth();
+  }
+
+  // 6. Pengurasan Backlog & Koneksi Internet
   unsigned long now = millis();
   if (!busy && now - lastInternetTry >= INTERNET_INTERVAL) {
     lastInternetTry = now;
     busy = true;
     tryInternetAndPublishChunk();
     busy = false;
+  }
+
+  // 7. 🍃 POWER SAVING (Modem-Sleep saat Unit IDLE & Tidak ada backlog)
+  if (recordState == REC_IDLE && WiFi.status() != WL_CONNECTED) {
+    WiFi.setSleep(true); // Aktifkan modem-sleep untuk hemat aki & dingin
+    delay(10);           // Jeda ringan CPU
+  } else {
+    WiFi.setSleep(false); // Maksimalkan throughput saat aktif/streaming
   }
 
   // OPTIMIZATION: Periodic compaction
