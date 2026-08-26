@@ -201,6 +201,9 @@
       <button class="fab-btn" id="toggle-raw-btn">
         <i class="fa-solid fa-code"></i> <span class="fab-label">Raw Data</span>
       </button>
+      <button class="fab-btn" id="toggle-traffic-btn" style="border-color: #3b82f6;">
+        <i class="fa-solid fa-network-wired" style="color: #3b82f6;"></i> <span class="fab-label">Traffic VPS</span>
+      </button>
     </div>
 
     <!-- BOTTOM SHEET: Fleet Record Statistics -->
@@ -273,6 +276,46 @@
       </div>
     </div>
 
+    <!-- BOTTOM SHEET: Traffic VPS to Backend -->
+    <div class="floating-panel bottom-sheet pointer-events-auto" id="panel-traffic">
+      <div class="sheet-header">
+        <h3><i class="fa-solid fa-network-wired" style="color: #3b82f6;"></i> Lalu Lintas VPS &rarr; Backend Remote</h3>
+        <div class="header-actions">
+          <button class="btn btn-outline" id="refresh-traffic-btn" style="padding: 4px 10px; font-size: 0.75rem;"><i class="fa-solid fa-rotate"></i> Refresh</button>
+          <button class="icon-btn close-sheet-btn" data-target="panel-traffic"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+      </div>
+      <div style="padding: 15px; height: calc(100% - 50px); overflow-y: auto;">
+        <div style="display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap;">
+          <div style="background: rgba(15, 23, 42, 0.6); padding: 10px 16px; border-radius: 8px; border: 1px solid var(--border); flex: 1; min-width: 180px;">
+            <div style="font-size: 0.75rem; color: var(--text-muted);">Sisa Antrean di VPS (Pending)</div>
+            <div style="font-size: 1.4rem; font-weight: 700; color: #f59e0b;" id="traffic-pending-count">0</div>
+          </div>
+          <div style="background: rgba(15, 23, 42, 0.6); padding: 10px 16px; border-radius: 8px; border: 1px solid var(--border); flex: 1; min-width: 180px;">
+            <div style="font-size: 0.75rem; color: var(--text-muted);">Status Worker Backend</div>
+            <div style="font-size: 1.1rem; font-weight: 600; color: #10b981;">Active (30s Forwarder)</div>
+          </div>
+        </div>
+        
+        <h4 style="margin-bottom: 10px; font-size: 0.9rem; color: var(--text-muted);"><i class="fa-solid fa-list-check"></i> Daftar Antrean Data Paket (Max 50):</h4>
+        <div style="overflow-x: auto;">
+          <table class="telemetry-table" style="width: 100%;">
+            <thead>
+              <tr>
+                <th>Msg ID</th>
+                <th>Waktu Tersimpan VPS</th>
+                <th>Device</th>
+                <th>Detail Payload</th>
+              </tr>
+            </thead>
+            <tbody id="traffic-table-body">
+              <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Memuat data antrean traffic...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
   </div> <!-- End Floating UI -->
 
   <!-- Leaflet JS -->
@@ -280,6 +323,6 @@
   <!-- MQTT.js -->
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <!-- App Logic -->
-  <script src="app.js?v=25"></script>
+  <script src="app.js?v=1001"></script>
 </body>
 </html>

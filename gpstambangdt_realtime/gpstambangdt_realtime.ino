@@ -387,6 +387,7 @@ void resetGpsParser() {
 void handleDTGps() {
   while (Serial2.available()) {
     char c = Serial2.read();
+    Serial.write(c); // 🐛 Debug: Forward data mentah dari Serial2 (GPS) ke Serial USB
 
     if (!gpsCollecting) {
       if (c == '{') {
@@ -437,8 +438,8 @@ void handleDTGps() {
           logMsg("📍 DT logged #" + String(statGpsLogged));
 
           // Real-time priority publish if online
-          if (WiFi.status() == WL_CONNECTED && client.connected()) {
-            if (client.publish("kutai/fleet/data", clean.c_str())) {
+          if (WiFi.status() == WL_CONNECTED && mqtt.connected()) {
+            if (mqtt.publish("kutai/fleet/data", clean.c_str())) {
               logMsg("⚡ Real-time priority publish success");
               // If backlog was already caught up, advance offset to new file end to avoid double-transmit
               if (offset >= oldSize) {

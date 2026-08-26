@@ -33,7 +33,7 @@ const uint16_t EXCA_PORT = 5000;
 IPAddress excaIP(192, 168, 4, 1);
 
 // ================= MQTT =================
-const char *MQTT_SERVER = "72.62.126.85";
+const char *MQTT_SERVER = "76.13.19.250";
 const uint16_t MQTT_PORT = 1883;
 const char *MQTT_DATA_TOPIC = "kutai/fleet/data";
 

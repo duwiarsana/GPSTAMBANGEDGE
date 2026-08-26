@@ -524,14 +524,7 @@ function animateStat(elementId) {
 
 // ===== Auto-ACK =====
 function sendAutoACK(msgId, src) {
-  const targetTopics = [];
-  if (src.toUpperCase().startsWith('DT')) {
-    targetTopics.push(`kutai/fleet/ack/${src}`);
-  } else {
-    targetTopics.push(`kutai/fleet/ack/${DEFAULT_DT_ID}`);
-    targetTopics.push(`kutai/fleet/ack/${src}`);
-  }
-
+  const targetTopics = [`kutai/fleet/ack/${src}`];
   const ackPayload = JSON.stringify({ id: msgId, status: 'ok' });
 
   targetTopics.forEach(topic => {
@@ -1172,21 +1165,28 @@ const toggleTableBtn = document.getElementById('toggle-table-btn');
 const toggleStatsBtn = document.getElementById('toggle-stats-btn');
 const toggleLogBtn = document.getElementById('toggle-log-btn');
 const toggleRawBtn = document.getElementById('toggle-raw-btn');
+const toggleTrafficBtn = document.getElementById('toggle-traffic-btn');
 const panelTelemetry = document.getElementById('panel-telemetry');
 const panelStats = document.getElementById('panel-stats');
 const panelLog = document.getElementById('panel-log');
 const panelRaw = document.getElementById('panel-raw');
+const panelTraffic = document.getElementById('panel-traffic');
 const statsCardsContainer = document.getElementById('stats-cards-container');
+const refreshTrafficBtn = document.getElementById('refresh-traffic-btn');
+const trafficPendingCount = document.getElementById('traffic-pending-count');
+const trafficTableBody = document.getElementById('traffic-table-body');
 
 function closeAllSheets() {
   if (panelTelemetry) panelTelemetry.classList.remove('active');
   if (panelStats) panelStats.classList.remove('active');
   if (panelLog) panelLog.classList.remove('active');
   if (panelRaw) panelRaw.classList.remove('active');
+  if (panelTraffic) panelTraffic.classList.remove('active');
   if (toggleTableBtn) toggleTableBtn.classList.remove('active');
   if (toggleStatsBtn) toggleStatsBtn.classList.remove('active');
   if (toggleLogBtn) toggleLogBtn.classList.remove('active');
   if (toggleRawBtn) toggleRawBtn.classList.remove('active');
+  if (toggleTrafficBtn) toggleTrafficBtn.classList.remove('active');
 }
 
 if (toggleTableBtn && panelTelemetry) {
@@ -1233,6 +1233,62 @@ if (toggleRawBtn && panelRaw) {
       updateRawDeviceList();
     }
   });
+}
+
+if (toggleTrafficBtn && panelTraffic) {
+  toggleTrafficBtn.addEventListener('click', () => {
+    const isActive = panelTraffic.classList.contains('active');
+    closeAllSheets();
+    if (!isActive) {
+      panelTraffic.classList.add('active');
+      toggleTrafficBtn.classList.add('active');
+      loadVpsTrafficData();
+    }
+  });
+}
+
+if (refreshTrafficBtn) {
+  refreshTrafficBtn.addEventListener('click', () => {
+    loadVpsTrafficData();
+  });
+}
+
+async function loadVpsTrafficData() {
+  if (!trafficTableBody) return;
+  trafficTableBody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Memuat data antrean...</td></tr>';
+  
+  try {
+    const res = await fetch(API_BASE + '/pending');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    
+    if (trafficPendingCount) {
+      trafficPendingCount.textContent = data.total_pending || 0;
+    }
+    
+    if (!data.items || data.items.length === 0) {
+      trafficTableBody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #10b981; padding: 20px;"><i class="fa-solid fa-circle-check"></i> Antrean Kosong! Seluruh data VPS telah sukses diteruskan ke Backend Remote.</td></tr>';
+      return;
+    }
+    
+    let html = '';
+    data.items.forEach(item => {
+      const payloadStr = typeof item.payload === 'object' ? JSON.stringify(item.payload) : item.payload;
+      const deviceSrc = (typeof item.payload === 'object' && (item.payload.src || item.payload.source)) || '-';
+      
+      html += '<tr>' +
+        '<td style="font-family: var(--mono); font-size: 0.8rem; color: #38bdf8;">' + item.id + '</td>' +
+        '<td style="font-size: 0.8rem;">' + (item.created_at || '-') + '</td>' +
+        '<td><span class="badge blue">' + deviceSrc + '</span></td>' +
+        '<td style="font-family: var(--mono); font-size: 0.75rem; color: var(--text-muted); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' + payloadStr + '</td>' +
+      '</tr>';
+    });
+    
+    trafficTableBody.innerHTML = html;
+  } catch (err) {
+    console.error('Error loading VPS traffic:', err);
+    trafficTableBody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #ef4444;">Gagal memuat antrean VPS: ' + err.message + '</td></tr>';
+  }
 }
 
 // Close buttons inside sheets
