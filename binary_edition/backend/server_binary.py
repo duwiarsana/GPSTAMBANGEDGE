@@ -35,14 +35,19 @@ logger = logging.getLogger("BinaryBackend")
 db_lock = threading.Lock()
 
 def get_db_connection():
-    conn = sqlite3.connect(DB_PATH, timeout=15)
+    conn = sqlite3.connect(DB_PATH, timeout=20)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA synchronous=NORMAL;")
     return conn
 
 def init_db():
     with db_lock:
         conn = get_db_connection()
         cursor = conn.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL;")
+        cursor.execute("PRAGMA synchronous=NORMAL;")
+        cursor.execute("PRAGMA cache_size = 10000;")
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS telemetry (
                 id TEXT PRIMARY KEY,
@@ -67,9 +72,10 @@ def init_db():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_telemetry_src ON telemetry(src)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_telemetry_created_at ON telemetry(created_at)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_telemetry_ts ON telemetry(ts)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_telemetry_ts_sec ON telemetry(timestamp_sec)")
         conn.commit()
         conn.close()
-        logger.info("⚡ Binary Database initialized successfully.")
+        logger.info("⚡ Binary Database initialized with WAL Mode (Ultra High Concurrency).")
 
 def save_records_bulk(records: list) -> bool:
     if not records:
