@@ -371,8 +371,12 @@ bool parseDTGpsToBinary(const char *json, TelemetryPacketBinary &pkt) {
   pkt.heading = doc["heading"] | 0;
   pkt.altitude = doc["altitude"] | 0;
 
-  double ext = doc["external"] | 0.0;
-  pkt.bat_mv = (uint16_t)(ext * 1000.0);
+  double ext = doc["external"] | (doc["volt"] | (doc["battery"] | 0.0));
+  if (ext > 100.0) {
+    pkt.bat_mv = (uint16_t)ext;
+  } else {
+    pkt.bat_mv = (uint16_t)(ext * 1000.0);
+  }
   pkt.odo_m = doc["odometer"] | 0;
   pkt.ignition = (doc["ignition"] | 0) ? 1 : 0;
   pkt.input_status = doc["input_status"] | 0;
