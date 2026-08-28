@@ -1083,6 +1083,7 @@ void setup() {
     .trigger_panic = true
   };
   esp_task_wdt_reconfigure(&wdt_config);
+  esp_task_wdt_add(NULL); // Daftarkan task loop utama ke Watchdog
   logMsg("🐕 Watchdog configured: " + String(WDT_TIMEOUT_SEC) + "s");
 
   pinMode(LED_GPS, OUTPUT);
