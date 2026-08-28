@@ -188,6 +188,28 @@
           </div>
         </div>
 
+        <div class="form-group" id="date-range-group">
+          <div class="label-with-presets">
+            <label>Rentang Waktu / Tanggal GPS:</label>
+            <div class="date-presets">
+              <button type="button" class="btn-preset active" data-preset="all">Semua Waktu</button>
+              <button type="button" class="btn-preset" data-preset="today">Hari Ini</button>
+              <button type="button" class="btn-preset" data-preset="7days">7 Hari Terakhir</button>
+              <button type="button" class="btn-preset" data-preset="month">Bulan Ini</button>
+            </div>
+          </div>
+          <div class="date-inputs-row">
+            <div class="date-field">
+              <span class="date-sublabel">Dari Tanggal & Jam:</span>
+              <input type="datetime-local" id="export-start-date" class="form-input" />
+            </div>
+            <div class="date-field">
+              <span class="date-sublabel">Sampai Tanggal & Jam:</span>
+              <input type="datetime-local" id="export-end-date" class="form-input" />
+            </div>
+          </div>
+        </div>
+
         <div class="form-group" id="limit-group">
           <label for="export-limit">Batas Maksimal Baris:</label>
           <select id="export-limit" class="form-select">

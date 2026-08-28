@@ -387,6 +387,41 @@ if (cancelExportBtn) {
   });
 }
 
+// Date Preset Helpers
+function formatDateTimeLocal(d) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+const startInput = document.getElementById('export-start-date');
+const endInput = document.getElementById('export-end-date');
+
+document.querySelectorAll('.btn-preset').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.btn-preset').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const preset = btn.getAttribute('data-preset');
+    const now = new Date();
+
+    if (preset === 'all') {
+      if (startInput) startInput.value = '';
+      if (endInput) endInput.value = '';
+    } else if (preset === 'today') {
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+      if (startInput) startInput.value = formatDateTimeLocal(start);
+      if (endInput) endInput.value = formatDateTimeLocal(now);
+    } else if (preset === '7days') {
+      const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      if (startInput) startInput.value = formatDateTimeLocal(start);
+      if (endInput) endInput.value = formatDateTimeLocal(now);
+    } else if (preset === 'month') {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+      if (startInput) startInput.value = formatDateTimeLocal(start);
+      if (endInput) endInput.value = formatDateTimeLocal(now);
+    }
+  });
+});
+
 // Format Card Selection Styling
 document.querySelectorAll('.format-card').forEach(card => {
   card.addEventListener('click', () => {
@@ -395,11 +430,12 @@ document.querySelectorAll('.format-card').forEach(card => {
     const radio = card.querySelector('input[type="radio"]');
     if (radio) radio.checked = true;
 
-    // Toggle limit visibility for .db format
+    // Toggle limit & date range visibility for .db format
     const limitGroup = document.getElementById('limit-group');
-    if (limitGroup) {
-      limitGroup.style.display = radio.value === 'db' ? 'none' : 'flex';
-    }
+    const dateGroup = document.getElementById('date-range-group');
+    const isDb = radio.value === 'db';
+    if (limitGroup) limitGroup.style.display = isDb ? 'none' : 'flex';
+    if (dateGroup) dateGroup.style.display = isDb ? 'none' : 'flex';
   });
 });
 
@@ -408,14 +444,24 @@ if (startDownloadBtn) {
     const selectedFormat = document.querySelector('input[name="export-format"]:checked')?.value || 'csv';
     const selectedUnit = unitSelect ? unitSelect.value : 'ALL';
     const limit = document.getElementById('export-limit')?.value || '50000';
+    const startVal = startInput ? startInput.value : '';
+    const endVal = endInput ? endInput.value : '';
 
     let downloadUrl = '';
     if (selectedFormat === 'db') {
       downloadUrl = `${API_BASE}/api/export/db`;
-    } else if (selectedFormat === 'csv') {
-      downloadUrl = `${API_BASE}/api/export/csv?src=${encodeURIComponent(selectedUnit)}&limit=${limit}`;
-    } else if (selectedFormat === 'json') {
-      downloadUrl = `${API_BASE}/api/export/json?src=${encodeURIComponent(selectedUnit)}&limit=${limit}`;
+    } else {
+      const params = new URLSearchParams();
+      params.append('src', selectedUnit);
+      params.append('limit', limit);
+      if (startVal) params.append('start', startVal);
+      if (endVal) params.append('end', endVal);
+
+      if (selectedFormat === 'csv') {
+        downloadUrl = `${API_BASE}/api/export/csv?${params.toString()}`;
+      } else if (selectedFormat === 'json') {
+        downloadUrl = `${API_BASE}/api/export/json?${params.toString()}`;
+      }
     }
 
     if (downloadUrl) {

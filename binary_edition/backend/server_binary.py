@@ -306,28 +306,53 @@ def get_stats():
 def export_csv():
     try:
         src = request.args.get("src", default=None)
-        limit = request.args.get("limit", default=100000, type=int)
+        start_date = request.args.get("start", default=None)
+        end_date = request.args.get("end", default=None)
+        limit = request.args.get("limit", default=200000, type=int)
 
         conn = get_db_connection()
         cursor = conn.cursor()
 
+        conditions = []
+        params = []
+
         if src and src.upper() != "ALL":
-            cursor.execute("""
-                SELECT id, src, seq, ts, timestamp_sec, lat, lon, spd, hdg, alt, bat, odo, ign, hdop, temp, created_at, raw_json
-                FROM telemetry
-                WHERE src = ?
-                ORDER BY timestamp_sec ASC
-                LIMIT ?
-            """, (src, limit))
-            filename = f"telemetry_{src}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-        else:
-            cursor.execute("""
-                SELECT id, src, seq, ts, timestamp_sec, lat, lon, spd, hdg, alt, bat, odo, ign, hdop, temp, created_at, raw_json
-                FROM telemetry
-                ORDER BY timestamp_sec ASC
-                LIMIT ?
-            """, (limit,))
-            filename = f"telemetry_all_units_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            conditions.append("src = ?")
+            params.append(src)
+
+        if start_date:
+            clean_start = start_date.replace("T", " ")
+            if len(clean_start) == 10:
+                clean_start += " 00:00:00"
+            conditions.append("ts >= ?")
+            params.append(clean_start)
+
+        if end_date:
+            clean_end = end_date.replace("T", " ")
+            if len(clean_end) == 10:
+                clean_end += " 23:59:59"
+            conditions.append("ts <= ?")
+            params.append(clean_end)
+
+        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        
+        query = f"""
+            SELECT id, src, seq, ts, timestamp_sec, lat, lon, spd, hdg, alt, bat, odo, ign, hdop, temp, created_at, raw_json
+            FROM telemetry
+            {where_clause}
+            ORDER BY timestamp_sec ASC
+            LIMIT ?
+        """
+        params.append(limit)
+        cursor.execute(query, tuple(params))
+
+        unit_tag = src if (src and src.upper() != "ALL") else "all_units"
+        date_tag = ""
+        if start_date or end_date:
+            s_tag = start_date[:10].replace("-", "") if start_date else "start"
+            e_tag = end_date[:10].replace("-", "") if end_date else "end"
+            date_tag = f"_{s_tag}_to_{e_tag}"
+        filename = f"telemetry_{unit_tag}{date_tag}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
 
         rows = cursor.fetchall()
         conn.close()
@@ -372,26 +397,74 @@ def export_csv():
 def export_json():
     try:
         src = request.args.get("src", default=None)
-        limit = request.args.get("limit", default=100000, type=int)
+        start_date = request.args.get("start", default=None)
+        end_date = request.args.get("end", default=None)
+        limit = request.args.get("limit", default=200000, type=int)
 
         conn = get_db_connection()
         cursor = conn.cursor()
 
+        conditions = []
+        params = []
+
         if src and src.upper() != "ALL":
-            cursor.execute("""
-                SELECT * FROM telemetry
-                WHERE src = ?
-                ORDER BY timestamp_sec ASC
-                LIMIT ?
-            """, (src, limit))
-            filename = f"telemetry_{src}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        else:
-            cursor.execute("""
-                SELECT * FROM telemetry
-                ORDER BY timestamp_sec ASC
-                LIMIT ?
-            """, (limit,))
-            filename = f"telemetry_all_units_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            conditions.append("src = ?")
+            params.append(src)
+
+        if start_date:
+            clean_start = start_date.replace("T", " ")
+            if len(clean_start) == 10:
+                clean_start += " 00:00:00"
+            conditions.append("ts >= ?")
+            params.append(clean_start)
+
+        if end_date:
+            clean_end = end_date.replace("T", " ")
+            if len(clean_end) == 10:
+                clean_end += " 23:59:59"
+            conditions.append("ts <= ?")
+            params.append(clean_end)
+
+        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+
+        query = f"""
+            SELECT * FROM telemetry
+            {where_clause}
+            ORDER BY timestamp_sec ASC
+            LIMIT ?
+        """
+        params.append(limit)
+        cursor.execute(query, tuple(params))
+
+        unit_tag = src if (src and src.upper() != "ALL") else "all_units"
+        date_tag = ""
+        if start_date or end_date:
+            s_tag = start_date[:10].replace("-", "") if start_date else "start"
+            e_tag = end_date[:10].replace("-", "") if end_date else "end"
+            date_tag = f"_{s_tag}_to_{e_tag}"
+        filename = f"telemetry_{unit_tag}{date_tag}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+
+        columns = [col[0] for col in cursor.description]
+        rows = []
+        for r in cursor.fetchall():
+            row_dict = dict(zip(columns, r))
+            if row_dict.get('raw_json'):
+                try:
+                    row_dict['details'] = json.loads(row_dict['raw_json'])
+                except Exception:
+                    pass
+            rows.append(row_dict)
+        conn.close()
+
+        json_data = json.dumps(rows, indent=2)
+        return Response(
+            json_data,
+            mimetype="application/json",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    except Exception as e:
+        logger.error(f"❌ Error exporting JSON: {e}")
+        return jsonify({"error": str(e)}), 500
 
         columns = [col[0] for col in cursor.description]
         rows = []

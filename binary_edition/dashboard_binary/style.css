@@ -602,6 +602,74 @@ body {
   border-color: var(--accent-cyan);
 }
 
+.form-input {
+  padding: 8px 10px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 12px;
+  outline: none;
+  font-family: var(--font-mono);
+}
+
+.form-input:focus {
+  border-color: var(--accent-cyan);
+}
+
+.label-with-presets {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.date-presets {
+  display: flex;
+  gap: 4px;
+}
+
+.btn-preset {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  padding: 2px 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-preset:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-primary);
+}
+
+.btn-preset.active {
+  background: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.date-inputs-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.date-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.date-sublabel {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
 .format-options {
   display: flex;
   flex-direction: column;
