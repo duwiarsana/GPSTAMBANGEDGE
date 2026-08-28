@@ -105,6 +105,14 @@ function renderFleetList() {
     const isSelected = selectedDevice && selectedDevice.src === d.src;
     const isExca = d.src.toUpperCase().startsWith('EXCA');
     const icon = isExca ? '🚜' : '🚛';
+    
+    // Parse PTO
+    let isPtoOn = false;
+    if (d.pto !== undefined) {
+      isPtoOn = d.pto === 1;
+    } else if (typeof d.in === 'string') {
+      isPtoOn = d.in.length > 2 ? d.in[0] === '1' : ((parseInt(d.in, 16) & 0x01) !== 0);
+    }
 
     return `
       <div class="fleet-card ${isSelected ? 'selected' : ''}" onclick="selectDevice('${d.src}')">
@@ -121,7 +129,7 @@ function renderFleetList() {
           <div>Spd: <strong>${d.spd} km/h</strong></div>
           <div>Bat: <strong>${d.bat} V</strong></div>
           <div>Ign: <strong style="color: ${d.ign ? '#10b981' : '#ef4444'}">${d.ign ? 'ON' : 'OFF'}</strong></div>
-          <div>Packets: <strong>${d.count}</strong></div>
+          <div>PTO: <strong style="color: ${isPtoOn ? '#f59e0b' : '#64748b'}">${isPtoOn ? 'ON' : 'OFF'}</strong></div>
         </div>
       </div>
     `;
@@ -192,7 +200,20 @@ function updateInspector(d) {
   ignEl.className = `card-value badge-ign ${d.ign ? 'on' : 'off'}`;
 
   document.getElementById('insp-bat').innerHTML = `${d.bat} <small>V</small>`;
-  document.getElementById('insp-hdop').innerText = d.hdop || '-';
+
+  // Parse PTO
+  let isPtoOn = false;
+  if (d.pto !== undefined) {
+    isPtoOn = d.pto === 1;
+  } else if (typeof d.in === 'string') {
+    isPtoOn = d.in.length > 2 ? d.in[0] === '1' : ((parseInt(d.in, 16) & 0x01) !== 0);
+  }
+  const ptoEl = document.getElementById('insp-pto');
+  if (ptoEl) {
+    ptoEl.innerText = isPtoOn ? 'ON' : 'OFF';
+    ptoEl.className = `card-value badge-ign ${isPtoOn ? 'on' : 'off'}`;
+  }
+
   document.getElementById('insp-odo').innerHTML = `${Number(d.odo || 0).toLocaleString()} <small>m</small>`;
   
   const hdg = d.hdg ?? 0;

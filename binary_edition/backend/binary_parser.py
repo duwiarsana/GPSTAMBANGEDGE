@@ -100,6 +100,7 @@ def parse_telemetry_packet(raw_bytes: bytes) -> Optional[Dict[str, Any]]:
         "bat_mv": bat_mv,
         "odo": odo_m,
         "ign": ignition,
+        "pto": 1 if (input_status & 0x01) else 0,
         "in": f"{input_status:02X}",
         "out": f"{output_status:02X}",
         "hdop": round(hdop_x10 / 10.0, 1),

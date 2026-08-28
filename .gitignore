@@ -6,3 +6,7 @@ dashboard.zip
 
 # OS files
 .DS_Store
+node_modules/
+remotion-gps-tambang/node_modules/
+remotion-gps-tambang/out/
+*.mp4
