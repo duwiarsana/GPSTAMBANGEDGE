@@ -268,6 +268,10 @@ def get_telemetry_history(device_id):
         logger.error(f"❌ Error fetching history: {e}")
         return jsonify({"error": str(e)}), 500
 
+from flask import Flask, jsonify, request, send_from_directory, send_file, Response
+import io
+import csv
+
 @app.route("/api/stats", methods=["GET"])
 def get_stats():
     try:
@@ -295,6 +299,138 @@ def get_stats():
         })
     except Exception as e:
         logger.error(f"❌ Error fetching stats: {e}")
+        return jsonify({"error": str(e)}), 500
+
+# ================= EXPORT & DOWNLOAD ENDPOINTS =================
+@app.route("/api/export/csv", methods=["GET"])
+def export_csv():
+    try:
+        src = request.args.get("src", default=None)
+        limit = request.args.get("limit", default=100000, type=int)
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if src and src.upper() != "ALL":
+            cursor.execute("""
+                SELECT id, src, seq, ts, timestamp_sec, lat, lon, spd, hdg, alt, bat, odo, ign, hdop, temp, created_at, raw_json
+                FROM telemetry
+                WHERE src = ?
+                ORDER BY timestamp_sec ASC
+                LIMIT ?
+            """, (src, limit))
+            filename = f"telemetry_{src}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        else:
+            cursor.execute("""
+                SELECT id, src, seq, ts, timestamp_sec, lat, lon, spd, hdg, alt, bat, odo, ign, hdop, temp, created_at, raw_json
+                FROM telemetry
+                ORDER BY timestamp_sec ASC
+                LIMIT ?
+            """, (limit,))
+            filename = f"telemetry_all_units_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+
+        rows = cursor.fetchall()
+        conn.close()
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow([
+            "Msg ID", "Source ID", "Sequence", "GPS Timestamp (UTC)", "Epoch Sec", 
+            "Latitude", "Longitude", "Speed (km/h)", "Heading (deg)", "Altitude (m)", 
+            "Battery (V)", "Odometer (m)", "Ignition", "PTO (Dump Bed)", "HDOP", 
+            "MCU Temp (C)", "Server Received At"
+        ])
+
+        for r in rows:
+            raw_json_str = r[16]
+            pto = 0
+            if raw_json_str:
+                try:
+                    p = json.loads(raw_json_str)
+                    pto = p.get("pto", 0)
+                except Exception:
+                    pass
+            
+            writer.writerow([
+                r[0], r[1], r[2], r[3], r[4],
+                r[5], r[6], r[7], r[8], r[9],
+                r[10], r[11], "ON" if r[12] == 1 else "OFF", "ON" if pto == 1 else "OFF",
+                r[13], r[14], r[15]
+            ])
+
+        output.seek(0)
+        return Response(
+            output.getvalue(),
+            mimetype="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    except Exception as e:
+        logger.error(f"❌ Error exporting CSV: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/export/json", methods=["GET"])
+def export_json():
+    try:
+        src = request.args.get("src", default=None)
+        limit = request.args.get("limit", default=100000, type=int)
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if src and src.upper() != "ALL":
+            cursor.execute("""
+                SELECT * FROM telemetry
+                WHERE src = ?
+                ORDER BY timestamp_sec ASC
+                LIMIT ?
+            """, (src, limit))
+            filename = f"telemetry_{src}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        else:
+            cursor.execute("""
+                SELECT * FROM telemetry
+                ORDER BY timestamp_sec ASC
+                LIMIT ?
+            """, (limit,))
+            filename = f"telemetry_all_units_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+
+        columns = [col[0] for col in cursor.description]
+        rows = []
+        for r in cursor.fetchall():
+            row_dict = dict(zip(columns, r))
+            if row_dict.get('raw_json'):
+                try:
+                    row_dict['details'] = json.loads(row_dict['raw_json'])
+                except Exception:
+                    pass
+            rows.append(row_dict)
+        conn.close()
+
+        json_data = json.dumps(rows, indent=2)
+        return Response(
+            json_data,
+            mimetype="application/json",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    except Exception as e:
+        logger.error(f"❌ Error exporting JSON: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/export/db", methods=["GET"])
+def export_db():
+    try:
+        abs_db_path = os.path.abspath(DB_PATH)
+        if not os.path.exists(abs_db_path):
+            return jsonify({"error": "Database file not found"}), 404
+        
+        filename = f"telemetry_binary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
+        return send_file(
+            abs_db_path,
+            as_attachment=True,
+            download_name=filename,
+            mimetype="application/x-sqlite3"
+        )
+    except Exception as e:
+        logger.error(f"❌ Error exporting DB file: {e}")
         return jsonify({"error": str(e)}), 500
 
 def start_mqtt():

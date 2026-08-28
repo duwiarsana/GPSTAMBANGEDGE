@@ -37,6 +37,9 @@
           <span class="chip-label">Paket Binary Terproses</span>
           <span class="chip-val" id="total-packets">0</span>
         </div>
+        <button class="btn-export-header" id="open-export-modal-btn">
+          📥 Download Database
+        </button>
         <div class="status-indicator online" id="conn-status">
           <span class="status-dot"></span>
           <span class="status-text">CONNECTED</span>
@@ -126,10 +129,83 @@
                 <strong id="insp-ts">2026-06-25 00:42:40</strong>
               </div>
             </div>
+            <div class="inspector-actions">
+              <button class="btn-action-download" id="insp-download-unit-btn">
+                📥 Unduh CSV Unit Ini
+              </button>
+            </div>
           </div>
         </div>
       </section>
     </main>
+  </div>
+
+  <!-- EXPORT / DOWNLOAD MODAL -->
+  <div class="modal-overlay" id="export-modal" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span>📥</span>
+          <h3>Download Data Telemetry Database</h3>
+        </div>
+        <button class="close-btn" id="close-export-modal-btn">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="export-unit-select">Pilih Unit Armada:</label>
+          <select id="export-unit-select" class="form-select">
+            <option value="ALL">🌐 Semua Unit (Seluruh Database)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Pilih Format File:</label>
+          <div class="format-options">
+            <label class="format-card selected" id="fmt-card-csv">
+              <input type="radio" name="export-format" value="csv" checked />
+              <div class="format-info">
+                <strong>📊 CSV (Excel / GIS)</strong>
+                <small>Format spreadsheet paling mudah dibuka di Excel/QGIS</small>
+              </div>
+            </label>
+
+            <label class="format-card" id="fmt-card-json">
+              <input type="radio" name="export-format" value="json" />
+              <div class="format-info">
+                <strong>📋 JSON (Struktur Data)</strong>
+                <small>Format objek lengkap dengan raw packet telemetry</small>
+              </div>
+            </label>
+
+            <label class="format-card" id="fmt-card-db">
+              <input type="radio" name="export-format" value="db" />
+              <div class="format-info">
+                <strong>🗄️ SQLite DB File (.db)</strong>
+                <small>Full database backup biner murni untuk server/arsip</small>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group" id="limit-group">
+          <label for="export-limit">Batas Maksimal Baris:</label>
+          <select id="export-limit" class="form-select">
+            <option value="1000">1.000 data terakhir</option>
+            <option value="10000">10.000 data terakhir</option>
+            <option value="50000" selected>50.000 data</option>
+            <option value="500000">Semua data (Tanpa Batas)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-secondary" id="cancel-export-btn">Batal</button>
+        <button class="btn-primary" id="start-download-btn">
+          🚀 Download File Sekarang
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- Leaflet Map JS -->

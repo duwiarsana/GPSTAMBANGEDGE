@@ -336,6 +336,95 @@ document.getElementById('search-input').addEventListener('input', () => {
   renderFleetList();
 });
 
+// Quick Download from Inspector
+const inspDlBtn = document.getElementById('insp-download-unit-btn');
+if (inspDlBtn) {
+  inspDlBtn.addEventListener('click', () => {
+    if (!selectedDevice) return;
+    const url = `${API_BASE}/api/export/csv?src=${encodeURIComponent(selectedDevice.src)}&limit=100000`;
+    window.open(url, '_blank');
+  });
+}
+
+// Export Modal Logic
+const exportModal = document.getElementById('export-modal');
+const openExportBtn = document.getElementById('open-export-modal-btn');
+const closeExportBtn = document.getElementById('close-export-modal-btn');
+const cancelExportBtn = document.getElementById('cancel-export-btn');
+const startDownloadBtn = document.getElementById('start-download-btn');
+const unitSelect = document.getElementById('export-unit-select');
+
+function populateExportUnits() {
+  if (!unitSelect) return;
+  unitSelect.innerHTML = '<option value="ALL">🌐 Semua Unit (Seluruh Database)</option>';
+  devicesData.forEach(d => {
+    const opt = document.createElement('option');
+    opt.value = d.src;
+    opt.innerText = `🚜 ${d.src} (${Number(d.total_records || d.count || 0).toLocaleString()} data)`;
+    unitSelect.appendChild(opt);
+  });
+  if (selectedDevice) {
+    unitSelect.value = selectedDevice.src;
+  }
+}
+
+if (openExportBtn) {
+  openExportBtn.addEventListener('click', () => {
+    populateExportUnits();
+    exportModal.style.display = 'flex';
+  });
+}
+
+if (closeExportBtn) {
+  closeExportBtn.addEventListener('click', () => {
+    exportModal.style.display = 'none';
+  });
+}
+
+if (cancelExportBtn) {
+  cancelExportBtn.addEventListener('click', () => {
+    exportModal.style.display = 'none';
+  });
+}
+
+// Format Card Selection Styling
+document.querySelectorAll('.format-card').forEach(card => {
+  card.addEventListener('click', () => {
+    document.querySelectorAll('.format-card').forEach(c => c.classList.remove('selected'));
+    card.classList.add('selected');
+    const radio = card.querySelector('input[type="radio"]');
+    if (radio) radio.checked = true;
+
+    // Toggle limit visibility for .db format
+    const limitGroup = document.getElementById('limit-group');
+    if (limitGroup) {
+      limitGroup.style.display = radio.value === 'db' ? 'none' : 'flex';
+    }
+  });
+});
+
+if (startDownloadBtn) {
+  startDownloadBtn.addEventListener('click', () => {
+    const selectedFormat = document.querySelector('input[name="export-format"]:checked')?.value || 'csv';
+    const selectedUnit = unitSelect ? unitSelect.value : 'ALL';
+    const limit = document.getElementById('export-limit')?.value || '50000';
+
+    let downloadUrl = '';
+    if (selectedFormat === 'db') {
+      downloadUrl = `${API_BASE}/api/export/db`;
+    } else if (selectedFormat === 'csv') {
+      downloadUrl = `${API_BASE}/api/export/csv?src=${encodeURIComponent(selectedUnit)}&limit=${limit}`;
+    } else if (selectedFormat === 'json') {
+      downloadUrl = `${API_BASE}/api/export/json?src=${encodeURIComponent(selectedUnit)}&limit=${limit}`;
+    }
+
+    if (downloadUrl) {
+      window.open(downloadUrl, '_blank');
+      exportModal.style.display = 'none';
+    }
+  });
+}
+
 // App Startup
 window.addEventListener('DOMContentLoaded', () => {
   initMap();
