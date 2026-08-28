@@ -415,6 +415,14 @@ bool parseDTGpsToBinary(const char *json, TelemetryPacketBinary &pkt) {
     pkt.input_status = (uint8_t)(doc["input_status"] | 0);
   }
 
+  // Parse Ignition
+  int ignVal = doc["ignition"] | (doc["ign"] | -1);
+  if (ignVal != -1) {
+    pkt.ignition = (ignVal > 0) ? 1 : 0;
+  } else {
+    pkt.ignition = (pkt.input_status & 0x02) ? 1 : 0;
+  }
+
   if (doc.containsKey("ibeacon") && doc["ibeacon"].size() > 0) {
     const char *macStr = doc["ibeacon"][0]["mac"] | "";
     int rssi = doc["ibeacon"][0]["rssi"] | 0;
