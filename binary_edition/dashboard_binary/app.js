@@ -194,7 +194,11 @@ function updateInspector(d) {
   document.getElementById('insp-bat').innerHTML = `${d.bat} <small>V</small>`;
   document.getElementById('insp-hdop').innerText = d.hdop || '-';
   document.getElementById('insp-odo').innerHTML = `${Number(d.odo || 0).toLocaleString()} <small>m</small>`;
-  document.getElementById('insp-temp').innerHTML = `${d.temp || '-'} <small>°C</small>`;
+  
+  const hdg = d.hdg ?? 0;
+  const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  const dir = directions[Math.round(hdg / 45) % 8];
+  document.getElementById('insp-hdg').innerHTML = `${hdg}° <small>(${dir})</small>`;
 
   document.getElementById('insp-lat').innerText = d.lat;
   document.getElementById('insp-lon').innerText = d.lon;
