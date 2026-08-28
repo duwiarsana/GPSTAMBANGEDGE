@@ -7,7 +7,8 @@ import struct
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 
-TELEMETRY_STRUCT_FMT = "<2sB8sIIiiHHhHI4Bh3h6sbBBHH"
+TELEMETRY_STRUCT_FMT_V2 = "<2sB8sQIIiiHHhHIBBB6sb5sH"
+TELEMETRY_STRUCT_FMT_V1 = "<2sB8sIIiiHHhHI4Bh3h6sbBBHH"
 TELEMETRY_PACKET_SIZE = 64
 
 def calculate_crc16(data: bytes) -> int:
@@ -30,42 +31,78 @@ def parse_telemetry_packet(raw_bytes: bytes) -> Optional[Dict[str, Any]]:
     if len(raw_bytes) != TELEMETRY_PACKET_SIZE:
         return None
 
-    (
-        magic,
-        version,
-        src_raw,
-        seq,
-        timestamp_sec,
-        lat_x1e7,
-        lon_x1e7,
-        speed_x10,
-        heading,
-        altitude,
-        bat_mv,
-        odo_m,
-        ignition,
-        input_status,
-        output_status,
-        hdop_x10,
-        temp_x10,
-        gs_x,
-        gs_y,
-        gs_z,
-        beacon_mac_raw,
-        beacon_rssi,
-        event_code,
-        flags,
-        reserved,
-        received_crc
-    ) = struct.unpack(TELEMETRY_STRUCT_FMT, raw_bytes)
-
-    if magic != b'\xaa\x55':
+    if raw_bytes[:2] != b'\xaa\x55':
         return None
 
     # Validate CRC16 over first 62 bytes
+    received_crc = struct.unpack("<H", raw_bytes[62:64])[0]
     calculated_crc = calculate_crc16(raw_bytes[:62])
     if calculated_crc != received_crc:
         return None
+
+    version = raw_bytes[2]
+    imei_str = ""
+    output_status = 0
+    hdop = 0.0
+    temp = 0.0
+    gs_x, gs_y, gs_z = 0, 0, 0
+    event_code = 51
+
+    if version == 2:
+        (
+            magic,
+            version,
+            src_raw,
+            imei_num,
+            seq,
+            timestamp_sec,
+            lat_x1e7,
+            lon_x1e7,
+            speed_x10,
+            heading,
+            altitude,
+            bat_mv,
+            odo_m,
+            ignition,
+            input_status,
+            flags,
+            beacon_mac_raw,
+            beacon_rssi,
+            reserved,
+            received_crc
+        ) = struct.unpack(TELEMETRY_STRUCT_FMT_V2, raw_bytes)
+        imei_str = str(imei_num) if imei_num > 0 else ""
+    else:
+        (
+            magic,
+            version,
+            src_raw,
+            seq,
+            timestamp_sec,
+            lat_x1e7,
+            lon_x1e7,
+            speed_x10,
+            heading,
+            altitude,
+            bat_mv,
+            odo_m,
+            ignition,
+            input_status,
+            output_status,
+            hdop_x10,
+            temp_x10,
+            gs_x,
+            gs_y,
+            gs_z,
+            beacon_mac_raw,
+            beacon_rssi,
+            event_code,
+            flags,
+            reserved,
+            received_crc
+        ) = struct.unpack(TELEMETRY_STRUCT_FMT_V1, raw_bytes)
+        hdop = round(hdop_x10 / 10.0, 1)
+        temp = round(temp_x10 / 10.0, 1)
 
     # Decode string source ID
     src = src_raw.decode('ascii', errors='ignore').rstrip('\x00').strip()
@@ -88,6 +125,7 @@ def parse_telemetry_packet(raw_bytes: bytes) -> Optional[Dict[str, Any]]:
     return {
         "id": unique_id,
         "src": src,
+        "imei": imei_str,
         "seq": seq,
         "timestamp_sec": timestamp_sec,
         "ts": ts_iso,
@@ -103,8 +141,8 @@ def parse_telemetry_packet(raw_bytes: bytes) -> Optional[Dict[str, Any]]:
         "pto": 1 if (input_status & 0x01) else 0,
         "in": f"{input_status:02X}",
         "out": f"{output_status:02X}",
-        "hdop": round(hdop_x10 / 10.0, 1),
-        "temp": round(temp_x10 / 10.0, 1),
+        "hdop": hdop,
+        "temp": temp,
         "gs": {
             "x": gs_x,
             "y": gs_y,

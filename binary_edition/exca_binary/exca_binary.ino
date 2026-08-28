@@ -381,6 +381,15 @@ bool parseGpsToBinary(const char *json, TelemetryPacketBinary &pkt) {
   } else {
     pkt.bat_mv = (uint16_t)(ext * 1000.0);
   }
+
+  // Parse IMEI (15 digits e.g. 861327085563067)
+  const char *imeiStr = doc["imei"] | "";
+  if (strlen(imeiStr) > 0) {
+    pkt.imei = strtoull(imeiStr, NULL, 10);
+  } else {
+    pkt.imei = 0;
+  }
+
   pkt.odo_m = doc["odometer"] | 0;
   if (doc["input_status"].is<const char*>()) {
     const char *inp = doc["input_status"].as<const char*>();
@@ -391,19 +400,6 @@ bool parseGpsToBinary(const char *json, TelemetryPacketBinary &pkt) {
     pkt.input_status = mask;
   } else {
     pkt.input_status = (uint8_t)(doc["input_status"] | 0);
-  }
-  pkt.output_status = doc["output_status"] | 0;
-
-  double hdop = doc["hdop"] | 0.0;
-  pkt.hdop_x10 = (uint8_t)(hdop * 10.0);
-
-  double temp = doc["mcu_temp"] | 0.0;
-  pkt.temp_x10 = (int16_t)(temp * 10.0);
-
-  if (doc.containsKey("gsensor")) {
-    pkt.gs_x = doc["gsensor"]["x"] | 0;
-    pkt.gs_y = doc["gsensor"]["y"] | 0;
-    pkt.gs_z = doc["gsensor"]["z"] | 0;
   }
 
   if (doc.containsKey("ibeacon") && doc["ibeacon"].size() > 0) {
@@ -417,8 +413,7 @@ bool parseGpsToBinary(const char *json, TelemetryPacketBinary &pkt) {
     }
   }
 
-  pkt.event_code = doc["event_code"] | 51;
-  pkt.flags = 1; // GPS valid flag
+  pkt.flags = 0x01; // Bit0 = GPS 3D Fix Valid
 
   finalizeBinaryPacket(pkt);
   return true;

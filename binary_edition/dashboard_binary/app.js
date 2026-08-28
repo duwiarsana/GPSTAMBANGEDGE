@@ -174,13 +174,18 @@ function renderFleetList() {
 
     const rxTimeRel = formatRelativeTime(d.created_at || d.ts);
 
+    const imeiBadge = d.imei ? `<span style="font-size: 0.72rem; color: #64748b; font-family: monospace;">IMEI: ${d.imei}</span>` : '';
+
     return `
       <div class="fleet-card ${isSelected ? 'selected' : ''}" onclick="selectDevice('${d.src}')">
         <div class="fleet-card-header">
           <div class="fleet-title">
             <span class="status-dot-sm ${isOnline ? 'online' : 'offline'}"></span>
             <span>${icon}</span>
-            <span>${d.src}</span>
+            <div style="display: flex; flex-direction: column;">
+              <span>${d.src}</span>
+              ${imeiBadge}
+            </div>
           </div>
           <span class="fleet-badge ${isOnline ? 'online' : 'offline'}">
             ${isOnline ? 'ONLINE' : 'OFFLINE'}
@@ -304,10 +309,10 @@ function updateInspector(d) {
     totalDbEl.innerHTML = `${Number(d.total_records || d.count || 0).toLocaleString()} <small>record</small>`;
   }
 
-  // Suhu ESP32
-  const tempEl = document.getElementById('insp-temp');
-  if (tempEl) {
-    tempEl.innerHTML = `${d.temp ?? 0} <small>°C</small>`;
+  // IMEI Tracker
+  const imeiEl = document.getElementById('insp-imei');
+  if (imeiEl) {
+    imeiEl.innerText = d.imei || '—';
   }
 
   document.getElementById('insp-lat').innerText = d.lat;

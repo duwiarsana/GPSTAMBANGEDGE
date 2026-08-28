@@ -5,14 +5,15 @@
 
 #define GPS_BINARY_MAGIC_0 0xAA
 #define GPS_BINARY_MAGIC_1 0x55
-#define GPS_BINARY_VERSION 1
+#define GPS_BINARY_VERSION 2
 #define TELEMETRY_PACKET_SIZE 64
 
 #pragma pack(push, 1)
 struct TelemetryPacketBinary {
   uint8_t  magic[2];       // 0xAA, 0x55 (Sync Marker) [2B]
-  uint8_t  version;        // Protocol version: 1 [1B]
+  uint8_t  version;        // Protocol version: 2 [1B]
   char     src[8];         // Device ID, null-padded e.g. "EXCA01\0" [8B]
+  uint64_t imei;           // 15-digit IMEI number e.g. 861327085563067 [8B]
   uint32_t seq;            // Sequential counter [4B]
   uint32_t timestamp;      // Unix Epoch UTC seconds [4B]
   int32_t  lat_x1e7;       // Latitude * 10,000,000 [4B]
@@ -23,18 +24,11 @@ struct TelemetryPacketBinary {
   uint16_t bat_mv;         // Battery / External in mV (e.g. 24500 = 24.5V) [2B]
   uint32_t odo_m;          // Odometer in meters [4B]
   uint8_t  ignition;       // 1 = ON, 0 = OFF [1B]
-  uint8_t  input_status;   // Digital Inputs bitmask [1B]
-  uint8_t  output_status;  // Digital Outputs bitmask [1B]
-  uint8_t  hdop_x10;       // HDOP * 10 (e.g. 8 = 0.8) [1B]
-  int16_t  temp_x10;       // MCU Temp in C * 10 (e.g. 425 = 42.5 C) [2B]
-  int16_t  gs_x;           // G-Sensor X [2B]
-  int16_t  gs_y;           // G-Sensor Y [2B]
-  int16_t  gs_z;           // G-Sensor Z [2B]
+  uint8_t  input_status;   // Digital Inputs bitmask (Bit0: PTO Bak, Bit1: ACC) [1B]
+  uint8_t  flags;          // Status flags (bit0: GPS Fix, bit1: Backlog Relay) [1B]
   uint8_t  beacon_mac[6];  // Strongest Bluetooth Beacon MAC [6B]
   int8_t   beacon_rssi;    // Strongest Beacon RSSI in dBm (-128..127) [1B]
-  uint8_t  event_code;     // Tracker event code (e.g. 2=IGN_ON, 3=IGN_OFF, 51=INTERVAL) [1B]
-  uint8_t  flags;          // Status flags (bit0: GPS Fix, bit1: Backlog Relay) [1B]
-  uint16_t reserved;       // Reserved for alignment / future use [2B]
+  uint8_t  reserved[5];    // Reserved for alignment / future sensors (5B)
   uint16_t crc16;          // CRC16-CCITT checksum over first 62 bytes [2B]
 };
 #pragma pack(pop)
