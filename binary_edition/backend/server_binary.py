@@ -490,28 +490,6 @@ def export_json():
         logger.error(f"❌ Error exporting JSON: {e}")
         return jsonify({"error": str(e)}), 500
 
-        columns = [col[0] for col in cursor.description]
-        rows = []
-        for r in cursor.fetchall():
-            row_dict = dict(zip(columns, r))
-            if row_dict.get('raw_json'):
-                try:
-                    row_dict['details'] = json.loads(row_dict['raw_json'])
-                except Exception:
-                    pass
-            rows.append(row_dict)
-        conn.close()
-
-        json_data = json.dumps(rows, indent=2)
-        return Response(
-            json_data,
-            mimetype="application/json",
-            headers={"Content-Disposition": f"attachment; filename={filename}"}
-        )
-    except Exception as e:
-        logger.error(f"❌ Error exporting JSON: {e}")
-        return jsonify({"error": str(e)}), 500
-
 @app.route("/api/export/db", methods=["GET"])
 def export_db():
     try:
@@ -528,6 +506,24 @@ def export_db():
         )
     except Exception as e:
         logger.error(f"❌ Error exporting DB file: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/admin/reset_db", methods=["POST", "GET"])
+def reset_database():
+    """Wipes all telemetry rows and vacuums the database."""
+    try:
+        with db_lock:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM telemetry;")
+            conn.commit()
+            cursor.execute("VACUUM;")
+            conn.commit()
+            conn.close()
+        logger.info("🧹 Database reset by user request.")
+        return jsonify({"status": "ok", "message": "Database successfully wiped (0 records)."}), 200
+    except Exception as e:
+        logger.error(f"❌ Error resetting DB: {e}")
         return jsonify({"error": str(e)}), 500
 
 def start_mqtt():
