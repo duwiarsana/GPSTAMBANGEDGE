@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GPS Tambang Binary Fleet Monitor</title>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <!-- Leaflet Map CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- TOP HEADER -->
+    <header class="header">
+      <div class="logo-group">
+        <div class="logo-badge">⚡ 64B BINARY</div>
+        <div class="logo-title">
+          <h1>GPS TAMBANG FLEET</h1>
+          <span class="sub-title">Binary Protocol Telemetry Dashboard</span>
+        </div>
+      </div>
+
+      <div class="header-metrics">
+        <div class="metric-chip">
+          <span class="chip-label">Total Armada</span>
+          <span class="chip-val" id="total-devices">0</span>
+        </div>
+        <div class="metric-chip active">
+          <span class="chip-label">Unit Aktif (1h)</span>
+          <span class="chip-val" id="active-devices">0</span>
+        </div>
+        <div class="metric-chip info">
+          <span class="chip-label">Paket Binary Terproses</span>
+          <span class="chip-val" id="total-packets">0</span>
+        </div>
+        <div class="status-indicator online" id="conn-status">
+          <span class="status-dot"></span>
+          <span class="status-text">CONNECTED</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-layout">
+      <!-- SIDEBAR FLEET LIST -->
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <h2>Daftar Armada</h2>
+          <span class="badge" id="device-count-badge">0 Unit</span>
+        </div>
+
+        <div class="search-box">
+          <input type="text" id="search-input" placeholder="Cari Unit (EXCA01, DT01)..." />
+        </div>
+
+        <div class="fleet-list" id="fleet-list">
+          <div class="empty-state">Memuat data armada...</div>
+        </div>
+      </aside>
+
+      <!-- MAP & DETAIL INSPECTOR -->
+      <section class="map-section">
+        <div id="map" class="map-view"></div>
+
+        <!-- FLOATING TELEMETRY INSPECTOR -->
+        <div class="telemetry-inspector" id="telemetry-inspector" style="display: none;">
+          <div class="inspector-header">
+            <div class="unit-id-tag">
+              <span class="unit-icon" id="insp-icon">🚜</span>
+              <h3 id="insp-id">EXCA01</h3>
+            </div>
+            <button class="close-btn" id="close-inspector-btn">&times;</button>
+          </div>
+
+          <div class="inspector-grid">
+            <div class="insp-card">
+              <span class="card-label">Kecepatan</span>
+              <span class="card-value" id="insp-spd">0.0 <small>km/h</small></span>
+            </div>
+            <div class="insp-card">
+              <span class="card-label">Kunci Kontak (Ignition)</span>
+              <span class="card-value badge-ign" id="insp-ign">ON</span>
+            </div>
+            <div class="insp-card">
+              <span class="card-label">Tegangan Aki</span>
+              <span class="card-value" id="insp-bat">25.4 <small>V</small></span>
+            </div>
+            <div class="insp-card">
+              <span class="card-label">Akurasi GPS (HDOP)</span>
+              <span class="card-value" id="insp-hdop">0.8</span>
+            </div>
+            <div class="insp-card">
+              <span class="card-label">Odometer</span>
+              <span class="card-value" id="insp-odo">3,815 <small>m</small></span>
+            </div>
+            <div class="insp-card">
+              <span class="card-label">Suhu Sensor</span>
+              <span class="card-value" id="insp-temp">42.5 <small>°C</small></span>
+            </div>
+          </div>
+
+          <div class="inspector-footer">
+            <div class="coord-info">
+              <span>📍 <strong id="insp-lat">-0.738881</strong>, <strong id="insp-lon">117.130152</strong></span>
+            </div>
+            <div class="time-info">
+              <span>🕒 Terakhir: <strong id="insp-ts">2026-08-28 19:10:00</strong></span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Leaflet Map JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
