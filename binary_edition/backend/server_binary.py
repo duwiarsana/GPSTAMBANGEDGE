@@ -191,6 +191,9 @@ def get_devices():
             GROUP BY src
         """)
         activity_counts = dict(cursor.fetchall())
+
+        cursor.execute("SELECT src, COUNT(*) FROM telemetry GROUP BY src")
+        total_counts = dict(cursor.fetchall())
         
         cursor.execute("""
             SELECT t.* FROM telemetry t
@@ -207,6 +210,7 @@ def get_devices():
             row_dict = dict(zip(columns, row))
             src = row_dict.get('src')
             count = activity_counts.get(src, 0)
+            total_records = total_counts.get(src, 0)
             status = 'green' if count > 0 else 'red'
             
             raw_json_str = row_dict.get('raw_json')
@@ -232,6 +236,7 @@ def get_devices():
                 "ts": row_dict.get('ts'),
                 "created_at": row_dict.get('created_at'),
                 "count": count,
+                "total_records": total_records,
                 "status": status,
                 "raw_payload": extra_data if extra_data else row_dict
             })

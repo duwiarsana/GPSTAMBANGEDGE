@@ -192,6 +192,10 @@ function renderFleetList() {
           <div>Ign: <strong style="color: ${d.ign ? '#10b981' : '#ef4444'}">${d.ign ? 'ON' : 'OFF'}</strong></div>
           <div>PTO: <strong style="color: ${isPtoOn ? '#f59e0b' : '#64748b'}">${isPtoOn ? 'ON' : 'OFF'}</strong></div>
         </div>
+        <div class="fleet-db-count">
+          <span>📦 Data di Database:</span>
+          <strong>${Number(d.total_records || d.count || 0).toLocaleString()} record</strong>
+        </div>
         <div class="fleet-time-row">
           <div>📡 Online: <strong style="color: ${isOnline ? '#10b981' : '#ef4444'}">${rxTimeRel}</strong></div>
           <div>⏱️ GPS: <strong>${d.ts || '—'}</strong></div>
@@ -293,6 +297,18 @@ function updateInspector(d) {
   const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
   const dir = directions[Math.round(hdg / 45) % 8];
   document.getElementById('insp-hdg').innerHTML = `${hdg}° <small>(${dir})</small>`;
+
+  // Total data di database
+  const totalDbEl = document.getElementById('insp-total-db');
+  if (totalDbEl) {
+    totalDbEl.innerHTML = `${Number(d.total_records || d.count || 0).toLocaleString()} <small>record</small>`;
+  }
+
+  // Suhu ESP32
+  const tempEl = document.getElementById('insp-temp');
+  if (tempEl) {
+    tempEl.innerHTML = `${d.temp ?? 0} <small>°C</small>`;
+  }
 
   document.getElementById('insp-lat').innerText = d.lat;
   document.getElementById('insp-lon').innerText = d.lon;
