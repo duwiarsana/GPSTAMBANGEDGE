@@ -637,7 +637,6 @@ bool connectMQTT() {
       if (String(st) == "ok" && String(id).length() > 0) {
         lastAckMsgId = String(id);
         ackReceived = true;
-        logMsg("📥 ACK received: " + lastAckMsgId);
       }
     }
   });
@@ -664,7 +663,6 @@ bool publishBinaryWithAck(const TelemetryPacketBinary &pkt, int maxRetry) {
     ackReceived = false;
     lastAckMsgId = "";
 
-    logMsg("📤 [REALTIME 64B] published, wait ACK...");
     // Direct publish 64 raw bytes
     if (!mqtt.publish(MQTT_BINARY_TOPIC, (const uint8_t *)&pkt, sizeof(pkt))) {
       logMsg("❌ Binary Publish error");
@@ -701,7 +699,6 @@ bool publishBinaryBulkWithAck(const uint8_t *bulkBuffer, size_t totalBytes, cons
     lastAckMsgId = "";
 
     int count = totalBytes / sizeof(TelemetryPacketBinary);
-    logMsg("🚀 [BULK MQTT 16-PACK] Sending " + String(count) + " records (" + String(totalBytes) + " B)...");
 
     if (!mqtt.publish(MQTT_BINARY_TOPIC, bulkBuffer, totalBytes)) {
       logMsg("❌ Binary Bulk Publish error");
@@ -793,7 +790,7 @@ bool publishBinaryQueueChunk(const char *logPath, const char *offsetPath, int ma
 
   f.close();
   statChunksUploaded++;
-  logMsg("✅ Bulk Binary Chunk uploaded: " + String(sentCount) + " records");
+  logMsg("✅ Binary Chunk published: " + String(sentCount) + " records");
   return true;
 }
 
