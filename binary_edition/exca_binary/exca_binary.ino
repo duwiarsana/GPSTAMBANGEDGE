@@ -21,7 +21,7 @@
 #include <WiFi.h>
 #include <esp_task_wdt.h>
 
-#include "../protocol/gps_binary_protocol.h"
+#include "gps_binary_protocol.h"
 
 // ================= PIN CONFIGURATION =================
 #define RXD2 16
