@@ -120,6 +120,23 @@ def parse_telemetry_packet(raw_bytes: bytes) -> Optional[Dict[str, Any]]:
         "flags": flags
     }
 
+def parse_telemetry_batch(raw_bytes: bytes) -> list:
+    """
+    Unpacks a raw payload containing 1 or more 64-byte binary packets.
+    Returns a list of valid parsed telemetry dictionaries.
+    """
+    if not raw_bytes:
+        return []
+    
+    results = []
+    num_packets = len(raw_bytes) // TELEMETRY_PACKET_SIZE
+    for i in range(num_packets):
+        chunk = raw_bytes[i * TELEMETRY_PACKET_SIZE : (i + 1) * TELEMETRY_PACKET_SIZE]
+        parsed = parse_telemetry_packet(chunk)
+        if parsed:
+            results.append(parsed)
+    return results
+
 if __name__ == "__main__":
     # Test pack and unpack
     src_b = b"EXCA01\x00\x00"
@@ -135,7 +152,10 @@ if __name__ == "__main__":
     crc = calculate_crc16(test_data[:62])
     final_packet = test_data[:62] + struct.pack("<H", crc)
     
-    parsed = parse_telemetry_packet(final_packet)
-    print("Test Unpack Result:")
+    # Test batch unpack with 2 packets
+    batch_data = final_packet * 2
+    parsed_batch = parse_telemetry_batch(batch_data)
+    print(f"Test Batch Unpack: Parsed {len(parsed_batch)} packets.")
     import pprint
-    pprint.pprint(parsed)
+    pprint.pprint(parsed_batch[0])
+

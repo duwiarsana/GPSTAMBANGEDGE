@@ -9,7 +9,7 @@ from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 import paho.mqtt.client as mqtt
 
-from binary_parser import parse_telemetry_packet
+from binary_parser import parse_telemetry_packet, parse_telemetry_batch
 
 # Configuration
 MQTT_HOST = os.environ.get("MQTT_HOST", "76.13.19.250")
@@ -71,40 +71,52 @@ def init_db():
         conn.close()
         logger.info("⚡ Binary Database initialized successfully.")
 
-def save_record(data: dict) -> bool:
-    msg_id = data.get("id")
-    src = data.get("src", "UNKNOWN")
-    seq = data.get("seq", 0)
-    ts = data.get("ts", datetime.now(timezone.utc).isoformat())
-    timestamp_sec = data.get("timestamp_sec", int(time.time()))
-    lat = data.get("lat", 0.0)
-    lon = data.get("lon", 0.0)
-    spd = data.get("spd", 0.0)
-    hdg = data.get("hdg", 0)
-    alt = data.get("alt", 0)
-    bat = data.get("bat", 0.0)
-    odo = data.get("odo", 0)
-    ign = data.get("ign", 0)
-    hdop = data.get("hdop", 0.0)
-    temp = data.get("temp", 0.0)
-    raw_json = json.dumps(data)
+def save_records_bulk(records: list) -> bool:
+    if not records:
+        return False
+    rows = []
+    for data in records:
+        msg_id = data.get("id")
+        src = data.get("src", "UNKNOWN")
+        seq = data.get("seq", 0)
+        ts = data.get("ts", datetime.now(timezone.utc).isoformat())
+        timestamp_sec = data.get("timestamp_sec", int(time.time()))
+        lat = data.get("lat", 0.0)
+        lon = data.get("lon", 0.0)
+        spd = data.get("spd", 0.0)
+        hdg = data.get("hdg", 0)
+        alt = data.get("alt", 0)
+        bat = data.get("bat", 0.0)
+        odo = data.get("odo", 0)
+        ign = data.get("ign", 0)
+        hdop = data.get("hdop", 0.0)
+        temp = data.get("temp", 0.0)
+        raw_json = json.dumps(data)
+        rows.append((msg_id, src, seq, ts, timestamp_sec, lat, lon, spd, hdg, alt, bat, odo, ign, hdop, temp, raw_json))
 
     with db_lock:
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.executemany("""
                 INSERT OR REPLACE INTO telemetry 
                 (id, src, seq, ts, timestamp_sec, lat, lon, spd, hdg, alt, bat, odo, ign, hdop, temp, raw_json)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (msg_id, src, seq, ts, timestamp_sec, lat, lon, spd, hdg, alt, bat, odo, ign, hdop, temp, raw_json))
+            """, rows)
             conn.commit()
             conn.close()
-            logger.info(f"⚡ [BINARY INGEST] Saved: {src} [{msg_id}] Lat:{lat} Lon:{lon} Spd:{spd}km/h")
+            last_rec = records[-1]
+            if len(records) > 1:
+                logger.info(f"⚡ [BULK INGEST] Saved {len(rows)} records. Last: {last_rec['src']} [{last_rec['id']}] Lat:{last_rec.get('lat')} Spd:{last_rec.get('spd')}")
+            else:
+                logger.info(f"⚡ [REALTIME INGEST] Saved: {last_rec['src']} [{last_rec['id']}] Lat:{last_rec.get('lat')} Spd:{last_rec.get('spd')}")
             return True
         except Exception as e:
             logger.error(f"❌ DB insert error: {e}")
             return False
+
+def save_record(data: dict) -> bool:
+    return save_records_bulk([data])
 
 # MQTT Callbacks
 def on_connect(client, userdata, flags, rc, properties=None):
@@ -119,17 +131,22 @@ def on_connect(client, userdata, flags, rc, properties=None):
 def on_message(client, userdata, msg):
     try:
         if msg.topic == MQTT_BINARY_TOPIC:
-            # ⚡ 64-BYTE BINARY PACKET UNPACKING
-            parsed = parse_telemetry_packet(msg.payload)
-            if parsed:
-                save_record(parsed)
-                # Kirim Auto-ACK instan
-                ack_topic = f"kutai/fleet/ack/{parsed['src']}"
-                ack_payload = json.dumps({"id": parsed["id"], "status": "ok"})
+            # ⚡ 64-BYTE SINGLE OR MULTI-PACKET BULK UNPACKING
+            records = parse_telemetry_batch(msg.payload)
+            if records:
+                save_records_bulk(records)
+                # Kirim Auto-ACK instan untuk record terakhir di batch
+                last_rec = records[-1]
+                ack_topic = f"kutai/fleet/ack/{last_rec['src']}"
+                ack_payload = json.dumps({
+                    "id": last_rec["id"],
+                    "count": len(records),
+                    "status": "ok"
+                })
                 client.publish(ack_topic, ack_payload, qos=0)
-                logger.info(f"📤 Sent Auto-ACK to {ack_topic} for {parsed['id']}")
+                logger.info(f"📤 Sent Auto-ACK to {ack_topic} for {len(records)} record(s) (last: {last_rec['id']})")
             else:
-                logger.warning(f"⚠️ Failed to parse binary packet (len: {len(msg.payload)} bytes)")
+                logger.warning(f"⚠️ Failed to parse binary payload (len: {len(msg.payload)} bytes)")
         
         elif msg.topic == MQTT_JSON_TOPIC:
             # Legacy JSON Fallback

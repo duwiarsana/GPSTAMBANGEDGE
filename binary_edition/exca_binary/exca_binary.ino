@@ -664,7 +664,7 @@ bool publishBinaryWithAck(const TelemetryPacketBinary &pkt, int maxRetry) {
     ackReceived = false;
     lastAckMsgId = "";
 
-    logMsg("📤 [BIN 64B] published, wait ACK...");
+    logMsg("📤 [REALTIME 64B] published, wait ACK...");
     // Direct publish 64 raw bytes
     if (!mqtt.publish(MQTT_BINARY_TOPIC, (const uint8_t *)&pkt, sizeof(pkt))) {
       logMsg("❌ Binary Publish error");
@@ -686,7 +686,42 @@ bool publishBinaryWithAck(const TelemetryPacketBinary &pkt, int maxRetry) {
   return false;
 }
 
-// ================= BACKLOG BINARY UPLOADER =================
+#define BULK_PUBLISH_RECORDS 8
+
+bool publishBinaryBulkWithAck(const uint8_t *bulkBuffer, size_t totalBytes, const String &lastMsgId, int maxRetries = 2) {
+  for (int attempt = 1; attempt <= maxRetries; attempt++) {
+    esp_task_wdt_reset();
+    if (!mqtt.connected()) {
+      if (!connectMQTT()) return false;
+    }
+
+    ackReceived = false;
+    lastAckMsgId = "";
+
+    int count = totalBytes / sizeof(TelemetryPacketBinary);
+    logMsg("🚀 [BULK MQTT] Sending " + String(count) + " records (" + String(totalBytes) + " B)...");
+
+    if (!mqtt.publish(MQTT_BINARY_TOPIC, bulkBuffer, totalBytes)) {
+      logMsg("❌ Binary Bulk Publish error");
+      return false;
+    }
+
+    statMqttSent += count;
+    unsigned long t0 = millis();
+    while (millis() - t0 < 2500) {
+      esp_task_wdt_reset();
+      mqtt.loop();
+      if (ackReceived && lastAckMsgId == lastMsgId) {
+        return true;
+      }
+      delay(5);
+    }
+    logMsg("🔁 Bulk ACK timeout #" + String(attempt));
+  }
+  return false;
+}
+
+// ================= BACKLOG BINARY UPLOADER (BULK BATCH) =================
 bool publishBinaryQueueChunk(const char *logPath, const char *offsetPath, int maxRecords) {
   uint32_t offset = readUint(offsetPath, 0);
 
@@ -706,9 +741,9 @@ bool publishBinaryQueueChunk(const char *logPath, const char *offsetPath, int ma
   }
 
   int sentCount = 0;
-  TelemetryPacketBinary pkt;
+  TelemetryPacketBinary batchBuf[BULK_PUBLISH_RECORDS];
 
-  while (f.available() >= sizeof(pkt) && sentCount < maxRecords) {
+  while (f.available() >= sizeof(TelemetryPacketBinary) && sentCount < maxRecords) {
     esp_task_wdt_reset();
 
     if (!mqtt.connected()) {
@@ -718,29 +753,43 @@ bool publishBinaryQueueChunk(const char *logPath, const char *offsetPath, int ma
       }
     }
 
-    uint32_t currentPos = f.position();
-    size_t readBytes = f.read((uint8_t *)&pkt, sizeof(pkt));
-    if (readBytes != sizeof(pkt)) break;
+    int toRead = min((int)BULK_PUBLISH_RECORDS, maxRecords - sentCount);
+    int validInBatch = 0;
+    uint32_t batchStartPos = f.position();
 
-    if (!validateBinaryPacket(pkt)) {
-      logMsg("⚠️ Invalid binary CRC at offset " + String(currentPos) + ", skipping record");
-      writeUint(offsetPath, f.position());
-      continue;
+    for (int i = 0; i < toRead && f.available() >= sizeof(TelemetryPacketBinary); i++) {
+      TelemetryPacketBinary pkt;
+      size_t rb = f.read((uint8_t *)&pkt, sizeof(pkt));
+      if (rb != sizeof(pkt)) break;
+
+      if (validateBinaryPacket(pkt)) {
+        batchBuf[validInBatch++] = pkt;
+      } else {
+        logMsg("⚠️ Invalid binary CRC at offset " + String((uint32_t)f.position() - sizeof(pkt)) + ", skipped");
+      }
     }
 
-    if (!publishBinaryWithAck(pkt, 2)) {
-      logMsg("⚠️ Publish fail at " + String(currentPos));
+    if (validInBatch == 0) {
+      writeUint(offsetPath, f.position());
+      break;
+    }
+
+    String lastId = getPacketUID(batchBuf[validInBatch - 1]);
+    size_t sendBytes = validInBatch * sizeof(TelemetryPacketBinary);
+
+    if (!publishBinaryBulkWithAck((const uint8_t *)batchBuf, sendBytes, lastId, 2)) {
+      logMsg("⚠️ Bulk publish fail at offset " + String(batchStartPos));
       f.close();
       return false;
     }
 
     writeUint(offsetPath, f.position());
-    sentCount++;
+    sentCount += validInBatch;
   }
 
   f.close();
   statChunksUploaded++;
-  logMsg("✅ Binary Chunk published: " + String(sentCount) + " records");
+  logMsg("✅ Bulk Binary Chunk uploaded: " + String(sentCount) + " records");
   return true;
 }
 
