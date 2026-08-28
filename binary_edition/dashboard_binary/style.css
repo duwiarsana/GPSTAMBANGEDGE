@@ -253,11 +253,37 @@ body {
 .fleet-badge.online {
   background-color: rgba(16, 185, 129, 0.2);
   color: var(--accent-green);
+  border: 1px solid rgba(16, 185, 129, 0.4);
 }
 
 .fleet-badge.offline {
   background-color: rgba(239, 68, 68, 0.2);
   color: var(--accent-red);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.status-dot-sm {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot-sm.online {
+  background-color: var(--accent-green);
+  box-shadow: 0 0 8px var(--accent-green);
+  animation: pulse-green 1.5s infinite;
+}
+
+.status-dot-sm.offline {
+  background-color: var(--accent-red);
+  box-shadow: 0 0 6px var(--accent-red);
+}
+
+@keyframes pulse-green {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { transform: scale(1.1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
 }
 
 .fleet-info-grid {

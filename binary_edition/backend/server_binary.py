@@ -187,7 +187,7 @@ def get_devices():
         
         cursor.execute("""
             SELECT src, COUNT(*) FROM telemetry 
-            WHERE created_at >= datetime('now', '-1 hour')
+            WHERE created_at >= datetime('now', '-30 seconds')
             GROUP BY src
         """)
         activity_counts = dict(cursor.fetchall())
@@ -277,7 +277,7 @@ def get_stats():
         
         cursor.execute("""
             SELECT COUNT(DISTINCT src) FROM telemetry 
-            WHERE created_at >= datetime('now', '-1 hour')
+            WHERE created_at >= datetime('now', '-30 seconds')
         """)
         active_devices = cursor.fetchone()[0]
         

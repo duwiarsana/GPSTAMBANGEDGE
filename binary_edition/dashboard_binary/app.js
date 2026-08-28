@@ -43,19 +43,38 @@ function initMap() {
   L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
 }
 
+// Check if device received data within 30 seconds
+function isDeviceOnline(d) {
+  if (!d) return false;
+  const timeStr = d.created_at || d.ts;
+  if (!timeStr) return false;
+  try {
+    const cleanStr = timeStr.includes('T') ? timeStr : timeStr.replace(' ', 'T') + 'Z';
+    const rxTime = new Date(cleanStr).getTime();
+    const now = Date.now();
+    const diffSec = (now - rxTime) / 1000;
+    return diffSec >= 0 && diffSec <= 30;
+  } catch (e) {
+    return false;
+  }
+}
+
 // Create Custom Icon
 function createVehicleIcon(src, heading = 0, isOnline = true) {
   const isExca = src.toUpperCase().startsWith('EXCA');
-  const color = isExca ? '#f59e0b' : '#06b6d4';
+  const baseColor = isExca ? '#f59e0b' : '#06b6d4';
+  const borderColor = isOnline ? '#10b981' : '#ef4444';
+  const shadowGlow = isOnline ? '0 0 14px rgba(16,185,129,0.8)' : '0 0 8px rgba(239,68,68,0.5)';
   const symbol = isExca ? '🚜' : '🚛';
   const pulseClass = isOnline ? 'marker-pulse' : '';
 
   const html = `
     <div class="custom-marker ${pulseClass}" style="transform: rotate(${heading}deg);">
-      <div style="background: ${color}; border: 2px solid #ffffff; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; box-shadow: 0 0 12px ${color};">
+      <div style="background: ${baseColor}; border: 3px solid ${borderColor}; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; box-shadow: ${shadowGlow};">
         ${symbol}
       </div>
-      <div style="position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%); background: rgba(15,23,42,0.9); border: 1px solid #334155; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; color: #ffffff; white-space: nowrap;">
+      <div style="position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%); background: rgba(15,23,42,0.95); border: 1px solid ${borderColor}; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; color: #ffffff; white-space: nowrap; display: flex; align-items: center; gap: 4px;">
+        <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:${borderColor};"></span>
         ${src}
       </div>
     </div>
@@ -97,7 +116,10 @@ async function fetchStats() {
       const data = await res.json();
       document.getElementById('total-packets').innerText = Number(data.total_packets || 0).toLocaleString();
       document.getElementById('total-devices').innerText = data.total_devices || 0;
-      document.getElementById('active-devices').innerText = data.active_devices || 0;
+      
+      // Calculate active devices <= 30s directly from devicesData
+      const onlineCount = devicesData.filter(d => isDeviceOnline(d)).length;
+      document.getElementById('active-devices').innerText = onlineCount;
     }
   } catch (err) {}
 }
@@ -137,7 +159,7 @@ function renderFleetList() {
   }
 
   container.innerHTML = filtered.map(d => {
-    const isOnline = d.status === 'green';
+    const isOnline = isDeviceOnline(d);
     const isSelected = selectedDevice && selectedDevice.src === d.src;
     const isExca = d.src.toUpperCase().startsWith('EXCA');
     const icon = isExca ? '🚜' : '🚛';
@@ -156,6 +178,7 @@ function renderFleetList() {
       <div class="fleet-card ${isSelected ? 'selected' : ''}" onclick="selectDevice('${d.src}')">
         <div class="fleet-card-header">
           <div class="fleet-title">
+            <span class="status-dot-sm ${isOnline ? 'online' : 'offline'}"></span>
             <span>${icon}</span>
             <span>${d.src}</span>
           </div>
@@ -170,7 +193,7 @@ function renderFleetList() {
           <div>PTO: <strong style="color: ${isPtoOn ? '#f59e0b' : '#64748b'}">${isPtoOn ? 'ON' : 'OFF'}</strong></div>
         </div>
         <div class="fleet-time-row">
-          <div>📡 Online: <strong>${rxTimeRel}</strong></div>
+          <div>📡 Online: <strong style="color: ${isOnline ? '#10b981' : '#ef4444'}">${rxTimeRel}</strong></div>
           <div>⏱️ GPS: <strong>${d.ts || '—'}</strong></div>
         </div>
       </div>
@@ -186,7 +209,7 @@ function renderMarkers() {
     currentSrcs.add(d.src);
     if (!d.lat || !d.lon || (d.lat === 0 && d.lon === 0)) return;
 
-    const isOnline = d.status === 'green';
+    const isOnline = isDeviceOnline(d);
     const icon = createVehicleIcon(d.src, d.hdg || 0, isOnline);
 
     if (markers[d.src]) {
@@ -232,9 +255,17 @@ function updateInspector(d) {
   const inspector = document.getElementById('telemetry-inspector');
   inspector.style.display = 'block';
 
+  const isOnline = isDeviceOnline(d);
   const isExca = d.src.toUpperCase().startsWith('EXCA');
   document.getElementById('insp-icon').innerText = isExca ? '🚜' : '🚛';
   document.getElementById('insp-id').innerText = d.src;
+  
+  const statusBadge = document.getElementById('insp-status-badge');
+  if (statusBadge) {
+    statusBadge.innerText = isOnline ? 'ONLINE' : 'OFFLINE';
+    statusBadge.className = `fleet-badge ${isOnline ? 'online' : 'offline'}`;
+  }
+
   document.getElementById('insp-spd').innerHTML = `${d.spd} <small>km/h</small>`;
 
   const ignEl = document.getElementById('insp-ign');
