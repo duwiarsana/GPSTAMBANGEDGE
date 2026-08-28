@@ -146,7 +146,11 @@ def on_message(client, userdata, msg):
         logger.error(f"❌ Error processing MQTT message: {e}")
 
 # Flask REST API
-dashboard_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "dashboard_binary"))
+base_dir = os.path.dirname(os.path.abspath(__file__))
+dashboard_dir = os.path.join(base_dir, "dashboard_binary")
+if not os.path.exists(dashboard_dir):
+    dashboard_dir = os.path.abspath(os.path.join(base_dir, "..", "dashboard_binary"))
+
 app = Flask(__name__, static_folder=dashboard_dir)
 CORS(app)
 
