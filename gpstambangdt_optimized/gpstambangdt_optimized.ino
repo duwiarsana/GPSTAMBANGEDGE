@@ -483,7 +483,8 @@ void handleDTGps() {
             fc.close();
           }
           uint32_t pendingBytes = (curSize > dtOff) ? (curSize - dtOff) : 0;
-          logMsg("📍 DT logged #" + String(statGpsLogged) + " | Backlog Pending: " + String(pendingBytes) + " bytes");
+          float pendingMB = pendingBytes / (1024.0 * 1024.0);
+          logMsg("📍 DT logged #" + String(statGpsLogged) + " | Backlog: " + String(pendingMB, 3) + " MB (" + String(pendingBytes) + " B)");
         }
 
         // 2. ⚡ REAL-TIME DIRECT PUBLISH: Hanya jika online dan backlog DT bersih

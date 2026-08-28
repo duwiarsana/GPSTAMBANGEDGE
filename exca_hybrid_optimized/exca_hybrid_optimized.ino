@@ -465,7 +465,8 @@ void handleGPS() {
             fc.close();
           }
           uint32_t pendingBytes = (curSize > offMqtt) ? (curSize - offMqtt) : 0;
-          logMsg("📍 LOGGED #" + String(statLogged) + " | Backlog Pending: " + String(pendingBytes) + " bytes");
+          float pendingMB = pendingBytes / (1024.0 * 1024.0);
+          logMsg("📍 LOGGED #" + String(statLogged) + " | Backlog: " + String(pendingMB, 3) + " MB (" + String(pendingBytes) + " B)");
         }
 
         // 2. ⚡ REAL-TIME DIRECT MQTT: Hanya jika online dan backlog sudah 100% bersih
