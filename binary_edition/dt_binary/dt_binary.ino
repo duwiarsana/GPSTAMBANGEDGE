@@ -694,6 +694,7 @@ bool publishBinaryWithAck(const TelemetryPacketBinary &pkt, int maxRetries) {
     unsigned long t0 = millis();
     while (millis() - t0 < 2000) {
       esp_task_wdt_reset();
+      handleDTGps();
       mqtt.loop();
       if (ackReceived && lastAckMsgId == msgId) {
         return true;
@@ -705,11 +706,12 @@ bool publishBinaryWithAck(const TelemetryPacketBinary &pkt, int maxRetries) {
   return false;
 }
 
-#define BULK_PUBLISH_RECORDS 8
+#define BULK_PUBLISH_RECORDS 16
 
 bool publishBinaryBulkWithAck(const uint8_t *bulkBuffer, size_t totalBytes, const String &lastMsgId, int maxRetries = 2) {
   for (int attempt = 1; attempt <= maxRetries; attempt++) {
     esp_task_wdt_reset();
+    handleDTGps();
     if (!mqtt.connected()) {
       if (!connectMQTT()) return false;
     }
@@ -718,7 +720,7 @@ bool publishBinaryBulkWithAck(const uint8_t *bulkBuffer, size_t totalBytes, cons
     lastAckMsgId = "";
 
     int count = totalBytes / sizeof(TelemetryPacketBinary);
-    logMsg("🚀 [BULK MQTT] Sending " + String(count) + " records (" + String(totalBytes) + " B)...");
+    logMsg("🚀 [BULK MQTT 16-PACK] Sending " + String(count) + " records (" + String(totalBytes) + " B)...");
 
     if (!mqtt.publish(MQTT_BINARY_TOPIC, bulkBuffer, totalBytes)) {
       logMsg("❌ Binary Bulk Publish error");
@@ -729,6 +731,7 @@ bool publishBinaryBulkWithAck(const uint8_t *bulkBuffer, size_t totalBytes, cons
     unsigned long t0 = millis();
     while (millis() - t0 < 2500) {
       esp_task_wdt_reset();
+      handleDTGps();
       mqtt.loop();
       if (ackReceived && lastAckMsgId == lastMsgId) {
         return true;
@@ -763,6 +766,7 @@ bool publishBinaryQueueChunk(const char *logPath, const char *offsetPath, int ma
 
   while (f.available() >= sizeof(TelemetryPacketBinary) && sentCount < maxRecords) {
     esp_task_wdt_reset();
+    handleDTGps();
 
     if (!mqtt.connected()) {
       if (!connectMQTT()) {
