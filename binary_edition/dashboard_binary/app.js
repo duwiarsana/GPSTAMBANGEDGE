@@ -17,12 +17,30 @@ function initMap() {
 
   L.control.zoom({ position: 'topright' }).addTo(map);
 
-  // CartoDB Dark Matter Tiles
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; OpenStreetMap &copy; CARTO',
-    subdomains: 'abcd',
+  const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles &copy; Esri &mdash; World Imagery',
     maxZoom: 19
-  }).addTo(map);
+  });
+
+  const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 19
+  });
+
+  const voyager = L.tileLayer('https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
+    attribution: '&copy; CARTO &copy; OpenStreetMap',
+    maxZoom: 19
+  });
+
+  satellite.addTo(map);
+
+  const baseMaps = {
+    "🛰️ Citra Satelit (Tambang)": satellite,
+    "🗺️ OpenStreetMap": osm,
+    "🏙️ Carto Voyager": voyager
+  };
+
+  L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
 }
 
 // Create Custom Icon

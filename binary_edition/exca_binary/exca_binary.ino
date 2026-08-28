@@ -312,17 +312,35 @@ bool parseGpsToBinary(const char *json, TelemetryPacketBinary &pkt) {
     filter["event_code"] = true;
     filter["timestamp"] = true;
     filter["latitude"] = true;
+    filter["lat"] = true;
     filter["longitude"] = true;
+    filter["lon"] = true;
     filter["speed"] = true;
+    filter["spd"] = true;
     filter["heading"] = true;
+    filter["hdg"] = true;
+    filter["course"] = true;
+    filter["bearing"] = true;
+    filter["angle"] = true;
     filter["odometer"] = true;
+    filter["odo"] = true;
     filter["altitude"] = true;
+    filter["alt"] = true;
     filter["ignition"] = true;
+    filter["ign"] = true;
     filter["input_status"] = true;
+    filter["in"] = true;
     filter["output_status"] = true;
+    filter["out"] = true;
     filter["hdop"] = true;
+    filter["hd"] = true;
     filter["mcu_temp"] = true;
+    filter["temp"] = true;
     filter["external"] = true;
+    filter["ext"] = true;
+    filter["battery"] = true;
+    filter["bat"] = true;
+    filter["volt"] = true;
     filter["ibeacon"][0]["mac"] = true;
     filter["ibeacon"][0]["rssi"] = true;
     filter["gsensor"]["x"] = true;
@@ -344,18 +362,18 @@ bool parseGpsToBinary(const char *json, TelemetryPacketBinary &pkt) {
 
   initBinaryPacket(pkt, EXCA_ID, seq);
 
-  const char *ts = doc["timestamp"] | "";
+  const char *ts = doc["timestamp"] | (doc["ts"] | "");
   pkt.timestamp = parseISO8601ToEpoch(ts);
 
-  double lat = doc["latitude"] | 0.0;
-  double lon = doc["longitude"] | 0.0;
+  double lat = doc["latitude"] | (doc["lat"] | 0.0);
+  double lon = doc["longitude"] | (doc["lon"] | 0.0);
   pkt.lat_x1e7 = (int32_t)(lat * 10000000.0);
   pkt.lon_x1e7 = (int32_t)(lon * 10000000.0);
 
-  double spd = doc["speed"] | 0.0;
+  double spd = doc["speed"] | (doc["spd"] | 0.0);
   pkt.speed_x10 = (uint16_t)(spd * 10.0);
-  pkt.heading = doc["heading"] | 0;
-  pkt.altitude = doc["altitude"] | 0;
+  pkt.heading = (uint16_t)(doc["heading"] | (doc["hdg"] | (doc["course"] | (doc["bearing"] | (doc["angle"] | 0)))));
+  pkt.altitude = doc["altitude"] | (doc["alt"] | 0);
 
   double ext = doc["external"] | (doc["volt"] | (doc["battery"] | 0.0));
   if (ext > 100.0) {
