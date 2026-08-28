@@ -475,7 +475,15 @@ void handleDTGps() {
           statGpsLogged++;
           digitalWrite(LED_GPS, HIGH);
           ledGpsTimer = millis();
-          logMsg("📍 DT logged #" + String(statGpsLogged));
+          
+          uint32_t curSize = 0;
+          File fc = SD.open(DT_LOG_FILE, FILE_READ);
+          if (fc) {
+            curSize = fc.size();
+            fc.close();
+          }
+          uint32_t pendingBytes = (curSize > dtOff) ? (curSize - dtOff) : 0;
+          logMsg("📍 DT logged #" + String(statGpsLogged) + " | Backlog Pending: " + String(pendingBytes) + " bytes");
         }
 
         // 2. ⚡ REAL-TIME DIRECT PUBLISH: Hanya jika online dan backlog DT bersih

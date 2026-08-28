@@ -457,7 +457,15 @@ void handleGPS() {
           statLogged++;
           digitalWrite(LED_LOG, HIGH);
           ledLogTimer = millis();
-          logMsg("📍 LOGGED #" + String(statLogged));
+          
+          uint32_t curSize = 0;
+          File fc = SD.open(LOG_FILE, FILE_READ);
+          if (fc) {
+            curSize = fc.size();
+            fc.close();
+          }
+          uint32_t pendingBytes = (curSize > offMqtt) ? (curSize - offMqtt) : 0;
+          logMsg("📍 LOGGED #" + String(statLogged) + " | Backlog Pending: " + String(pendingBytes) + " bytes");
         }
 
         // 2. ⚡ REAL-TIME DIRECT MQTT: Hanya jika online dan backlog sudah 100% bersih
