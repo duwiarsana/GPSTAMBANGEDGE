@@ -106,6 +106,24 @@ function updateHeaderStats() {
   document.getElementById('device-count-badge').innerText = `${devicesData.length} Unit`;
 }
 
+function formatRelativeTime(dateStr) {
+  if (!dateStr) return '—';
+  try {
+    const cleanStr = dateStr.includes('T') ? dateStr : dateStr.replace(' ', 'T') + 'Z';
+    const d = new Date(cleanStr);
+    const now = new Date();
+    const diffSec = Math.floor((now.getTime() - d.getTime()) / 1000);
+    if (isNaN(diffSec)) return dateStr;
+    if (diffSec < 5) return 'Baru saja';
+    if (diffSec < 60) return `${diffSec} dtk lalu`;
+    if (diffSec < 3600) return `${Math.floor(diffSec / 60)} mnt lalu`;
+    if (diffSec < 86400) return `${Math.floor(diffSec / 3600)} jam lalu`;
+    return `${Math.floor(diffSec / 86400)} hari lalu`;
+  } catch (e) {
+    return dateStr;
+  }
+}
+
 // Render Sidebar List
 function renderFleetList() {
   const container = document.getElementById('fleet-list');
@@ -132,6 +150,8 @@ function renderFleetList() {
       isPtoOn = d.in.length > 2 ? d.in[0] === '1' : ((parseInt(d.in, 16) & 0x01) !== 0);
     }
 
+    const rxTimeRel = formatRelativeTime(d.created_at || d.ts);
+
     return `
       <div class="fleet-card ${isSelected ? 'selected' : ''}" onclick="selectDevice('${d.src}')">
         <div class="fleet-card-header">
@@ -148,6 +168,10 @@ function renderFleetList() {
           <div>Bat: <strong>${d.bat} V</strong></div>
           <div>Ign: <strong style="color: ${d.ign ? '#10b981' : '#ef4444'}">${d.ign ? 'ON' : 'OFF'}</strong></div>
           <div>PTO: <strong style="color: ${isPtoOn ? '#f59e0b' : '#64748b'}">${isPtoOn ? 'ON' : 'OFF'}</strong></div>
+        </div>
+        <div class="fleet-time-row">
+          <div>📡 Online: <strong>${rxTimeRel}</strong></div>
+          <div>⏱️ GPS: <strong>${d.ts || '—'}</strong></div>
         </div>
       </div>
     `;
@@ -241,7 +265,17 @@ function updateInspector(d) {
 
   document.getElementById('insp-lat').innerText = d.lat;
   document.getElementById('insp-lon').innerText = d.lon;
-  document.getElementById('insp-ts').innerText = d.ts;
+
+  // Timestamp GPS
+  document.getElementById('insp-ts').innerText = d.ts || '—';
+
+  // Waktu Server Terima Data (Online Status)
+  const rxEl = document.getElementById('insp-rx-time');
+  if (rxEl) {
+    const rxTime = d.created_at || d.ts;
+    const rel = formatRelativeTime(rxTime);
+    rxEl.innerText = rxTime ? `${rxTime} (${rel})` : '—';
+  }
 }
 
 // Event Listeners

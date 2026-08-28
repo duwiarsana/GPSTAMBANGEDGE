@@ -195,10 +195,10 @@ def get_devices():
         cursor.execute("""
             SELECT t.* FROM telemetry t
             INNER JOIN (
-                SELECT src, MAX(ts) as max_ts
+                SELECT src, MAX(id) as max_id
                 FROM telemetry
                 GROUP BY src
-            ) latest ON t.src = latest.src AND t.ts = latest.max_ts
+            ) latest ON t.src = latest.src AND t.id = latest.max_id
         """)
         
         columns = [col[0] for col in cursor.description]
@@ -230,6 +230,7 @@ def get_devices():
                 "hdop": row_dict.get('hdop', 0.0),
                 "temp": row_dict.get('temp', 0.0),
                 "ts": row_dict.get('ts'),
+                "created_at": row_dict.get('created_at'),
                 "count": count,
                 "status": status,
                 "raw_payload": extra_data if extra_data else row_dict
