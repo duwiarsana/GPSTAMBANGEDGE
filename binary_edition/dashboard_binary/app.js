@@ -62,18 +62,18 @@ function isDeviceOnline(d) {
 // Create Custom Icon
 function createVehicleIcon(src, heading = 0, isOnline = true) {
   const isExca = src.toUpperCase().startsWith('EXCA');
-  const baseColor = isExca ? '#f59e0b' : '#06b6d4';
-  const borderColor = isOnline ? '#10b981' : '#ef4444';
-  const shadowGlow = isOnline ? '0 0 14px rgba(16,185,129,0.8)' : '0 0 8px rgba(239,68,68,0.5)';
+  const baseColor = isExca ? '#d97706' : '#0284c7';
+  const borderColor = isOnline ? '#16a34a' : '#dc2626';
+  const shadowGlow = isOnline ? '0 0 12px rgba(22,163,74,0.7)' : '0 0 6px rgba(220,38,38,0.4)';
   const symbol = isExca ? '🚜' : '🚛';
   const pulseClass = isOnline ? 'marker-pulse' : '';
 
   const html = `
     <div class="custom-marker ${pulseClass}" style="transform: rotate(${heading}deg);">
-      <div style="background: ${baseColor}; border: 3px solid ${borderColor}; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; box-shadow: ${shadowGlow};">
+      <div style="background: ${baseColor}; border: 3px solid ${borderColor}; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; box-shadow: ${shadowGlow}; color: #ffffff;">
         ${symbol}
       </div>
-      <div style="position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%); background: rgba(15,23,42,0.95); border: 1px solid ${borderColor}; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; color: #ffffff; white-space: nowrap; display: flex; align-items: center; gap: 4px;">
+      <div style="position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%); background: #ffffff; border: 1px solid ${borderColor}; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 800; color: #0f172a; white-space: nowrap; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.15);">
         <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:${borderColor};"></span>
         ${src}
       </div>
