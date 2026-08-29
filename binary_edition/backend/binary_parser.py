@@ -7,9 +7,9 @@ import struct
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 
-TELEMETRY_STRUCT_FMT_V2 = "<2sB6sQIIiiHHhHBBB6sbIBhhhH"
+TELEMETRY_STRUCT_FMT_V2 = "<2sB8sQIIiiHHhHBBB6sbIBhhhH"
 TELEMETRY_STRUCT_FMT_V1 = "<2sB8sIIiiHHhHI4Bh3h6sbBBHH"
-TELEMETRY_PACKET_SIZE = 64
+TELEMETRY_PACKET_SIZE = 66
 
 def calculate_crc16(data: bytes) -> int:
     """CRC16-CCITT (Poly: 0x1021, Init: 0xFFFF) matching ESP32 implementation."""
@@ -25,7 +25,7 @@ def calculate_crc16(data: bytes) -> int:
 
 def parse_telemetry_packet(raw_bytes: bytes) -> Optional[Dict[str, Any]]:
     """
-    Unpacks 64-byte raw telemetry binary packet into a clean Python dictionary.
+    Unpacks 66-byte raw telemetry binary packet into a clean Python dictionary.
     Returns None if packet is invalid or CRC checksum fails.
     """
     if len(raw_bytes) != TELEMETRY_PACKET_SIZE:
@@ -34,9 +34,9 @@ def parse_telemetry_packet(raw_bytes: bytes) -> Optional[Dict[str, Any]]:
     if raw_bytes[:2] != b'\xaa\x55':
         return None
 
-    # Validate CRC16 over first 62 bytes
-    received_crc = struct.unpack("<H", raw_bytes[62:64])[0]
-    calculated_crc = calculate_crc16(raw_bytes[:62])
+    # Validate CRC16 over first 64 bytes
+    received_crc = struct.unpack("<H", raw_bytes[64:66])[0]
+    calculated_crc = calculate_crc16(raw_bytes[:64])
     if calculated_crc != received_crc:
         return None
 

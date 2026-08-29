@@ -6,13 +6,13 @@
 #define GPS_BINARY_MAGIC_0 0xAA
 #define GPS_BINARY_MAGIC_1 0x55
 #define GPS_BINARY_VERSION 2
-#define TELEMETRY_PACKET_SIZE 64
+#define TELEMETRY_PACKET_SIZE 66
 
 #pragma pack(push, 1)
 struct TelemetryPacketBinary {
   uint8_t  magic[2];       // 0xAA, 0x55 (Sync Marker) [2B]
   uint8_t  version;        // Protocol version: 2 [1B]
-  char     src[6];         // Device ID, null-padded e.g. "EXCA01" [6B]
+  char     src[8];         // Device ID, null-padded e.g. "EXCA01\0" [8B]
   uint64_t imei;           // 15-digit IMEI number e.g. 861327085563067 [8B]
   uint32_t seq;            // Sequential counter [4B]
   uint32_t timestamp;      // Unix Epoch UTC seconds [4B]
@@ -32,12 +32,12 @@ struct TelemetryPacketBinary {
   int16_t  gs_x;           // G-Sensor X axis in milli-g [2B]
   int16_t  gs_y;           // G-Sensor Y axis in milli-g [2B]
   int16_t  gs_z;           // G-Sensor Z axis in milli-g [2B]
-  uint16_t crc16;          // CRC16-CCITT checksum over first 62 bytes [2B]
+  uint16_t crc16;          // CRC16-CCITT checksum over first 64 bytes [2B]
 };
 #pragma pack(pop)
 
-// Verifikasi compile-time bahwa ukuran struct tepat 64 bytes
-static_assert(sizeof(TelemetryPacketBinary) == TELEMETRY_PACKET_SIZE, "TelemetryPacketBinary must be exactly 64 bytes");
+// Verifikasi compile-time bahwa ukuran struct tepat 66 bytes
+static_assert(sizeof(TelemetryPacketBinary) == TELEMETRY_PACKET_SIZE, "TelemetryPacketBinary must be exactly 66 bytes");
 
 // Helper CRC16-CCITT (Poly: 0x1021, Init: 0xFFFF)
 inline uint16_t calculateCRC16(const uint8_t *data, size_t length) {
