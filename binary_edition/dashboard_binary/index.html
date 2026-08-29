@@ -165,25 +165,25 @@
         <div class="form-group">
           <label>Format File:</label>
           <div class="format-options">
-            <label class="format-option active" data-format="csv">
+            <label class="format-card selected" id="fmt-card-csv">
               <input type="radio" name="export-format" value="csv" checked>
               <div class="format-info">
                 <strong>📊 CSV (Excel Spreadsheet)</strong>
-                <span>Format standar tabel, siap buka di Excel / Google Sheets</span>
+                <small>Format standar tabel, siap buka di Excel / Google Sheets</small>
               </div>
             </label>
-            <label class="format-option" data-format="json">
+            <label class="format-card" id="fmt-card-json">
               <input type="radio" name="export-format" value="json">
               <div class="format-info">
                 <strong>📋 JSON (Raw Telemetry)</strong>
-                <span>Struktur data lengkap dengan sensor & beacon array</span>
+                <small>Struktur data lengkap dengan sensor & beacon array</small>
               </div>
             </label>
-            <label class="format-option" data-format="db">
+            <label class="format-card" id="fmt-card-db">
               <input type="radio" name="export-format" value="db">
               <div class="format-info">
                 <strong>🗄️ SQLite Database File (.db)</strong>
-                <span>Download mentah file database SQLite lengkap</span>
+                <small>Download mentah file database SQLite lengkap</small>
               </div>
             </label>
           </div>
@@ -191,21 +191,15 @@
 
         <!-- Date Range Filter -->
         <div class="form-group" id="date-range-group">
-          <label>Filter Rentang Tanggal (Opsional):</label>
-          <div class="date-presets">
-            <button type="button" class="preset-btn active" data-preset="all">Semua Waktu</button>
-            <button type="button" class="preset-btn" data-preset="today">Hari Ini</button>
-            <button type="button" class="preset-btn" data-preset="7d">7 Hari Terakhir</button>
-            <button type="button" class="preset-btn" data-preset="30d">Bulan Ini</button>
-          </div>
+          <label>Filter Tanggal GPS (Opsional):</label>
           <div class="date-inputs-row">
-            <div class="date-input-col">
-              <span class="sub-label">Mulai Dari (Start):</span>
-              <input type="datetime-local" id="export-start-date" class="form-input">
+            <div class="date-field">
+              <span class="date-sublabel">Dari Tanggal:</span>
+              <input type="date" id="export-start-date" class="form-input">
             </div>
-            <div class="date-input-col">
-              <span class="sub-label">Sampai Dengan (End):</span>
-              <input type="datetime-local" id="export-end-date" class="form-input">
+            <div class="date-field">
+              <span class="date-sublabel">Sampai Tanggal:</span>
+              <input type="date" id="export-end-date" class="form-input">
             </div>
           </div>
         </div>
@@ -233,6 +227,6 @@
 
   <!-- Leaflet Map JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="app.js?v=2.3"></script>
+  <script src="app.js?v=2.4"></script>
 </body>
 </html>

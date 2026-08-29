@@ -455,19 +455,6 @@ def export_json():
             LIMIT ?
         """
         params.append(limit)
-        cursor.execute(query, tuple(params))
-        columns = [col[0] for col in cursor.description]
-        records = [dict(zip(columns, row)) for row in cursor.fetchall()]
-        conn.close()
-
-        unit_tag = src if (src and src.upper() != "ALL") else "all_units"
-        date_tag = ""
-        if start_date or end_date:
-            s_tag = start_date[:10].replace("-", "") if start_date else "start"
-            e_tag = end_date[:10].replace("-", "") if end_date else "end"
-            date_tag = f"_{s_tag}_to_{e_tag}"
-        filename = f"telemetry_{unit_tag}{date_tag}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-
         columns = [col[0] for col in cursor.description]
         rows = []
         for r in cursor.fetchall():
@@ -479,6 +466,14 @@ def export_json():
                     pass
             rows.append(row_dict)
         conn.close()
+
+        unit_tag = src if (src and src.upper() != "ALL") else "all_units"
+        date_tag = ""
+        if start_date or end_date:
+            s_tag = start_date[:10].replace("-", "") if start_date else "start"
+            e_tag = end_date[:10].replace("-", "") if end_date else "end"
+            date_tag = f"_{s_tag}_to_{e_tag}"
+        filename = f"telemetry_{unit_tag}{date_tag}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
 
         json_data = json.dumps(rows, indent=2)
         return Response(

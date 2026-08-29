@@ -678,14 +678,15 @@ body {
 }
 
 .form-input {
-  padding: 7px 10px;
+  width: 100%;
+  padding: 8px 12px;
   background-color: #ffffff;
   border: 1px solid var(--border-color);
   border-radius: 6px;
   color: var(--text-primary);
-  font-size: 11px;
+  font-size: 12px;
   outline: none;
-  font-family: var(--font-mono);
+  font-family: inherit;
   transition: all 0.15s ease;
 }
 
@@ -694,47 +695,11 @@ body {
   box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
 }
 
-.label-with-presets {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.date-presets {
-  display: flex;
-  gap: 4px;
-}
-
-.btn-preset {
-  background: var(--bg-card-subtle);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  color: var(--text-secondary);
-  font-size: 10px;
-  font-weight: 600;
-  padding: 3px 6px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.btn-preset:hover {
-  background: #e2e8f0;
-  color: var(--text-primary);
-}
-
-.btn-preset.active {
-  background: #0284c7;
-  border-color: #0284c7;
-  color: #ffffff;
-  font-weight: 700;
-}
-
 .date-inputs-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: 12px;
+  margin-top: 4px;
 }
 
 .date-field {
@@ -744,8 +709,9 @@ body {
 }
 
 .date-sublabel {
-  font-size: 10px;
-  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
 }
 
 .format-options {
