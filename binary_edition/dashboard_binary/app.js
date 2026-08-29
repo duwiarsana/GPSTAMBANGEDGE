@@ -175,6 +175,7 @@ function renderFleetList() {
     const rxTimeRel = formatRelativeTime(d.created_at || d.ts);
 
     const imeiBadge = d.imei ? `<span style="font-size: 0.72rem; color: #64748b; font-family: monospace;">IMEI: ${d.imei}</span>` : '';
+    const ibuttonBadge = d.ibutton ? `<span style="font-size: 0.72rem; color: #10b981; font-weight: 700; font-family: monospace;">🔑 ID: ${d.ibutton}</span>` : '';
 
     return `
       <div class="fleet-card ${isSelected ? 'selected' : ''}" onclick="selectDevice('${d.src}')">
@@ -182,9 +183,10 @@ function renderFleetList() {
           <div class="fleet-title">
             <span class="status-dot-sm ${isOnline ? 'online' : 'offline'}"></span>
             <span>${icon}</span>
-            <div style="display: flex; flex-direction: column;">
+            <div style="display: flex; flex-direction: column; gap: 1px;">
               <span>${d.src}</span>
               ${imeiBadge}
+              ${ibuttonBadge}
             </div>
           </div>
           <span class="fleet-badge ${isOnline ? 'online' : 'offline'}">
@@ -278,8 +280,10 @@ function updateInspector(d) {
   document.getElementById('insp-spd').innerHTML = `${d.spd} <small>km/h</small>`;
 
   const ignEl = document.getElementById('insp-ign');
-  ignEl.innerText = d.ign ? 'ON' : 'OFF';
-  ignEl.className = `card-value badge-ign ${d.ign ? 'on' : 'off'}`;
+  if (ignEl) {
+    ignEl.innerText = d.ign ? 'ON' : 'OFF';
+    ignEl.className = `card-value badge-ign ${d.ign ? 'on' : 'off'}`;
+  }
 
   document.getElementById('insp-bat').innerHTML = `${d.bat} <small>V</small>`;
 
@@ -313,6 +317,20 @@ function updateInspector(d) {
   const imeiEl = document.getElementById('insp-imei');
   if (imeiEl) {
     imeiEl.innerText = d.imei || '—';
+  }
+
+  // iButton Driver ID
+  const ibuttonEl = document.getElementById('insp-ibutton');
+  if (ibuttonEl) {
+    if (d.ibutton) {
+      ibuttonEl.innerText = d.ibutton;
+      ibuttonEl.style.color = '#10b981';
+      ibuttonEl.style.fontWeight = '700';
+    } else {
+      ibuttonEl.innerText = 'Tidak Terpasang';
+      ibuttonEl.style.color = '#94a3b8';
+      ibuttonEl.style.fontWeight = '500';
+    }
   }
 
   document.getElementById('insp-lat').innerText = d.lat;

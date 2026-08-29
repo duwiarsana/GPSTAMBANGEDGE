@@ -434,6 +434,25 @@ bool parseDTGpsToBinary(const char *json, TelemetryPacketBinary &pkt) {
     }
   }
 
+  // Parse iButton (Driver ID)
+  if (doc.containsKey("ibutton") && !doc["ibutton"].isNull()) {
+    const char *ibHex = doc["ibutton"]["id"] | "";
+    if (strlen(ibHex) > 0) {
+      pkt.ibutton_id = (uint32_t)strtoul(ibHex, NULL, 16);
+    } else {
+      pkt.ibutton_id = 0;
+    }
+    const char *ibStatus = doc["ibutton"]["status"] | "";
+    bool ibAuth = doc["ibutton"]["auth"] | false;
+    uint8_t ibFlags = 0;
+    if (strcmp(ibStatus, "login") == 0) ibFlags |= 0x01;
+    if (ibAuth) ibFlags |= 0x02;
+    pkt.ibutton_flags = ibFlags;
+  } else {
+    pkt.ibutton_id = 0;
+    pkt.ibutton_flags = 0;
+  }
+
   pkt.flags = 0x01; // Bit0 = GPS 3D Fix Valid
 
   finalizeBinaryPacket(pkt);

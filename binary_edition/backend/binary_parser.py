@@ -7,7 +7,7 @@ import struct
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 
-TELEMETRY_STRUCT_FMT_V2 = "<2sB8sQIIiiHHhHIBBB6sb5sH"
+TELEMETRY_STRUCT_FMT_V2 = "<2sB8sQIIiiHHhHIBBB6sbIBH"
 TELEMETRY_STRUCT_FMT_V1 = "<2sB8sIIiiHHhHI4Bh3h6sbBBHH"
 TELEMETRY_PACKET_SIZE = 64
 
@@ -42,6 +42,9 @@ def parse_telemetry_packet(raw_bytes: bytes) -> Optional[Dict[str, Any]]:
 
     version = raw_bytes[2]
     imei_str = ""
+    ibutton_hex = ""
+    ibutton_id = 0
+    ibutton_flags = 0
     output_status = 0
     hdop = 0.0
     temp = 0.0
@@ -68,10 +71,13 @@ def parse_telemetry_packet(raw_bytes: bytes) -> Optional[Dict[str, Any]]:
             flags,
             beacon_mac_raw,
             beacon_rssi,
-            reserved,
+            ibutton_id,
+            ibutton_flags,
             received_crc
         ) = struct.unpack(TELEMETRY_STRUCT_FMT_V2, raw_bytes)
         imei_str = str(imei_num) if imei_num > 0 else ""
+        if ibutton_id > 0:
+            ibutton_hex = f"{ibutton_id:08X}"
     else:
         (
             magic,
@@ -126,6 +132,9 @@ def parse_telemetry_packet(raw_bytes: bytes) -> Optional[Dict[str, Any]]:
         "id": unique_id,
         "src": src,
         "imei": imei_str,
+        "ibutton": ibutton_hex,
+        "ibutton_auth": bool(ibutton_flags & 0x02),
+        "ibutton_login": bool(ibutton_flags & 0x01),
         "seq": seq,
         "timestamp_sec": timestamp_sec,
         "ts": ts_iso,

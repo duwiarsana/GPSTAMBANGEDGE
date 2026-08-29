@@ -28,7 +28,8 @@ struct TelemetryPacketBinary {
   uint8_t  flags;          // Status flags (bit0: GPS Fix, bit1: Backlog Relay) [1B]
   uint8_t  beacon_mac[6];  // Strongest Bluetooth Beacon MAC [6B]
   int8_t   beacon_rssi;    // Strongest Beacon RSSI in dBm (-128..127) [1B]
-  uint8_t  reserved[5];    // Reserved for alignment / future sensors (5B)
+  uint32_t ibutton_id;     // iButton Hex ID as uint32 (e.g. 0x010A0D09) [4B]
+  uint8_t  ibutton_flags;  // iButton status (bit 0: 1=login/0=logout, bit 1: 1=auth/0=unauth) [1B]
   uint16_t crc16;          // CRC16-CCITT checksum over first 62 bytes [2B]
 };
 #pragma pack(pop)
