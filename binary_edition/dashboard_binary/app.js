@@ -357,12 +357,14 @@ if (inspDlBtn) {
 }
 
 // Export Modal Logic
-const exportModal = document.getElementById('export-modal');
-const openExportBtn = document.getElementById('open-export-modal-btn');
-const closeExportBtn = document.getElementById('close-export-modal-btn');
+const closeExportBtn = document.getElementById('close-export-modal-btn') || document.getElementById('close-modal-btn');
 const cancelExportBtn = document.getElementById('cancel-export-btn');
 const startDownloadBtn = document.getElementById('start-download-btn');
 const unitSelect = document.getElementById('export-unit-select');
+
+function closeModal() {
+  if (exportModal) exportModal.style.display = 'none';
+}
 
 function populateExportUnits() {
   if (!unitSelect) return;
@@ -391,16 +393,29 @@ if (openExportBtn) {
 }
 
 if (closeExportBtn) {
-  closeExportBtn.addEventListener('click', () => {
-    exportModal.style.display = 'none';
+  closeExportBtn.addEventListener('click', closeModal);
+}
+
+// Support any .close-btn inside modal
+document.querySelectorAll('#export-modal .close-btn').forEach(btn => {
+  btn.addEventListener('click', closeModal);
+});
+
+if (cancelExportBtn) {
+  cancelExportBtn.addEventListener('click', closeModal);
+}
+
+if (exportModal) {
+  exportModal.addEventListener('click', (e) => {
+    if (e.target === exportModal) closeModal();
   });
 }
 
-if (cancelExportBtn) {
-  cancelExportBtn.addEventListener('click', () => {
-    exportModal.style.display = 'none';
-  });
-}
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && exportModal && exportModal.style.display === 'flex') {
+    closeModal();
+  }
+});
 
 const startInput = document.getElementById('export-start-date');
 const endInput = document.getElementById('export-end-date');
