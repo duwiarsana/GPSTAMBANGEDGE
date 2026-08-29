@@ -765,7 +765,7 @@ bool publishBinaryBulkWithAck(const uint8_t *bulkBuffer, size_t totalBytes, cons
 
     statMqttSent += count;
     unsigned long t0 = millis();
-    while (millis() - t0 < 2500) {
+    while (millis() - t0 < 3000) {
       esp_task_wdt_reset();
       handleGPS();
       mqtt.loop();
@@ -1119,7 +1119,7 @@ void setup() {
   Serial2.begin(GPS_BAUD);
   Serial2.setPins(RXD2, TXD2);
 
-  mqtt.setBufferSize(2048);
+  mqtt.setBufferSize(4096);
 
   initSD();
   server.begin();

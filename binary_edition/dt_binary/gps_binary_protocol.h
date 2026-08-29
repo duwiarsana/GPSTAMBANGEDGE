@@ -111,8 +111,11 @@ inline uint32_t parseISO8601ToEpoch(const char *isoStr) {
 
 // Helper format unique UID string dari binary packet untuk ACK
 inline String getPacketUID(const TelemetryPacketBinary &pkt) {
-  char buf[48];
-  snprintf(buf, sizeof(buf), "%s-%u-%u", pkt.src, pkt.timestamp, pkt.seq);
+  char cleanSrc[sizeof(pkt.src) + 1];
+  memset(cleanSrc, 0, sizeof(cleanSrc));
+  memcpy(cleanSrc, pkt.src, sizeof(pkt.src));
+  char buf[64];
+  snprintf(buf, sizeof(buf), "%s-%u-%u", cleanSrc, pkt.timestamp, pkt.seq);
   return String(buf);
 }
 
