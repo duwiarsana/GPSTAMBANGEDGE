@@ -506,10 +506,10 @@ body {
 .time-info-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: 10px;
   background: var(--bg-card-subtle);
-  padding: 6px 8px;
-  border-radius: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
   border: 1px solid var(--border-color);
 }
 
@@ -517,6 +517,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
 .time-title {
@@ -525,6 +526,7 @@ body {
   letter-spacing: 0.3px;
   color: var(--text-secondary);
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .time-block strong {
@@ -533,6 +535,9 @@ body {
   font-family: var(--font-mono);
   white-space: nowrap;
   letter-spacing: -0.2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
 }
 
 .time-rel-badge {
@@ -540,6 +545,7 @@ body {
   font-weight: 700;
   margin-top: 1px;
   white-space: nowrap;
+  display: block;
 }
 
 .time-rel-badge.online {
