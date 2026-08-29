@@ -165,8 +165,15 @@
         <div class="form-group">
           <label>Format File:</label>
           <div class="format-options">
-            <label class="format-card selected" id="fmt-card-csv">
-              <input type="radio" name="export-format" value="csv" checked>
+            <label class="format-card selected" id="fmt-card-db">
+              <input type="radio" name="export-format" value="db" checked>
+              <div class="format-info">
+                <strong>🗄️ SQLite Database File (.db)</strong>
+                <small>Download mentah file database SQLite lengkap (Biner Murni)</small>
+              </div>
+            </label>
+            <label class="format-card" id="fmt-card-csv">
+              <input type="radio" name="export-format" value="csv">
               <div class="format-info">
                 <strong>📊 CSV (Excel Spreadsheet)</strong>
                 <small>Format standar tabel, siap buka di Excel / Google Sheets</small>
@@ -179,18 +186,11 @@
                 <small>Struktur data lengkap dengan sensor & beacon array</small>
               </div>
             </label>
-            <label class="format-card" id="fmt-card-db">
-              <input type="radio" name="export-format" value="db">
-              <div class="format-info">
-                <strong>🗄️ SQLite Database File (.db)</strong>
-                <small>Download mentah file database SQLite lengkap</small>
-              </div>
-            </label>
           </div>
         </div>
 
         <!-- Date Range Filter -->
-        <div class="form-group" id="date-range-group">
+        <div class="form-group" id="date-range-group" style="display: none;">
           <label>Filter Tanggal GPS (Opsional):</label>
           <div class="date-inputs-row">
             <div class="date-field">
@@ -205,7 +205,7 @@
         </div>
 
         <!-- Max Records Limit -->
-        <div class="form-group" id="limit-group">
+        <div class="form-group" id="limit-group" style="display: none;">
           <label for="export-limit">Batas Maksimal Baris:</label>
           <select id="export-limit" class="form-select">
             <option value="1000">1.000 data terakhir</option>
@@ -227,6 +227,6 @@
 
   <!-- Leaflet Map JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="app.js?v=2.4"></script>
+  <script src="app.js?v=2.5"></script>
 </body>
 </html>

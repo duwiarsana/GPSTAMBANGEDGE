@@ -382,6 +382,11 @@ if (openExportBtn) {
   openExportBtn.addEventListener('click', () => {
     populateExportUnits();
     exportModal.style.display = 'flex';
+    const isDb = document.querySelector('input[name="export-format"]:checked')?.value === 'db';
+    const limitGroup = document.getElementById('limit-group');
+    const dateGroup = document.getElementById('date-range-group');
+    if (limitGroup) limitGroup.style.display = isDb ? 'none' : 'flex';
+    if (dateGroup) dateGroup.style.display = isDb ? 'none' : 'flex';
   });
 }
 
