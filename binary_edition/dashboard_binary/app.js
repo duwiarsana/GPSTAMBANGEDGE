@@ -175,7 +175,8 @@ function renderFleetList() {
     const rxTimeRel = formatRelativeTime(d.created_at || d.ts);
 
     const imeiBadge = d.imei ? `<span style="font-size: 0.72rem; color: #64748b; font-family: monospace;">IMEI: ${d.imei}</span>` : '';
-    const ibuttonBadge = d.ibutton ? `<span style="font-size: 0.72rem; color: #10b981; font-weight: 700; font-family: monospace;">🔑 ID: ${d.ibutton}</span>` : '';
+    const stBadge = d.ibutton ? (d.ibutton_status || (d.raw_payload?.ibutton_login ? 'LOGIN' : 'LOGOUT')).toUpperCase() : '';
+    const ibuttonBadge = d.ibutton ? `<span style="font-size: 0.72rem; color: #10b981; font-weight: 700; font-family: monospace;">🔑 ID: ${d.ibutton} (${stBadge})</span>` : '';
 
     return `
       <div class="fleet-card ${isSelected ? 'selected' : ''}" onclick="selectDevice('${d.src}')">
@@ -335,9 +336,9 @@ function updateInspector(d) {
       ibuttonEl.style.color = '#10b981';
       ibuttonEl.style.fontWeight = '700';
     } else {
-      ibuttonEl.innerText = 'Tidak Terpasang';
+      ibuttonEl.innerText = '—';
       ibuttonEl.style.color = '#94a3b8';
-      ibuttonEl.style.fontWeight = '500';
+      ibuttonEl.style.fontWeight = '400';
     }
   }
 
