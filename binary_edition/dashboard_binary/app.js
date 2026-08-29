@@ -373,19 +373,28 @@ document.getElementById('search-input').addEventListener('input', () => {
   renderFleetList();
 });
 
+function triggerDownload(url) {
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', '');
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
 // Quick Download from Inspector
 const inspDlBtn = document.getElementById('insp-download-unit-btn');
 if (inspDlBtn) {
   inspDlBtn.addEventListener('click', () => {
     if (!selectedDevice) return;
     const url = `${API_BASE}/api/export/csv?src=${encodeURIComponent(selectedDevice.src)}&limit=100000`;
-    window.open(url, '_blank');
+    triggerDownload(url);
   });
 }
 
 // Export Modal Logic
 const exportModal = document.getElementById('export-modal');
-const openExportBtn = document.getElementById('export-db-btn');
+const openExportBtn = document.getElementById('open-export-modal-btn') || document.getElementById('export-db-btn');
 const closeExportBtn = document.getElementById('close-export-modal-btn') || document.getElementById('close-modal-btn');
 const cancelExportBtn = document.getElementById('cancel-export-btn');
 const startDownloadBtn = document.getElementById('start-download-btn');
@@ -412,7 +421,7 @@ function populateExportUnits() {
 if (openExportBtn) {
   openExportBtn.addEventListener('click', () => {
     populateExportUnits();
-    exportModal.style.display = 'flex';
+    if (exportModal) exportModal.style.display = 'flex';
     const isDb = document.querySelector('input[name="export-format"]:checked')?.value === 'db';
     const limitGroup = document.getElementById('limit-group');
     const dateGroup = document.getElementById('date-range-group');
@@ -468,7 +477,7 @@ document.querySelectorAll('.format-card').forEach(card => {
 
 if (startDownloadBtn) {
   startDownloadBtn.addEventListener('click', () => {
-    const selectedFormat = document.querySelector('input[name="export-format"]:checked')?.value || 'csv';
+    const selectedFormat = document.querySelector('input[name="export-format"]:checked')?.value || 'db';
     const selectedUnit = unitSelect ? unitSelect.value : 'ALL';
     const limit = document.getElementById('export-limit')?.value || '50000';
     const startVal = startInput ? startInput.value : '';
@@ -492,8 +501,8 @@ if (startDownloadBtn) {
     }
 
     if (downloadUrl) {
-      window.open(downloadUrl, '_blank');
-      exportModal.style.display = 'none';
+      triggerDownload(downloadUrl);
+      if (exportModal) exportModal.style.display = 'none';
     }
   });
 }
