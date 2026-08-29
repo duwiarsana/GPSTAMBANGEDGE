@@ -343,6 +343,12 @@ bool parseGpsToBinary(const char *json, TelemetryPacketBinary &pkt) {
     filter["volt"] = true;
     filter["ibeacon"][0]["mac"] = true;
     filter["ibeacon"][0]["rssi"] = true;
+    filter["ibutton"]["id"] = true;
+    filter["ibutton"]["status"] = true;
+    filter["ibutton"]["auth"] = true;
+    filter["ib"]["id"] = true;
+    filter["ib"]["st"] = true;
+    filter["ib"]["au"] = true;
     filter["gsensor"]["x"] = true;
     filter["gsensor"]["y"] = true;
     filter["gsensor"]["z"] = true;

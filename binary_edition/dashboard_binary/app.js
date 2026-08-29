@@ -300,7 +300,10 @@ function updateInspector(d) {
     ptoEl.className = `card-value badge-ign ${isPtoOn ? 'on' : 'off'}`;
   }
 
-  document.getElementById('insp-odo').innerHTML = `${Number(d.odo || 0).toLocaleString()} <small>m</small>`;
+  const odoEl = document.getElementById('insp-odo');
+  if (odoEl) {
+    odoEl.innerHTML = `${Number(d.odo || 0).toLocaleString()} <small>m</small>`;
+  }
   
   const hdg = d.hdg ?? 0;
   const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
