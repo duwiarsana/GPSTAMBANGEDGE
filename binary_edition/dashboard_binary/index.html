@@ -63,7 +63,7 @@
           <input type="text" id="search-input" placeholder="Cari Unit (EXCA01, DT01)..." />
         </div>
 
-        <div class="fleet-list" id="fleet-list-container">
+        <div class="fleet-list" id="fleet-list">
           <!-- Fleet items rendered via JS -->
         </div>
       </aside>
@@ -77,9 +77,9 @@
           <div class="inspector-header">
             <div class="unit-id-badge">
               <span class="unit-icon" id="insp-icon">🚜</span>
-              <h3 id="insp-unit-id">EXCA01</h3>
+              <h3 id="insp-id">EXCA01</h3>
             </div>
-            <span class="status-badge online" id="insp-status">ONLINE</span>
+            <span class="status-badge online" id="insp-status-badge">ONLINE</span>
             <button class="btn-close-insp" id="close-inspector-btn">&times;</button>
           </div>
 
@@ -276,6 +276,6 @@
 
   <!-- Leaflet Map JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="app.js?v=3.3"></script>
+  <script src="app.js?v=3.4"></script>
 </body>
 </html>

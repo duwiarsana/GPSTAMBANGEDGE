@@ -148,8 +148,10 @@ function formatRelativeTime(dateStr) {
 
 // Render Sidebar List
 function renderFleetList() {
-  const container = document.getElementById('fleet-list');
-  const search = document.getElementById('search-input').value.toLowerCase();
+  const container = document.getElementById('fleet-list') || document.getElementById('fleet-list-container');
+  if (!container) return;
+  const searchEl = document.getElementById('search-input');
+  const search = searchEl ? searchEl.value.toLowerCase() : '';
 
   const filtered = devicesData.filter(d => d.src.toLowerCase().includes(search));
 
@@ -201,12 +203,12 @@ function renderFleetList() {
           <div>PTO: <strong style="color: ${isPtoOn ? '#f59e0b' : '#64748b'}">${isPtoOn ? 'ON' : 'OFF'}</strong></div>
         </div>
         <div class="fleet-db-count">
-          <span>📦 Data di Database:</span>
-          <strong>${Number(d.total_records || d.count || 0).toLocaleString()} record</strong>
+          <span>Database Record:</span>
+          <strong>${Number(d.total_records || d.count || 0).toLocaleString()}</strong>
         </div>
         <div class="fleet-time-row">
-          <div>📡 Online: <strong style="color: ${isOnline ? '#10b981' : '#ef4444'}">${rxTimeRel}</strong></div>
-          <div>⏱️ GPS: <strong>${d.ts || '—'}</strong></div>
+          <div>GPS: <strong>${d.ts}</strong></div>
+          <div>Server: <strong>${d.created_at || d.ts}</strong> <small>(${rxTimeRel})</small></div>
         </div>
       </div>
     `;
@@ -251,34 +253,39 @@ function renderMarkers() {
 
 // Select Device & Open Inspector
 function selectDevice(src) {
-  const device = devicesData.find(d => d.src === src);
-  if (!device) return;
+  const dev = devicesData.find(d => d.src === src);
+  if (!dev) return;
 
-  selectedDevice = device;
+  selectedDevice = dev;
   renderFleetList();
-  updateInspector(device);
+  updateInspector(dev);
 
-  if (device.lat && device.lon && (device.lat !== 0 || device.lon !== 0)) {
-    map.flyTo([device.lat, device.lon], 16, { duration: 1.2 });
+  // Pan to marker
+  if (markers[src]) {
+    map.setView([dev.lat, dev.lon], 16, { animate: true });
+    markers[src].openPopup();
   }
 }
 
 function updateInspector(d) {
   const inspector = document.getElementById('telemetry-inspector');
-  inspector.style.display = 'block';
+  if (inspector) inspector.style.display = 'block';
 
   const isOnline = isDeviceOnline(d);
   const isExca = d.src.toUpperCase().startsWith('EXCA');
-  document.getElementById('insp-icon').innerText = isExca ? '🚜' : '🚛';
-  document.getElementById('insp-id').innerText = d.src;
+  const iconEl = document.getElementById('insp-icon');
+  if (iconEl) iconEl.innerText = isExca ? '🚜' : '🚛';
+  const idEl = document.getElementById('insp-id') || document.getElementById('insp-unit-id');
+  if (idEl) idEl.innerText = d.src;
   
-  const statusBadge = document.getElementById('insp-status-badge');
+  const statusBadge = document.getElementById('insp-status-badge') || document.getElementById('insp-status');
   if (statusBadge) {
     statusBadge.innerText = isOnline ? 'ONLINE' : 'OFFLINE';
     statusBadge.className = `fleet-badge ${isOnline ? 'online' : 'offline'}`;
   }
 
-  document.getElementById('insp-spd').innerHTML = `${d.spd} <small>km/h</small>`;
+  const spdEl = document.getElementById('insp-spd');
+  if (spdEl) spdEl.innerHTML = `${d.spd} <small>km/h</small>`;
 
   const ignEl = document.getElementById('insp-ign');
   if (ignEl) {
@@ -286,7 +293,8 @@ function updateInspector(d) {
     ignEl.className = `card-value badge-ign ${d.ign ? 'on' : 'off'}`;
   }
 
-  document.getElementById('insp-bat').innerHTML = `${d.bat} <small>V</small>`;
+  const batEl = document.getElementById('insp-bat');
+  if (batEl) batEl.innerHTML = `${d.bat} <small>V</small>`;
 
   // Parse PTO
   let isPtoOn = false;
@@ -309,7 +317,8 @@ function updateInspector(d) {
   const hdg = d.hdg ?? 0;
   const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
   const dir = directions[Math.round(hdg / 45) % 8];
-  document.getElementById('insp-hdg').innerHTML = `${hdg}° <small>(${dir})</small>`;
+  const hdgEl = document.getElementById('insp-hdg');
+  if (hdgEl) hdgEl.innerHTML = `${hdg}° <small>(${dir})</small>`;
 
   // Total data di database
   const totalDbEl = document.getElementById('insp-total-db');
@@ -342,8 +351,10 @@ function updateInspector(d) {
     }
   }
 
-  document.getElementById('insp-lat').innerText = d.lat;
-  document.getElementById('insp-lon').innerText = d.lon;
+  const latEl = document.getElementById('insp-lat');
+  if (latEl) latEl.innerText = d.lat;
+  const lonEl = document.getElementById('insp-lon');
+  if (lonEl) lonEl.innerText = d.lon;
 
   // G-Sensor (X, Y, Z)
   const gsEl = document.getElementById('insp-gs');
@@ -356,7 +367,8 @@ function updateInspector(d) {
   }
 
   // Timestamp GPS
-  document.getElementById('insp-ts').innerText = d.ts || '—';
+  const tsEl = document.getElementById('insp-ts');
+  if (tsEl) tsEl.innerText = d.ts || '—';
 
   // Waktu Server Terima Data
   const rxEl = document.getElementById('insp-rx-time');
@@ -374,7 +386,8 @@ function updateInspector(d) {
 
 // Event Listeners
 document.getElementById('close-inspector-btn').addEventListener('click', () => {
-  document.getElementById('telemetry-inspector').style.display = 'none';
+  const inspector = document.getElementById('telemetry-inspector');
+  if (inspector) inspector.style.display = 'none';
   selectedDevice = null;
   renderFleetList();
 });

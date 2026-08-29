@@ -19,7 +19,7 @@ MQTT_JSON_TOPIC = "kutai/fleet/data"
 DB_PATH = os.environ.get("DB_PATH", "telemetry_binary.db")
 LOG_PATH = "backend_binary.log"
 PORT = int(os.environ.get("PORT", 5001))
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Duwiarsana1234!?")
 MAX_RECORDS_PER_DEVICE = 20000
 
 # Setup Logging
