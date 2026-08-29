@@ -320,13 +320,8 @@ function updateInspector(d) {
 
   // Timestamp GPS
   document.getElementById('insp-ts').innerText = d.ts || '—';
-  const tsRelEl = document.getElementById('insp-ts-rel');
-  if (tsRelEl) {
-    tsRelEl.innerText = 'Satelit UTC';
-    tsRelEl.className = 'time-rel-badge subtle';
-  }
 
-  // Waktu Server Terima Data (Online Status)
+  // Waktu Server Terima Data
   const rxEl = document.getElementById('insp-rx-time');
   const rxRelEl = document.getElementById('insp-rx-rel');
   if (rxEl) {
@@ -334,7 +329,7 @@ function updateInspector(d) {
     rxEl.innerText = rxTime || '—';
     if (rxRelEl) {
       const rel = formatRelativeTime(rxTime);
-      rxRelEl.innerText = rel ? `(${rel})` : '—';
+      rxRelEl.innerText = rel ? `(${rel})` : '';
       rxRelEl.className = `time-rel-badge ${isOnline ? 'online' : 'offline'}`;
     }
   }
