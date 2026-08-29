@@ -425,7 +425,8 @@ body {
   position: absolute;
   bottom: 20px;
   right: 20px;
-  width: 360px;
+  width: 380px;
+  max-width: calc(100vw - 40px);
   background-color: rgba(255, 255, 255, 0.97);
   backdrop-filter: blur(16px);
   border: 1px solid var(--border-color);
@@ -445,19 +446,22 @@ body {
   border-bottom: 1px solid var(--border-color);
 }
 
-.unit-id-tag {
+.unit-id-tag,
+.unit-id-badge {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.unit-id-tag h3 {
+.unit-id-tag h3,
+.unit-id-badge h3 {
   font-size: 15px;
   font-weight: 800;
   color: var(--text-primary);
 }
 
-.close-btn {
+.close-btn,
+.btn-close-insp {
   background: none;
   border: none;
   color: var(--text-secondary);
@@ -468,12 +472,14 @@ body {
   border-radius: 4px;
 }
 
-.close-btn:hover {
+.close-btn:hover,
+.btn-close-insp:hover {
   background-color: var(--bg-hover);
   color: var(--text-primary);
 }
 
-.inspector-grid {
+.inspector-grid,
+.inspector-body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
