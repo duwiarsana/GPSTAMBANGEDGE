@@ -272,6 +272,9 @@ def get_devices():
                 except Exception:
                     pass
             
+            pto_val = extra_data.get("pto", 0)
+            in_val = extra_data.get("in", "00")
+            
             devices.append({
                 "src": src,
                 "imei": row_dict.get('imei') or "",
@@ -285,8 +288,13 @@ def get_devices():
                 "bat": row_dict.get('bat', 0.0),
                 "odo": row_dict.get('odo', 0),
                 "ign": row_dict.get('ign', 0),
+                "pto": pto_val,
+                "in": in_val,
                 "hdop": row_dict.get('hdop', 0.0),
                 "temp": row_dict.get('temp', 0.0),
+                "gs_x": row_dict.get('gs_x', 0),
+                "gs_y": row_dict.get('gs_y', 0),
+                "gs_z": row_dict.get('gs_z', 0),
                 "ts": row_dict.get('ts'),
                 "created_at": row_dict.get('created_at'),
                 "count": count,

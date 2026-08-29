@@ -166,12 +166,18 @@ function renderFleetList() {
     const isExca = d.src.toUpperCase().startsWith('EXCA');
     const icon = isExca ? '🚜' : '🚛';
     
-    // Parse PTO
+    // Parse PTO (Bit0 of input_status / in)
     let isPtoOn = false;
-    if (d.pto !== undefined) {
-      isPtoOn = d.pto === 1;
-    } else if (typeof d.in === 'string') {
-      isPtoOn = d.in.length > 2 ? d.in[0] === '1' : ((parseInt(d.in, 16) & 0x01) !== 0);
+    const ptoVal = d.pto ?? d.raw_payload?.pto;
+    if (ptoVal !== undefined && ptoVal !== null) {
+      isPtoOn = (ptoVal === 1 || ptoVal === '1' || ptoVal === true);
+    } else {
+      const inVal = d.in ?? d.raw_payload?.in;
+      if (typeof inVal === 'string') {
+        isPtoOn = inVal.length > 2 ? inVal[0] === '1' : ((parseInt(inVal, 16) & 0x01) !== 0);
+      } else if (typeof inVal === 'number') {
+        isPtoOn = ((inVal & 0x01) !== 0);
+      }
     }
 
     const rxTimeRel = formatRelativeTime(d.created_at || d.ts);
@@ -296,12 +302,18 @@ function updateInspector(d) {
   const batEl = document.getElementById('insp-bat');
   if (batEl) batEl.innerHTML = `${d.bat} <small>V</small>`;
 
-  // Parse PTO
+  // Parse PTO (Bit0 of input_status / in)
   let isPtoOn = false;
-  if (d.pto !== undefined) {
-    isPtoOn = d.pto === 1;
-  } else if (typeof d.in === 'string') {
-    isPtoOn = d.in.length > 2 ? d.in[0] === '1' : ((parseInt(d.in, 16) & 0x01) !== 0);
+  const ptoVal = d.pto ?? d.raw_payload?.pto;
+  if (ptoVal !== undefined && ptoVal !== null) {
+    isPtoOn = (ptoVal === 1 || ptoVal === '1' || ptoVal === true);
+  } else {
+    const inVal = d.in ?? d.raw_payload?.in;
+    if (typeof inVal === 'string') {
+      isPtoOn = inVal.length > 2 ? inVal[0] === '1' : ((parseInt(inVal, 16) & 0x01) !== 0);
+    } else if (typeof inVal === 'number') {
+      isPtoOn = ((inVal & 0x01) !== 0);
+    }
   }
   const ptoEl = document.getElementById('insp-pto');
   if (ptoEl) {

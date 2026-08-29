@@ -544,8 +544,11 @@ void handleGPS() {
           uint32_t pendingBytes = (curSize > offMqtt) ? (curSize - offMqtt) : 0;
           float pendingMB = pendingBytes / (1024.0 * 1024.0);
           uint32_t pendingRecords = pendingBytes / sizeof(TelemetryPacketBinary);
-          logMsg("📍 [BIN] LOGGED #" + String(statLogged) + " | Backlog: " + String(pendingMB, 3) + 
-                 " MB (" + String(pendingRecords) + " records)");
+          bool isPto = (pkt.input_status & 0x01);
+          bool isIgn = (pkt.ignition == 1);
+          logMsg("📍 [BIN] LOGGED #" + String(statLogged) + " | IGN:" + (isIgn ? "ON" : "OFF") + 
+                 " | PTO:" + (isPto ? "ON" : "OFF") + " (IN:0x" + String(pkt.input_status, HEX) + 
+                 ") | Backlog: " + String(pendingMB, 3) + " MB (" + String(pendingRecords) + " records)");
         }
 
         // 2. ⚡ REAL-TIME DIRECT BINARY MQTT: Jika online & backlog bersih
