@@ -517,6 +517,168 @@ if (startDownloadBtn) {
   });
 }
 
+// ================= DELETE DATABASE MODAL LOGIC =================
+const deleteModal = document.getElementById('delete-modal');
+const openDeleteBtn = document.getElementById('open-delete-modal-btn');
+const inspDeleteBtn = document.getElementById('insp-delete-unit-btn');
+const closeDeleteBtn = document.getElementById('close-delete-modal-btn');
+const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
+const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+const deleteUnitSelect = document.getElementById('delete-unit-select');
+const deletePasswordInput = document.getElementById('delete-password-input');
+const deleteStatusMsg = document.getElementById('delete-status-msg');
+
+function closeDeleteModal() {
+  if (deleteModal) deleteModal.style.display = 'none';
+  if (deletePasswordInput) deletePasswordInput.value = '';
+  if (deleteStatusMsg) deleteStatusMsg.style.display = 'none';
+}
+
+function populateDeleteUnits() {
+  if (!deleteUnitSelect) return;
+  deleteUnitSelect.innerHTML = '<option value="ALL">🌐 Semua Unit (Seluruh Database)</option>';
+  devicesData.forEach(d => {
+    const opt = document.createElement('option');
+    opt.value = d.src;
+    opt.innerText = `🚜 ${d.src} (${Number(d.total_records || d.count || 0).toLocaleString()} data)`;
+    deleteUnitSelect.appendChild(opt);
+  });
+}
+
+function openDeleteDialog(preselectedUnit = 'ALL') {
+  populateDeleteUnits();
+  if (deleteUnitSelect) deleteUnitSelect.value = preselectedUnit;
+  if (deletePasswordInput) deletePasswordInput.value = '';
+  if (deleteStatusMsg) deleteStatusMsg.style.display = 'none';
+  if (deleteModal) deleteModal.style.display = 'flex';
+  setTimeout(() => {
+    if (deletePasswordInput) deletePasswordInput.focus();
+  }, 100);
+}
+
+if (openDeleteBtn) {
+  openDeleteBtn.addEventListener('click', () => {
+    openDeleteDialog(selectedDevice ? selectedDevice.src : 'ALL');
+  });
+}
+
+if (inspDeleteBtn) {
+  inspDeleteBtn.addEventListener('click', () => {
+    if (selectedDevice) {
+      openDeleteDialog(selectedDevice.src);
+    }
+  });
+}
+
+if (closeDeleteBtn) {
+  closeDeleteBtn.addEventListener('click', closeDeleteModal);
+}
+
+if (cancelDeleteBtn) {
+  cancelDeleteBtn.addEventListener('click', closeDeleteModal);
+}
+
+if (deleteModal) {
+  deleteModal.addEventListener('click', (e) => {
+    if (e.target === deleteModal) closeDeleteModal();
+  });
+}
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && deleteModal && deleteModal.style.display === 'flex') {
+    closeDeleteModal();
+  }
+});
+
+if (deletePasswordInput) {
+  deletePasswordInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (confirmDeleteBtn) confirmDeleteBtn.click();
+    }
+  });
+}
+
+if (confirmDeleteBtn) {
+  confirmDeleteBtn.addEventListener('click', async () => {
+    const targetUnit = deleteUnitSelect ? deleteUnitSelect.value : 'ALL';
+    const password = deletePasswordInput ? deletePasswordInput.value.trim() : '';
+
+    if (!password) {
+      if (deleteStatusMsg) {
+        deleteStatusMsg.className = 'error-banner';
+        deleteStatusMsg.innerText = '⚠️ Silakan masukkan password admin.';
+        deleteStatusMsg.style.display = 'block';
+      }
+      if (deletePasswordInput) deletePasswordInput.focus();
+      return;
+    }
+
+    // Prepare UI for request
+    confirmDeleteBtn.disabled = true;
+    confirmDeleteBtn.innerText = '⏳ Menghapus...';
+    if (deleteStatusMsg) {
+      deleteStatusMsg.style.display = 'none';
+    }
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/admin/delete_db`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ src: targetUnit, password: password })
+      });
+
+      const res = await resp.json();
+
+      if (resp.ok && res.success) {
+        if (deleteStatusMsg) {
+          deleteStatusMsg.className = 'success-banner';
+          deleteStatusMsg.innerText = `✅ ${res.message}`;
+          deleteStatusMsg.style.display = 'block';
+        }
+
+        // Live refresh app
+        await fetchDevices();
+        await fetchStats();
+
+        // Close inspector if current device was deleted
+        if (targetUnit === 'ALL' || (selectedDevice && selectedDevice.src === targetUnit)) {
+          const insp = document.getElementById('telemetry-inspector');
+          if (insp) insp.style.display = 'none';
+          selectedDevice = null;
+          renderFleetList();
+        }
+
+        setTimeout(() => {
+          closeDeleteModal();
+          confirmDeleteBtn.disabled = false;
+          confirmDeleteBtn.innerText = '🗑️ Hapus Data Sekarang';
+        }, 1200);
+      } else {
+        if (deleteStatusMsg) {
+          deleteStatusMsg.className = 'error-banner';
+          deleteStatusMsg.innerText = `❌ ${res.error || 'Password admin salah!'}`;
+          deleteStatusMsg.style.display = 'block';
+        }
+        confirmDeleteBtn.disabled = false;
+        confirmDeleteBtn.innerText = '🗑️ Hapus Data Sekarang';
+        if (deletePasswordInput) {
+          deletePasswordInput.value = '';
+          deletePasswordInput.focus();
+        }
+      }
+    } catch (err) {
+      if (deleteStatusMsg) {
+        deleteStatusMsg.className = 'error-banner';
+        deleteStatusMsg.innerText = `❌ Gagal menghubungi server: ${err.message}`;
+        deleteStatusMsg.style.display = 'block';
+      }
+      confirmDeleteBtn.disabled = false;
+      confirmDeleteBtn.innerText = '🗑️ Hapus Data Sekarang';
+    }
+  });
+}
+
 // App Startup
 window.addEventListener('DOMContentLoaded', () => {
   initMap();

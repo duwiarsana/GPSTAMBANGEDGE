@@ -40,6 +40,9 @@
         <button class="btn-export-header" id="open-export-modal-btn">
           📥 Download Database
         </button>
+        <button class="btn-delete-header" id="open-delete-modal-btn">
+          🗑️ Hapus Data
+        </button>
         <div class="status-indicator online" id="conn-status">
           <span class="status-dot"></span>
           <span class="status-text">CONNECTED</span>
@@ -60,27 +63,27 @@
           <input type="text" id="search-input" placeholder="Cari Unit (EXCA01, DT01)..." />
         </div>
 
-        <div class="fleet-list" id="fleet-list">
-          <div class="empty-state">Memuat data armada...</div>
+        <div class="fleet-list" id="fleet-list-container">
+          <!-- Fleet items rendered via JS -->
         </div>
       </aside>
 
-      <!-- MAP & DETAIL INSPECTOR -->
+      <!-- MAP SECTION -->
       <section class="map-section">
         <div id="map" class="map-view"></div>
 
         <!-- FLOATING TELEMETRY INSPECTOR -->
         <div class="telemetry-inspector" id="telemetry-inspector" style="display: none;">
           <div class="inspector-header">
-            <div class="unit-id-tag">
+            <div class="unit-id-badge">
               <span class="unit-icon" id="insp-icon">🚜</span>
-              <h3 id="insp-id">EXCA01</h3>
-              <span class="fleet-badge online" id="insp-status-badge">ONLINE</span>
+              <h3 id="insp-unit-id">EXCA01</h3>
             </div>
-            <button class="close-btn" id="close-inspector-btn">&times;</button>
+            <span class="status-badge online" id="insp-status">ONLINE</span>
+            <button class="btn-close-insp" id="close-inspector-btn">&times;</button>
           </div>
 
-          <div class="inspector-grid">
+          <div class="inspector-body">
             <div class="insp-card">
               <span class="card-label">Kecepatan</span>
               <span class="card-value" id="insp-spd">0.0 <small>km/h</small></span>
@@ -131,9 +134,12 @@
                 <strong id="insp-ts">—</strong>
               </div>
             </div>
-            <div class="inspector-actions">
-              <button class="btn-action-download" id="insp-download-unit-btn">
-                📥 Unduh CSV Unit Ini
+            <div class="inspector-actions" style="display: flex; gap: 8px;">
+              <button class="btn-action-download" id="insp-download-unit-btn" style="flex: 1;">
+                📥 Unduh CSV Unit
+              </button>
+              <button class="btn-action-delete" id="insp-delete-unit-btn" style="flex: 1;">
+                🗑️ Hapus Data Unit
               </button>
             </div>
           </div>
@@ -158,61 +164,61 @@
         <div class="form-group">
           <label for="export-unit-select">Pilih Armada (Unit):</label>
           <select id="export-unit-select" class="form-select">
-            <option value="ALL">🚛 Seluruh Armada (Semua Unit)</option>
+            <option value="ALL">🌐 Semua Unit (Seluruh Database)</option>
           </select>
         </div>
 
-        <!-- Format Selection -->
+        <!-- Format Options -->
         <div class="form-group">
-          <label>Format File:</label>
+          <label>Format File Ekspor:</label>
           <div class="format-options">
-            <label class="format-card selected" id="fmt-card-db">
-              <input type="radio" name="export-format" value="db" checked>
+            <label class="format-card selected">
+              <input type="radio" name="export-format" value="db" checked />
               <div class="format-info">
-                <strong>🗄️ SQLite Database File (.db)</strong>
-                <small>Download mentah file database SQLite lengkap (Biner Murni)</small>
+                <strong>🗄️ SQLite Database (.db)</strong>
+                <small>File database biner asli, cocok untuk backup dan replikasi</small>
               </div>
             </label>
-            <label class="format-card" id="fmt-card-csv">
-              <input type="radio" name="export-format" value="csv">
+            <label class="format-card">
+              <input type="radio" name="export-format" value="csv" />
               <div class="format-info">
-                <strong>📊 CSV (Excel Spreadsheet)</strong>
-                <small>Format standar tabel, siap buka di Excel / Google Sheets</small>
+                <strong>📊 CSV Spreadsheet (.csv)</strong>
+                <small>Format tabel terstruktur, siap dibuka di Excel atau Google Sheets</small>
               </div>
             </label>
-            <label class="format-card" id="fmt-card-json">
-              <input type="radio" name="export-format" value="json">
+            <label class="format-card">
+              <input type="radio" name="export-format" value="json" />
               <div class="format-info">
-                <strong>📋 JSON (Raw Telemetry)</strong>
-                <small>Struktur data lengkap dengan sensor & beacon array</small>
+                <strong>⚡ JSON Data (.json)</strong>
+                <small>Array data telemetry terstruktur lengkap untuk integrasi API</small>
               </div>
             </label>
           </div>
         </div>
 
         <!-- Date Range Filter -->
-        <div class="form-group" id="date-range-group" style="display: none;">
-          <label>Filter Tanggal GPS (Opsional):</label>
+        <div class="form-group" id="date-range-group">
+          <label>Filter Rentang Waktu (Opsional):</label>
           <div class="date-inputs-row">
             <div class="date-field">
-              <span class="date-sublabel">Dari Tanggal:</span>
-              <input type="date" id="export-start-date" class="form-input">
+              <span class="date-sublabel">Mulai:</span>
+              <input type="datetime-local" id="export-start-date" class="form-input" />
             </div>
             <div class="date-field">
-              <span class="date-sublabel">Sampai Tanggal:</span>
-              <input type="date" id="export-end-date" class="form-input">
+              <span class="date-sublabel">Sampai:</span>
+              <input type="datetime-local" id="export-end-date" class="form-input" />
             </div>
           </div>
         </div>
 
-        <!-- Max Records Limit -->
-        <div class="form-group" id="limit-group" style="display: none;">
-          <label for="export-limit">Batas Maksimal Baris:</label>
+        <!-- Limit -->
+        <div class="form-group" id="limit-group">
+          <label for="export-limit">Batas Maksimal Data:</label>
           <select id="export-limit" class="form-select">
-            <option value="1000">1.000 data terakhir</option>
-            <option value="10000">10.000 data terakhir</option>
-            <option value="50000" selected>50.000 data</option>
-            <option value="500000">Semua data (Tanpa Batas)</option>
+            <option value="1000">1.000 Record</option>
+            <option value="10000">10.000 Record</option>
+            <option value="50000" selected>50.000 Record</option>
+            <option value="200000">200.000 Record (Semua Data)</option>
           </select>
         </div>
       </div>
@@ -220,7 +226,49 @@
       <div class="modal-footer">
         <button class="btn-secondary" id="cancel-export-btn">Batal</button>
         <button class="btn-primary" id="start-download-btn">
-          🚀 Download File Sekarang
+          <span>🚀</span> Download File Sekarang
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DELETE / CLEAR DATABASE MODAL -->
+  <div class="modal-overlay" id="delete-modal" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header header-danger">
+        <div class="modal-title">
+          <span>⚠️</span>
+          <h3>Hapus Data Database</h3>
+        </div>
+        <button class="close-btn" id="close-delete-modal-btn">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="alert-box-danger">
+          <strong>Peringatan!</strong> Data yang dihapus bersifat permanen dan tidak dapat dipulihkan. Masukkan password admin untuk melanjutkan.
+        </div>
+
+        <!-- Target Unit Selection -->
+        <div class="form-group">
+          <label for="delete-unit-select">Target Penghapusan Data:</label>
+          <select id="delete-unit-select" class="form-select">
+            <option value="ALL">🌐 Semua Unit (Seluruh Database)</option>
+          </select>
+        </div>
+
+        <!-- Password Input -->
+        <div class="form-group" style="margin-top: 10px;">
+          <label for="delete-password-input">Password Admin:</label>
+          <input type="password" id="delete-password-input" class="form-input" placeholder="Ketik password admin..." autocomplete="current-password" />
+        </div>
+
+        <div id="delete-status-msg" style="display: none;"></div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-secondary" id="cancel-delete-btn">Batal</button>
+        <button class="btn-danger" id="confirm-delete-btn">
+          🗑️ Hapus Data Sekarang
         </button>
       </div>
     </div>
@@ -228,6 +276,6 @@
 
   <!-- Leaflet Map JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="app.js?v=3.2"></script>
+  <script src="app.js?v=3.3"></script>
 </body>
 </html>

@@ -19,6 +19,7 @@ MQTT_JSON_TOPIC = "kutai/fleet/data"
 DB_PATH = os.environ.get("DB_PATH", "telemetry_binary.db")
 LOG_PATH = "backend_binary.log"
 PORT = int(os.environ.get("PORT", 5001))
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
 MAX_RECORDS_PER_DEVICE = 20000
 
 # Setup Logging
@@ -539,6 +540,58 @@ def export_db():
     except Exception as e:
         logger.error(f"❌ Error exporting DB file: {e}")
         return jsonify({"error": str(e)}), 500
+
+@app.route("/api/admin/delete_db", methods=["POST"])
+def delete_database():
+    """
+    Deletes telemetry data either for all units or a specific unit.
+    Requires admin password authentication.
+    """
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        password = str(data.get("password", "")).strip()
+        target_src = str(data.get("src", "ALL")).strip()
+
+        if not password or password != ADMIN_PASSWORD:
+            logger.warning(f"⛔ Unauthorized attempt to delete database ({target_src}) with wrong password.")
+            return jsonify({
+                "success": False,
+                "error": "Password admin salah! Penghapusan dibatalkan."
+            }), 403
+
+        with db_lock:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            if not target_src or target_src.upper() == "ALL":
+                cursor.execute("SELECT COUNT(*) FROM telemetry")
+                total_deleted = cursor.fetchone()[0]
+                cursor.execute("DELETE FROM telemetry;")
+                conn.commit()
+                cursor.execute("VACUUM;")
+                conn.commit()
+                msg = f"Seluruh database berhasil dikosongkan ({total_deleted} record dihapus)."
+            else:
+                cursor.execute("SELECT COUNT(*) FROM telemetry WHERE src = ?", (target_src,))
+                total_deleted = cursor.fetchone()[0]
+                cursor.execute("DELETE FROM telemetry WHERE src = ?", (target_src,))
+                conn.commit()
+                cursor.execute("VACUUM;")
+                conn.commit()
+                msg = f"Data armada {target_src} berhasil dihapus ({total_deleted} record dihapus)."
+
+            conn.close()
+
+        logger.info(f"🗑️ [ADMIN DELETE] {msg}")
+        return jsonify({
+            "success": True,
+            "message": msg,
+            "deleted_count": total_deleted
+        }), 200
+
+    except Exception as e:
+        logger.error(f"❌ Error deleting database: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route("/api/admin/reset_db", methods=["POST", "GET"])
 def reset_database():
