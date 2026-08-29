@@ -454,6 +454,19 @@ bool parseDTGpsToBinary(const char *json, TelemetryPacketBinary &pkt) {
     if (strcmp(ibStatus, "login") == 0) ibFlags |= 0x01;
     if (ibAuth) ibFlags |= 0x02;
     pkt.ibutton_flags = ibFlags;
+  } else if (doc.containsKey("ib") && !doc["ib"].isNull()) {
+    const char *ibHex = doc["ib"]["id"] | "";
+    if (strlen(ibHex) > 0) {
+      pkt.ibutton_id = (uint32_t)strtoul(ibHex, NULL, 16);
+    } else {
+      pkt.ibutton_id = 0;
+    }
+    const char *ibStatus = doc["ib"]["st"] | (doc["ib"]["status"] | "");
+    bool ibAuth = doc["ib"]["au"] | (doc["ib"]["auth"] | false);
+    uint8_t ibFlags = 0;
+    if (strcmp(ibStatus, "login") == 0) ibFlags |= 0x01;
+    if (ibAuth) ibFlags |= 0x02;
+    pkt.ibutton_flags = ibFlags;
   } else {
     pkt.ibutton_id = 0;
     pkt.ibutton_flags = 0;

@@ -54,6 +54,7 @@ def init_db():
                 src TEXT NOT NULL,
                 imei TEXT,
                 ibutton TEXT,
+                ibutton_status TEXT,
                 seq INTEGER,
                 ts TEXT NOT NULL,
                 timestamp_sec INTEGER,
@@ -80,6 +81,10 @@ def init_db():
             cursor.execute("ALTER TABLE telemetry ADD COLUMN ibutton TEXT")
         except Exception:
             pass
+        try:
+            cursor.execute("ALTER TABLE telemetry ADD COLUMN ibutton_status TEXT")
+        except Exception:
+            pass
 
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_telemetry_src ON telemetry(src)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_telemetry_imei ON telemetry(imei)")
@@ -89,7 +94,7 @@ def init_db():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_telemetry_ts_sec ON telemetry(timestamp_sec)")
         conn.commit()
         conn.close()
-        logger.info("⚡ Binary Database initialized with WAL Mode, IMEI & iButton Support.")
+        logger.info("⚡ Binary Database initialized with WAL Mode, IMEI & iButton Status Support.")
 
 def save_records_bulk(records: list) -> bool:
     if not records:
@@ -100,6 +105,9 @@ def save_records_bulk(records: list) -> bool:
         src = data.get("src", "UNKNOWN")
         imei = data.get("imei", "")
         ibutton = data.get("ibutton", "")
+        ibutton_status = ""
+        if ibutton:
+            ibutton_status = "login" if data.get("ibutton_login") else "logout"
         seq = data.get("seq", 0)
         ts = data.get("ts", datetime.now(timezone.utc).isoformat())
         timestamp_sec = data.get("timestamp_sec", int(time.time()))
@@ -114,7 +122,7 @@ def save_records_bulk(records: list) -> bool:
         hdop = data.get("hdop", 0.0)
         temp = data.get("temp", 0.0)
         raw_json = json.dumps(data)
-        rows.append((msg_id, src, imei, ibutton, seq, ts, timestamp_sec, lat, lon, spd, hdg, alt, bat, odo, ign, hdop, temp, raw_json))
+        rows.append((msg_id, src, imei, ibutton, ibutton_status, seq, ts, timestamp_sec, lat, lon, spd, hdg, alt, bat, odo, ign, hdop, temp, raw_json))
 
     with db_lock:
         try:
@@ -122,16 +130,16 @@ def save_records_bulk(records: list) -> bool:
             cursor = conn.cursor()
             cursor.executemany("""
                 INSERT OR REPLACE INTO telemetry 
-                (id, src, imei, ibutton, seq, ts, timestamp_sec, lat, lon, spd, hdg, alt, bat, odo, ign, hdop, temp, raw_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (id, src, imei, ibutton, ibutton_status, seq, ts, timestamp_sec, lat, lon, spd, hdg, alt, bat, odo, ign, hdop, temp, raw_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, rows)
             conn.commit()
             conn.close()
             last_rec = records[-1]
             if len(records) > 1:
-                logger.info(f"⚡ [BULK INGEST] Saved {len(rows)} records. Last: {last_rec['src']} (IMEI:{last_rec.get('imei')}|iButton:{last_rec.get('ibutton')}) [{last_rec['id']}] Lat:{last_rec.get('lat')} Spd:{last_rec.get('spd')}")
+                logger.info(f"⚡ [BULK INGEST] Saved {len(rows)} records. Last: {last_rec['src']} (IMEI:{last_rec.get('imei')}|iButton:{last_rec.get('ibutton')}:{ibutton_status}) [{last_rec['id']}] Lat:{last_rec.get('lat')} Spd:{last_rec.get('spd')}")
             else:
-                logger.info(f"⚡ [REALTIME INGEST] Saved: {last_rec['src']} (IMEI:{last_rec.get('imei')}|iButton:{last_rec.get('ibutton')}) [{last_rec['id']}] Lat:{last_rec.get('lat')} Spd:{last_rec.get('spd')}")
+                logger.info(f"⚡ [REALTIME INGEST] Saved: {last_rec['src']} (IMEI:{last_rec.get('imei')}|iButton:{last_rec.get('ibutton')}:{ibutton_status}) [{last_rec['id']}] Lat:{last_rec.get('lat')} Spd:{last_rec.get('spd')}")
             return True
         except Exception as e:
             logger.error(f"❌ DB insert error: {e}")
@@ -247,6 +255,7 @@ def get_devices():
                 "src": src,
                 "imei": row_dict.get('imei') or "",
                 "ibutton": row_dict.get('ibutton') or "",
+                "ibutton_status": row_dict.get('ibutton_status') or "",
                 "lat": row_dict.get('lat', 0.0),
                 "lon": row_dict.get('lon', 0.0),
                 "spd": row_dict.get('spd', 0.0),
@@ -278,7 +287,7 @@ def get_telemetry_history(device_id):
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, src, imei, ibutton, seq, ts, timestamp_sec, lat, lon, spd, hdg, alt, bat, odo, ign, hdop, temp, raw_json, created_at
+            SELECT id, src, imei, ibutton, ibutton_status, seq, ts, timestamp_sec, lat, lon, spd, hdg, alt, bat, odo, ign, hdop, temp, raw_json, created_at
             FROM telemetry
             WHERE src = ?
             ORDER BY timestamp_sec DESC
@@ -365,7 +374,7 @@ def export_csv():
         where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
         
         query = f"""
-            SELECT id, src, imei, ibutton, seq, ts, timestamp_sec, lat, lon, spd, hdg, alt, bat, odo, ign, hdop, temp, created_at, raw_json
+            SELECT id, src, imei, ibutton, ibutton_status, seq, ts, timestamp_sec, lat, lon, spd, hdg, alt, bat, odo, ign, hdop, temp, created_at, raw_json
             FROM telemetry
             {where_clause}
             ORDER BY timestamp_sec ASC
@@ -388,14 +397,14 @@ def export_csv():
         output = io.StringIO()
         writer = csv.writer(output)
         writer.writerow([
-            "Msg ID", "Source ID", "IMEI", "Driver (iButton)", "Sequence", "GPS Timestamp (UTC)", "Epoch Sec", 
+            "Msg ID", "Source ID", "IMEI", "Driver (iButton ID)", "iButton Status", "Sequence", "GPS Timestamp (UTC)", "Epoch Sec", 
             "Latitude", "Longitude", "Speed (km/h)", "Heading (deg)", "Altitude (m)", 
             "Battery (V)", "Odometer (m)", "Ignition", "PTO (Dump Bed)", "HDOP", 
             "MCU Temp (C)", "Server Received At"
         ])
 
         for r in rows:
-            raw_json_str = r[18]
+            raw_json_str = r[19]
             pto = 0
             if raw_json_str:
                 try:
@@ -405,10 +414,10 @@ def export_csv():
                     pass
             
             writer.writerow([
-                r[0], r[1], r[2] or "", r[3] or "", r[4], r[5], r[6],
-                r[7], r[8], r[9], r[10], r[11],
-                r[12], r[13], "ON" if r[14] == 1 else "OFF", "ON" if pto == 1 else "OFF",
-                r[15], r[16], r[17]
+                r[0], r[1], r[2] or "", r[3] or "", (r[4] or "").upper(), r[5], r[6], r[7],
+                r[8], r[9], r[10], r[11], r[12],
+                r[13], r[14], "ON" if r[15] == 1 else "OFF", "ON" if pto == 1 else "OFF",
+                r[16], r[17], r[18]
             ])
 
         output.seek(0)
@@ -456,7 +465,7 @@ def export_json():
         where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
 
         query = f"""
-            SELECT id, src, imei, ibutton, seq, ts, timestamp_sec, lat, lon, spd, hdg, alt, bat, odo, ign, hdop, temp, created_at, raw_json
+            SELECT id, src, imei, ibutton, ibutton_status, seq, ts, timestamp_sec, lat, lon, spd, hdg, alt, bat, odo, ign, hdop, temp, created_at, raw_json
             FROM telemetry
             {where_clause}
             ORDER BY timestamp_sec ASC

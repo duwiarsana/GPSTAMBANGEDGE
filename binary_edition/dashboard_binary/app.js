@@ -326,7 +326,12 @@ function updateInspector(d) {
   const ibuttonEl = document.getElementById('insp-ibutton');
   if (ibuttonEl) {
     if (d.ibutton) {
-      ibuttonEl.innerText = d.ibutton;
+      const st = (d.ibutton_status || (d.raw_payload?.ibutton_login ? 'LOGIN' : 'LOGOUT')).toUpperCase();
+      const isLogin = st === 'LOGIN';
+      const stBg = isLogin ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)';
+      const stBorder = isLogin ? '#10b981' : '#f59e0b';
+      const stColor = isLogin ? '#10b981' : '#f59e0b';
+      ibuttonEl.innerHTML = `${d.ibutton} <span style="font-size: 0.68rem; background: ${stBg}; border: 1px solid ${stBorder}; color: ${stColor}; padding: 1px 5px; border-radius: 4px; vertical-align: middle; margin-left: 4px; font-weight: 800;">${st}</span>`;
       ibuttonEl.style.color = '#10b981';
       ibuttonEl.style.fontWeight = '700';
     } else {
