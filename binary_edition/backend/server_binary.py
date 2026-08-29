@@ -220,10 +220,10 @@ def get_devices():
         cursor.execute("""
             SELECT t.* FROM telemetry t
             INNER JOIN (
-                SELECT src, MAX(id) as max_id
+                SELECT src, MAX(rowid) as max_rowid
                 FROM telemetry
                 GROUP BY src
-            ) latest ON t.src = latest.src AND t.id = latest.max_id
+            ) latest ON t.rowid = latest.max_rowid
         """)
         
         columns = [col[0] for col in cursor.description]
