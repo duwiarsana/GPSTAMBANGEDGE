@@ -528,9 +528,31 @@ body {
 }
 
 .time-block strong {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-primary);
   font-family: var(--font-mono);
+  white-space: nowrap;
+  letter-spacing: -0.2px;
+}
+
+.time-rel-badge {
+  font-size: 10px;
+  font-weight: 700;
+  margin-top: 1px;
+  white-space: nowrap;
+}
+
+.time-rel-badge.online {
+  color: #10b981;
+}
+
+.time-rel-badge.offline {
+  color: #ef4444;
+}
+
+.time-rel-badge.subtle {
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 
 .inspector-actions {
