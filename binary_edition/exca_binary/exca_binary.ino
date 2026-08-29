@@ -352,6 +352,9 @@ bool parseGpsToBinary(const char *json, TelemetryPacketBinary &pkt) {
     filter["gsensor"]["x"] = true;
     filter["gsensor"]["y"] = true;
     filter["gsensor"]["z"] = true;
+    filter["gs"]["x"] = true;
+    filter["gs"]["y"] = true;
+    filter["gs"]["z"] = true;
     filterInitialized = true;
   }
 
@@ -396,7 +399,6 @@ bool parseGpsToBinary(const char *json, TelemetryPacketBinary &pkt) {
     pkt.imei = 0;
   }
 
-  pkt.odo_m = doc["odometer"] | 0;
   if (doc["input_status"].is<const char*>()) {
     const char *inp = doc["input_status"].as<const char*>();
     uint8_t mask = 0;
@@ -457,6 +459,21 @@ bool parseGpsToBinary(const char *json, TelemetryPacketBinary &pkt) {
   } else {
     pkt.ibutton_id = 0;
     pkt.ibutton_flags = 0;
+  }
+
+  // Parse G-Sensor (x, y, z)
+  if (doc.containsKey("gsensor") && !doc["gsensor"].isNull()) {
+    pkt.gs_x = (int16_t)(doc["gsensor"]["x"] | 0);
+    pkt.gs_y = (int16_t)(doc["gsensor"]["y"] | 0);
+    pkt.gs_z = (int16_t)(doc["gsensor"]["z"] | 0);
+  } else if (doc.containsKey("gs") && !doc["gs"].isNull()) {
+    pkt.gs_x = (int16_t)(doc["gs"]["x"] | 0);
+    pkt.gs_y = (int16_t)(doc["gs"]["y"] | 0);
+    pkt.gs_z = (int16_t)(doc["gs"]["z"] | 0);
+  } else {
+    pkt.gs_x = 0;
+    pkt.gs_y = 0;
+    pkt.gs_z = 0;
   }
 
   pkt.flags = 0x01; // Bit0 = GPS 3D Fix Valid

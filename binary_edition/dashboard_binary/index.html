@@ -116,8 +116,9 @@
           </div>
 
           <div class="inspector-footer">
-            <div class="coord-info">
+            <div class="coord-info" style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
               <span>📍 Koordinat: <strong id="insp-lat">-0.738881</strong>, <strong id="insp-lon">117.130152</strong></span>
+              <span>📐 G-Sensor: <strong id="insp-gs">0, 0, 0</strong> <small>mg</small></span>
             </div>
             <div class="time-info-row">
               <div class="time-block">
@@ -227,6 +228,6 @@
 
   <!-- Leaflet Map JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="app.js?v=3.1"></script>
+  <script src="app.js?v=3.2"></script>
 </body>
 </html>

@@ -7,7 +7,7 @@ import struct
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 
-TELEMETRY_STRUCT_FMT_V2 = "<2sB8sQIIiiHHhHIBBB6sbIBH"
+TELEMETRY_STRUCT_FMT_V2 = "<2sB6sQIIiiHHhHBBB6sbIBhhhH"
 TELEMETRY_STRUCT_FMT_V1 = "<2sB8sIIiiHHhHI4Bh3h6sbBBHH"
 TELEMETRY_PACKET_SIZE = 64
 
@@ -65,7 +65,6 @@ def parse_telemetry_packet(raw_bytes: bytes) -> Optional[Dict[str, Any]]:
             heading,
             altitude,
             bat_mv,
-            odo_m,
             ignition,
             input_status,
             flags,
@@ -73,6 +72,9 @@ def parse_telemetry_packet(raw_bytes: bytes) -> Optional[Dict[str, Any]]:
             beacon_rssi,
             ibutton_id,
             ibutton_flags,
+            gs_x,
+            gs_y,
+            gs_z,
             received_crc
         ) = struct.unpack(TELEMETRY_STRUCT_FMT_V2, raw_bytes)
         imei_str = str(imei_num) if imei_num > 0 else ""
@@ -145,7 +147,6 @@ def parse_telemetry_packet(raw_bytes: bytes) -> Optional[Dict[str, Any]]:
         "alt": altitude,
         "bat": round(bat_mv / 1000.0, 2),
         "bat_mv": bat_mv,
-        "odo": odo_m,
         "ign": ignition,
         "pto": 1 if (input_status & 0x01) else 0,
         "in": f"{input_status:02X}",

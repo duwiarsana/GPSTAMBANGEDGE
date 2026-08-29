@@ -345,6 +345,16 @@ function updateInspector(d) {
   document.getElementById('insp-lat').innerText = d.lat;
   document.getElementById('insp-lon').innerText = d.lon;
 
+  // G-Sensor (X, Y, Z)
+  const gsEl = document.getElementById('insp-gs');
+  if (gsEl) {
+    const gs = d.raw_payload?.gs || {};
+    const gx = gs.x ?? d.gs_x ?? 0;
+    const gy = gs.y ?? d.gs_y ?? 0;
+    const gz = gs.z ?? d.gs_z ?? 0;
+    gsEl.innerText = `${gx}, ${gy}, ${gz}`;
+  }
+
   // Timestamp GPS
   document.getElementById('insp-ts').innerText = d.ts || '—';
 

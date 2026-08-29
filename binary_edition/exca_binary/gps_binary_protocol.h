@@ -12,7 +12,7 @@
 struct TelemetryPacketBinary {
   uint8_t  magic[2];       // 0xAA, 0x55 (Sync Marker) [2B]
   uint8_t  version;        // Protocol version: 2 [1B]
-  char     src[8];         // Device ID, null-padded e.g. "EXCA01\0" [8B]
+  char     src[6];         // Device ID, null-padded e.g. "EXCA01" [6B]
   uint64_t imei;           // 15-digit IMEI number e.g. 861327085563067 [8B]
   uint32_t seq;            // Sequential counter [4B]
   uint32_t timestamp;      // Unix Epoch UTC seconds [4B]
@@ -22,7 +22,6 @@ struct TelemetryPacketBinary {
   uint16_t heading;        // Heading in degrees (0-360) [2B]
   int16_t  altitude;       // Altitude in meters (-32768..32767) [2B]
   uint16_t bat_mv;         // Battery / External in mV (e.g. 24500 = 24.5V) [2B]
-  uint32_t odo_m;          // Odometer in meters [4B]
   uint8_t  ignition;       // 1 = ON, 0 = OFF [1B]
   uint8_t  input_status;   // Digital Inputs bitmask (Bit0: PTO Bak, Bit1: ACC) [1B]
   uint8_t  flags;          // Status flags (bit0: GPS Fix, bit1: Backlog Relay) [1B]
@@ -30,6 +29,9 @@ struct TelemetryPacketBinary {
   int8_t   beacon_rssi;    // Strongest Beacon RSSI in dBm (-128..127) [1B]
   uint32_t ibutton_id;     // iButton Hex ID as uint32 (e.g. 0x010A0D09) [4B]
   uint8_t  ibutton_flags;  // iButton status (bit 0: 1=login/0=logout, bit 1: 1=auth/0=unauth) [1B]
+  int16_t  gs_x;           // G-Sensor X axis in milli-g [2B]
+  int16_t  gs_y;           // G-Sensor Y axis in milli-g [2B]
+  int16_t  gs_z;           // G-Sensor Z axis in milli-g [2B]
   uint16_t crc16;          // CRC16-CCITT checksum over first 62 bytes [2B]
 };
 #pragma pack(pop)
