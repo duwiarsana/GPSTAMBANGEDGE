@@ -375,6 +375,8 @@ if (inspDlBtn) {
 }
 
 // Export Modal Logic
+const exportModal = document.getElementById('export-modal');
+const openExportBtn = document.getElementById('export-db-btn');
 const closeExportBtn = document.getElementById('close-export-modal-btn') || document.getElementById('close-modal-btn');
 const cancelExportBtn = document.getElementById('cancel-export-btn');
 const startDownloadBtn = document.getElementById('start-download-btn');
