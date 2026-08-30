@@ -1,9 +1,11 @@
 /**
  * EXCAVATOR BINARY EDITION - 64-Byte Ultra High-Performance Firmware
- * 
+ *
  * Features:
- * 1. 64-Byte Fixed-Size Raw Binary Telemetry Storage (85% storage & bandwidth saving)
- * 2. Persistent Fast WiFi Connect via NVS Preferences (<500ms) with Smart Scan Fallback
+ * 1. 64-Byte Fixed-Size Raw Binary Telemetry Storage (85% storage & bandwidth
+ * saving)
+ * 2. Persistent Fast WiFi Connect via NVS Preferences (<500ms) with Smart Scan
+ * Fallback
  * 3. Simultaneous AP (EXCA01_DATA) + STA (Internet Gateway)
  * 4. Blazing Fast P2P TCP Binary Streaming to Dump Trucks (640KB per 10k data)
  * 5. Direct 64-Byte Binary MQTT Ingestion
@@ -40,8 +42,8 @@
 #define GPS_BAUD 115200
 
 // ================= AP (ACCESS POINT) CONFIGURATION =================
-const char *EXCA_ID = "EXCA01";
-const char *AP_SSID = "EXCA01_DATA";
+const char *EXCA_ID = "EXCA04";
+const char *AP_SSID = "EXCA04_DATA";
 const char *AP_PASS = "12345678";
 WiFiServer server(5000);
 
@@ -51,10 +53,8 @@ struct WifiCredential {
   const char *pass;
 };
 
-WifiCredential wifiList[] = {
-  {"WIFI_GATEWAY_MINING_11", "46448951"},
-  {"HOTSPOT_DT_KEAMANAN", "46448951"}
-};
+WifiCredential wifiList[] = {{"WIFI_GATEWAY_MINING_11", "46448951"},
+                             {"HOTSPOT_DT_KEAMANAN", "46448951"}};
 const int wifiCount = sizeof(wifiList) / sizeof(wifiList[0]);
 
 const char *MQTT_SERVER = "76.13.19.250";
@@ -78,11 +78,11 @@ struct WifiCache {
 };
 
 // ================= FILE PATHS =================
-const char *LOG_FILE_BIN       = "/gps_log.bin";
-const char *MQTT_OFFSET_FILE   = "/mqtt_offset.txt";
-const char *DT_OFFSET_FILE     = "/dt_offset.txt";
-const char *SEQ_FILE           = "/seq.txt";
-const char *COMPACT_TEMP_FILE  = "/tmp_compact.bin";
+const char *LOG_FILE_BIN = "/gps_log.bin";
+const char *MQTT_OFFSET_FILE = "/mqtt_offset.txt";
+const char *DT_OFFSET_FILE = "/dt_offset.txt";
+const char *SEQ_FILE = "/seq.txt";
+const char *COMPACT_TEMP_FILE = "/tmp_compact.bin";
 
 // ================= BUFFER & PARSER =================
 #define BUF_SIZE 4096
@@ -100,7 +100,8 @@ unsigned long ledLogTimer = 0;
 unsigned long lastInternetTry = 0;
 const unsigned long INTERNET_INTERVAL = 10000;
 
-const int MAX_UPLOAD_CHUNK_RECORDS = 100; // 100 binary records = 6.4 KB per batch!
+const int MAX_UPLOAD_CHUNK_RECORDS =
+    100; // 100 binary records = 6.4 KB per batch!
 const unsigned long COMPACT_INTERVAL = 1800000;
 unsigned long lastCompact = 0;
 
@@ -136,11 +137,13 @@ void logMsg(String s) {
 // ================= FILE HELPERS =================
 uint32_t readUint(const char *path, uint32_t def = 0) {
   File f = SD.open(path);
-  if (!f) return def;
+  if (!f)
+    return def;
   String s = f.readString();
   f.close();
   s.trim();
-  if (s.length() == 0) return def;
+  if (s.length() == 0)
+    return def;
   return s.toInt();
 }
 
@@ -163,9 +166,12 @@ bool initSD() {
     return false;
   }
 
-  if (!SD.exists(MQTT_OFFSET_FILE)) writeUint(MQTT_OFFSET_FILE, 0);
-  if (!SD.exists(DT_OFFSET_FILE)) writeUint(DT_OFFSET_FILE, 0);
-  if (!SD.exists(SEQ_FILE)) writeUint(SEQ_FILE, 0);
+  if (!SD.exists(MQTT_OFFSET_FILE))
+    writeUint(MQTT_OFFSET_FILE, 0);
+  if (!SD.exists(DT_OFFSET_FILE))
+    writeUint(DT_OFFSET_FILE, 0);
+  if (!SD.exists(SEQ_FILE))
+    writeUint(SEQ_FILE, 0);
 
   seq = readUint(SEQ_FILE);
   sdErrorCount = 0;
@@ -190,7 +196,8 @@ bool appendBinaryRecord(const TelemetryPacketBinary &pkt) {
   File f = SD.open(LOG_FILE_BIN, FILE_APPEND);
   if (!f) {
     sdErrorCount++;
-    logMsg("❌ open fail: " + String(LOG_FILE_BIN) + " (err #" + String(sdErrorCount) + ")");
+    logMsg("❌ open fail: " + String(LOG_FILE_BIN) + " (err #" +
+           String(sdErrorCount) + ")");
     return false;
   }
   size_t written = f.write((const uint8_t *)&pkt, sizeof(pkt));
@@ -222,7 +229,8 @@ bool loadWifiCache(WifiCache &cache) {
 }
 
 void saveWifiCache(int index, uint8_t channel, const uint8_t *bssid) {
-  if (index < 0 || index >= wifiCount || channel < 1 || channel > 14 || !bssid) return;
+  if (index < 0 || index >= wifiCount || channel < 1 || channel > 14 || !bssid)
+    return;
 
   WifiCache current;
   if (loadWifiCache(current)) {
@@ -239,7 +247,8 @@ void saveWifiCache(int index, uint8_t channel, const uint8_t *bssid) {
     p.putUChar("ch", channel);
     p.putBytes("bssid", bssid, 6);
     p.end();
-    logMsg("💾 WiFi cache saved to NVS: " + String(wifiList[index].ssid) + " CH=" + String(channel));
+    logMsg("💾 WiFi cache saved to NVS: " + String(wifiList[index].ssid) +
+           " CH=" + String(channel));
   }
 }
 
@@ -261,7 +270,8 @@ bool shouldRecord(JsonDocument &doc) {
       if (recordState == REC_ACTIVE) {
         recordState = REC_COOLDOWN;
         ignOffTime = millis();
-        logMsg("🔑 IGN OFF -> COOLDOWN (" + String(IGN_COOLDOWN_MS / 1000) + "s)");
+        logMsg("🔑 IGN OFF -> COOLDOWN (" + String(IGN_COOLDOWN_MS / 1000) +
+               "s)");
       }
     }
     return true;
@@ -358,18 +368,21 @@ bool parseGpsToBinary(const char *json, TelemetryPacketBinary &pkt) {
     filterInitialized = true;
   }
 
-  DeserializationError err = deserializeJson(doc, json, DeserializationOption::Filter(filter));
+  DeserializationError err =
+      deserializeJson(doc, json, DeserializationOption::Filter(filter));
   if (err) {
     logMsg("❌ JSON parse err: " + String(err.c_str()));
     return false;
   }
 
-  if (!shouldRecord(doc)) return false;
+  if (!shouldRecord(doc))
+    return false;
 
   // 1. Validasi IMEI (Wajib ada minimal 10 digit)
   const char *imeiStr = doc["imei"] | "";
   if (strlen(imeiStr) < 10) {
-    logMsg("⚠️ GPS data skipped: IMEI missing/invalid (" + String(imeiStr) + ")");
+    logMsg("⚠️ GPS data skipped: IMEI missing/invalid (" + String(imeiStr) +
+           ")");
     return false;
   }
   uint64_t parsedImei = strtoull(imeiStr, NULL, 10);
@@ -408,7 +421,10 @@ bool parseGpsToBinary(const char *json, TelemetryPacketBinary &pkt) {
 
   double spd = doc["speed"] | (doc["spd"] | 0.0);
   pkt.speed_x10 = (uint16_t)(spd * 10.0);
-  pkt.heading = (uint16_t)(doc["heading"] | (doc["hdg"] | (doc["course"] | (doc["bearing"] | (doc["angle"] | 0)))));
+  pkt.heading =
+      (uint16_t)(doc["heading"] |
+                 (doc["hdg"] |
+                  (doc["course"] | (doc["bearing"] | (doc["angle"] | 0)))));
   pkt.altitude = doc["altitude"] | (doc["alt"] | 0);
 
   double ext = doc["external"] | (doc["volt"] | (doc["battery"] | 0.0));
@@ -418,11 +434,12 @@ bool parseGpsToBinary(const char *json, TelemetryPacketBinary &pkt) {
     pkt.bat_mv = (uint16_t)(ext * 1000.0);
   }
 
-  if (doc["input_status"].is<const char*>()) {
-    const char *inp = doc["input_status"].as<const char*>();
+  if (doc["input_status"].is<const char *>()) {
+    const char *inp = doc["input_status"].as<const char *>();
     uint8_t mask = 0;
     for (int i = 0; inp[i] && i < 8; i++) {
-      if (inp[i] == '1') mask |= (1 << i);
+      if (inp[i] == '1')
+        mask |= (1 << i);
     }
     pkt.input_status = mask;
   } else {
@@ -442,8 +459,10 @@ bool parseGpsToBinary(const char *json, TelemetryPacketBinary &pkt) {
     int rssi = doc["ibeacon"][0]["rssi"] | 0;
     if (strlen(macStr) >= 12) {
       unsigned int m[6] = {0};
-      sscanf(macStr, "%x:%x:%x:%x:%x:%x", &m[0], &m[1], &m[2], &m[3], &m[4], &m[5]);
-      for (int i = 0; i < 6; i++) pkt.beacon_mac[i] = (uint8_t)m[i];
+      sscanf(macStr, "%x:%x:%x:%x:%x:%x", &m[0], &m[1], &m[2], &m[3], &m[4],
+             &m[5]);
+      for (int i = 0; i < 6; i++)
+        pkt.beacon_mac[i] = (uint8_t)m[i];
       pkt.beacon_rssi = (int8_t)rssi;
     }
   }
@@ -459,8 +478,10 @@ bool parseGpsToBinary(const char *json, TelemetryPacketBinary &pkt) {
     const char *ibStatus = doc["ibutton"]["status"] | "";
     bool ibAuth = doc["ibutton"]["auth"] | false;
     uint8_t ibFlags = 0;
-    if (strcmp(ibStatus, "login") == 0) ibFlags |= 0x01;
-    if (ibAuth) ibFlags |= 0x02;
+    if (strcmp(ibStatus, "login") == 0)
+      ibFlags |= 0x01;
+    if (ibAuth)
+      ibFlags |= 0x02;
     pkt.ibutton_flags = ibFlags;
   } else if (doc.containsKey("ib") && !doc["ib"].isNull()) {
     const char *ibHex = doc["ib"]["id"] | "";
@@ -472,8 +493,10 @@ bool parseGpsToBinary(const char *json, TelemetryPacketBinary &pkt) {
     const char *ibStatus = doc["ib"]["st"] | (doc["ib"]["status"] | "");
     bool ibAuth = doc["ib"]["au"] | (doc["ib"]["auth"] | false);
     uint8_t ibFlags = 0;
-    if (strcmp(ibStatus, "login") == 0) ibFlags |= 0x01;
-    if (ibAuth) ibFlags |= 0x02;
+    if (strcmp(ibStatus, "login") == 0)
+      ibFlags |= 0x01;
+    if (ibAuth)
+      ibFlags |= 0x02;
     pkt.ibutton_flags = ibFlags;
   } else {
     pkt.ibutton_id = 0;
@@ -531,8 +554,10 @@ void handleGPS() {
       continue;
     }
 
-    if (c == '{') brace++;
-    if (c == '}') brace--;
+    if (c == '{')
+      brace++;
+    if (c == '}')
+      brace--;
 
     if (brace == 0) {
       buf[bufLen] = '\0';
@@ -562,16 +587,20 @@ void handleGPS() {
           }
           uint32_t pendingBytes = (curSize > offMqtt) ? (curSize - offMqtt) : 0;
           float pendingMB = pendingBytes / (1024.0 * 1024.0);
-          uint32_t pendingRecords = pendingBytes / sizeof(TelemetryPacketBinary);
+          uint32_t pendingRecords =
+              pendingBytes / sizeof(TelemetryPacketBinary);
           bool isPto = (pkt.input_status & 0x01);
           bool isIgn = (pkt.ignition == 1);
-          logMsg("📍 [BIN] LOGGED #" + String(statLogged) + " | IGN:" + (isIgn ? "ON" : "OFF") + 
-                 " | PTO:" + (isPto ? "ON" : "OFF") + " (IN:0x" + String(pkt.input_status, HEX) + 
-                 ") | Backlog: " + String(pendingMB, 3) + " MB (" + String(pendingRecords) + " records)");
+          logMsg("📍 [BIN] LOGGED #" + String(statLogged) + " | IGN:" +
+                 (isIgn ? "ON" : "OFF") + " | PTO:" + (isPto ? "ON" : "OFF") +
+                 " (IN:0x" + String(pkt.input_status, HEX) +
+                 ") | Backlog: " + String(pendingMB, 3) + " MB (" +
+                 String(pendingRecords) + " records)");
         }
 
         // 2. ⚡ REAL-TIME DIRECT BINARY MQTT: Jika online & backlog bersih
-        if (!busy && backlogClean && WiFi.status() == WL_CONNECTED && mqtt.connected()) {
+        if (!busy && backlogClean && WiFi.status() == WL_CONNECTED &&
+            mqtt.connected()) {
           busy = true;
           if (publishBinaryWithAck(pkt, 2)) {
             logMsg("⚡ Real-time direct binary MQTT publish success");
@@ -608,12 +637,14 @@ bool connectKnownInternet() {
   if (loadWifiCache(cache)) {
     char bssidStr[18];
     snprintf(bssidStr, sizeof(bssidStr), "%02X:%02X:%02X:%02X:%02X:%02X",
-             cache.bssid[0], cache.bssid[1], cache.bssid[2],
-             cache.bssid[3], cache.bssid[4], cache.bssid[5]);
-    logMsg("⚡ Fast-connect attempt to " + String(wifiList[cache.index].ssid) + " CH=" + String(cache.channel));
+             cache.bssid[0], cache.bssid[1], cache.bssid[2], cache.bssid[3],
+             cache.bssid[4], cache.bssid[5]);
+    logMsg("⚡ Fast-connect attempt to " + String(wifiList[cache.index].ssid) +
+           " CH=" + String(cache.channel));
 
     unsigned long tFast = millis();
-    WiFi.begin(wifiList[cache.index].ssid, wifiList[cache.index].pass, cache.channel, cache.bssid);
+    WiFi.begin(wifiList[cache.index].ssid, wifiList[cache.index].pass,
+               cache.channel, cache.bssid);
 
     while (WiFi.status() != WL_CONNECTED && millis() - tFast < 3000) {
       esp_task_wdt_reset();
@@ -624,7 +655,8 @@ bool connectKnownInternet() {
     if (WiFi.status() == WL_CONNECTED) {
       unsigned long elapsed = millis() - tFast;
       logMsg("⚡ Fast-connect success: " + String(elapsed) + " ms");
-      logMsg("📡 Connected: SSID=" + String(WiFi.SSID()) + " IP=" + WiFi.localIP().toString());
+      logMsg("📡 Connected: SSID=" + String(WiFi.SSID()) +
+             " IP=" + WiFi.localIP().toString());
       return true;
     } else {
       WiFi.disconnect(false, true);
@@ -674,7 +706,8 @@ bool connectKnownInternet() {
   int ch = WiFi.channel(bestScanIdx);
   uint8_t *bssid = WiFi.BSSID(bestScanIdx);
   uint8_t bssidCopy[6];
-  if (bssid) memcpy(bssidCopy, bssid, 6);
+  if (bssid)
+    memcpy(bssidCopy, bssid, 6);
   WiFi.scanDelete();
 
   unsigned long t0 = millis();
@@ -694,19 +727,22 @@ bool connectKnownInternet() {
     }
   }
 
-  if (bssid) saveWifiCache(bestIdx, ch, bssidCopy);
+  if (bssid)
+    saveWifiCache(bestIdx, ch, bssidCopy);
   return true;
 }
 
 // ================= MQTT CLIENT & ACK =================
 bool connectMQTT() {
-  if (mqtt.connected()) return true;
+  if (mqtt.connected())
+    return true;
 
   String clientId = String(EXCA_ID) + "-" + String(millis());
   mqtt.setServer(MQTT_SERVER, MQTT_PORT);
   mqtt.setCallback([](char *topic, byte *payload, unsigned int length) {
     String msg;
-    for (int i = 0; i < length; i++) msg += (char)payload[i];
+    for (int i = 0; i < length; i++)
+      msg += (char)payload[i];
     msg.trim();
 
     StaticJsonDocument<256> doc;
@@ -737,7 +773,8 @@ bool publishBinaryWithAck(const TelemetryPacketBinary &pkt, int maxRetry) {
   for (int attempt = 1; attempt <= maxRetry; attempt++) {
     esp_task_wdt_reset();
     if (!mqtt.connected()) {
-      if (!connectMQTT()) return false;
+      if (!connectMQTT())
+        return false;
     }
 
     ackReceived = false;
@@ -767,12 +804,14 @@ bool publishBinaryWithAck(const TelemetryPacketBinary &pkt, int maxRetry) {
 
 #define BULK_PUBLISH_RECORDS 16
 
-bool publishBinaryBulkWithAck(const uint8_t *bulkBuffer, size_t totalBytes, const String &lastMsgId, int maxRetries = 2) {
+bool publishBinaryBulkWithAck(const uint8_t *bulkBuffer, size_t totalBytes,
+                              const String &lastMsgId, int maxRetries = 2) {
   for (int attempt = 1; attempt <= maxRetries; attempt++) {
     esp_task_wdt_reset();
     handleGPS();
     if (!mqtt.connected()) {
-      if (!connectMQTT()) return false;
+      if (!connectMQTT())
+        return false;
     }
 
     ackReceived = false;
@@ -802,11 +841,13 @@ bool publishBinaryBulkWithAck(const uint8_t *bulkBuffer, size_t totalBytes, cons
 }
 
 // ================= BACKLOG BINARY UPLOADER (BULK BATCH) =================
-bool publishBinaryQueueChunk(const char *logPath, const char *offsetPath, int maxRecords) {
+bool publishBinaryQueueChunk(const char *logPath, const char *offsetPath,
+                             int maxRecords) {
   uint32_t offset = readUint(offsetPath, 0);
 
   File f = SD.open(logPath, FILE_READ);
-  if (!f) return false;
+  if (!f)
+    return false;
 
   if (offset >= f.size()) {
     f.close();
@@ -814,7 +855,8 @@ bool publishBinaryQueueChunk(const char *logPath, const char *offsetPath, int ma
   }
 
   // Offset must be aligned to 64 bytes
-  offset = (offset / sizeof(TelemetryPacketBinary)) * sizeof(TelemetryPacketBinary);
+  offset =
+      (offset / sizeof(TelemetryPacketBinary)) * sizeof(TelemetryPacketBinary);
   if (!f.seek(offset)) {
     f.close();
     return false;
@@ -823,7 +865,8 @@ bool publishBinaryQueueChunk(const char *logPath, const char *offsetPath, int ma
   int sentCount = 0;
   TelemetryPacketBinary batchBuf[BULK_PUBLISH_RECORDS];
 
-  while (f.available() >= sizeof(TelemetryPacketBinary) && sentCount < maxRecords) {
+  while (f.available() >= sizeof(TelemetryPacketBinary) &&
+         sentCount < maxRecords) {
     esp_task_wdt_reset();
     handleGPS();
 
@@ -838,15 +881,18 @@ bool publishBinaryQueueChunk(const char *logPath, const char *offsetPath, int ma
     int validInBatch = 0;
     uint32_t batchStartPos = f.position();
 
-    for (int i = 0; i < toRead && f.available() >= sizeof(TelemetryPacketBinary); i++) {
+    for (int i = 0;
+         i < toRead && f.available() >= sizeof(TelemetryPacketBinary); i++) {
       TelemetryPacketBinary pkt;
       size_t rb = f.read((uint8_t *)&pkt, sizeof(pkt));
-      if (rb != sizeof(pkt)) break;
+      if (rb != sizeof(pkt))
+        break;
 
       if (validateBinaryPacket(pkt)) {
         batchBuf[validInBatch++] = pkt;
       } else {
-        logMsg("⚠️ Invalid binary CRC at offset " + String((uint32_t)f.position() - sizeof(pkt)) + ", skipped");
+        logMsg("⚠️ Invalid binary CRC at offset " +
+               String((uint32_t)f.position() - sizeof(pkt)) + ", skipped");
       }
     }
 
@@ -858,7 +904,8 @@ bool publishBinaryQueueChunk(const char *logPath, const char *offsetPath, int ma
     String lastId = getPacketUID(batchBuf[validInBatch - 1]);
     size_t sendBytes = validInBatch * sizeof(TelemetryPacketBinary);
 
-    if (!publishBinaryBulkWithAck((const uint8_t *)batchBuf, sendBytes, lastId, 2)) {
+    if (!publishBinaryBulkWithAck((const uint8_t *)batchBuf, sendBytes, lastId,
+                                  2)) {
       logMsg("⚠️ Bulk publish fail at offset " + String(batchStartPos));
       f.close();
       return false;
@@ -876,11 +923,13 @@ bool publishBinaryQueueChunk(const char *logPath, const char *offsetPath, int ma
 
 void tryInternetAndPublishChunk() {
   if (WiFi.status() != WL_CONNECTED) {
-    if (!connectKnownInternet()) return;
+    if (!connectKnownInternet())
+      return;
   }
 
   if (!mqtt.connected()) {
-    if (!connectMQTT()) return;
+    if (!connectMQTT())
+      return;
   }
 
   uint32_t off = readUint(MQTT_OFFSET_FILE, 0);
@@ -890,16 +939,19 @@ void tryInternetAndPublishChunk() {
     fCheck.close();
     if (off < fSize) {
       uint32_t remaining = fSize - off;
-      logMsg("🚀 Uploading BINARY backlog (sisa: " + String(remaining) + " bytes / " + 
-             String(remaining / sizeof(TelemetryPacketBinary)) + " records)...");
-      while (publishBinaryQueueChunk(LOG_FILE_BIN, MQTT_OFFSET_FILE, MAX_UPLOAD_CHUNK_RECORDS)) {
+      logMsg("🚀 Uploading BINARY backlog (sisa: " + String(remaining) +
+             " bytes / " + String(remaining / sizeof(TelemetryPacketBinary)) +
+             " records)...");
+      while (publishBinaryQueueChunk(LOG_FILE_BIN, MQTT_OFFSET_FILE,
+                                     MAX_UPLOAD_CHUNK_RECORDS)) {
         esp_task_wdt_reset();
         handleGPS();
         delay(5);
         uint32_t curOff = readUint(MQTT_OFFSET_FILE, 0);
         File fc = SD.open(LOG_FILE_BIN, FILE_READ);
         if (!fc || curOff >= fc.size()) {
-          if (fc) fc.close();
+          if (fc)
+            fc.close();
           logMsg("✨ Binary Backlog SUDAH BERSIH!");
           break;
         }
@@ -910,19 +962,24 @@ void tryInternetAndPublishChunk() {
 }
 
 // ================= COMPACTION =================
-bool compactBinaryFile(const char *logPath, const char *mqttOffsetPath, const char *dtOffsetPath, const char *tempPath) {
+bool compactBinaryFile(const char *logPath, const char *mqttOffsetPath,
+                       const char *dtOffsetPath, const char *tempPath) {
   uint32_t offMqtt = readUint(mqttOffsetPath, 0);
-  uint32_t offDt   = readUint(dtOffsetPath, 0);
-  uint32_t offset  = (offMqtt > 0 && offDt > 0) ? min(offMqtt, offDt) : max(offMqtt, offDt);
+  uint32_t offDt = readUint(dtOffsetPath, 0);
+  uint32_t offset =
+      (offMqtt > 0 && offDt > 0) ? min(offMqtt, offDt) : max(offMqtt, offDt);
 
   // Align to 64 bytes
-  offset = (offset / sizeof(TelemetryPacketBinary)) * sizeof(TelemetryPacketBinary);
+  offset =
+      (offset / sizeof(TelemetryPacketBinary)) * sizeof(TelemetryPacketBinary);
 
-  if (offset < 4096) return true;
+  if (offset < 4096)
+    return true;
 
   logMsg("🧹 Compacting BINARY file up to offset=" + String(offset));
   File src = SD.open(logPath, FILE_READ);
-  if (!src) return false;
+  if (!src)
+    return false;
 
   if (!src.seek(offset)) {
     src.close();
@@ -941,7 +998,8 @@ bool compactBinaryFile(const char *logPath, const char *mqttOffsetPath, const ch
     esp_task_wdt_reset();
     handleGPS();
     int n = src.read(buffer, sizeof(buffer));
-    if (n > 0) dst.write(buffer, n);
+    if (n > 0)
+      dst.write(buffer, n);
   }
 
   src.close();
@@ -962,7 +1020,8 @@ bool waitTcpMsg(WiFiClient &c, String expect, unsigned long timeoutMs = 3000) {
   while (!c.available()) {
     esp_task_wdt_reset();
     handleGPS();
-    if (!c.connected() || millis() - t0 > timeoutMs) return false;
+    if (!c.connected() || millis() - t0 > timeoutMs)
+      return false;
     delay(2);
   }
   String s = c.readStringUntil('\n');
@@ -1007,7 +1066,8 @@ void handleClient(WiFiClient client) {
   }
 
   uint32_t dtOffset = readUint(DT_OFFSET_FILE, 0);
-  dtOffset = (dtOffset / sizeof(TelemetryPacketBinary)) * sizeof(TelemetryPacketBinary);
+  dtOffset = (dtOffset / sizeof(TelemetryPacketBinary)) *
+             sizeof(TelemetryPacketBinary);
   uint32_t totalSize = f.size();
 
   if (dtOffset >= totalSize) {
@@ -1073,8 +1133,9 @@ void handleClient(WiFiClient client) {
 
     if (dtAckOk) {
       writeUint(DT_OFFSET_FILE, totalSize);
-      logMsg("✅ DT Binary Transfer confirmed by ACK: " + String(totalToSend) + " bytes (" + 
-             String(totalToSend / sizeof(TelemetryPacketBinary)) + " records)");
+      logMsg("✅ DT Binary Transfer confirmed by ACK: " + String(totalToSend) +
+             " bytes (" + String(totalToSend / sizeof(TelemetryPacketBinary)) +
+             " records)");
     }
   }
 
@@ -1120,11 +1181,9 @@ void setup() {
 
   logMsg("=== " + String(EXCA_ID) + " BINARY EDITION STARTING ===");
 
-  esp_task_wdt_config_t wdt_config = {
-    .timeout_ms = WDT_TIMEOUT_SEC * 1000,
-    .idle_core_mask = 0,
-    .trigger_panic = true
-  };
+  esp_task_wdt_config_t wdt_config = {.timeout_ms = WDT_TIMEOUT_SEC * 1000,
+                                      .idle_core_mask = 0,
+                                      .trigger_panic = true};
   esp_task_wdt_reconfigure(&wdt_config);
   esp_task_wdt_add(NULL);
   logMsg("🐕 Watchdog configured: " + String(WDT_TIMEOUT_SEC) + "s");
@@ -1198,11 +1257,13 @@ void loop() {
 
   if (now - lastCompact >= COMPACT_INTERVAL) {
     lastCompact = now;
-    compactBinaryFile(LOG_FILE_BIN, MQTT_OFFSET_FILE, DT_OFFSET_FILE, COMPACT_TEMP_FILE);
+    compactBinaryFile(LOG_FILE_BIN, MQTT_OFFSET_FILE, DT_OFFSET_FILE,
+                      COMPACT_TEMP_FILE);
   }
 
   if (ESP.getFreeHeap() < HEAP_MIN_BYTES) {
-    logMsg("❌ Heap kritis: " + String(ESP.getFreeHeap()) + " bytes, RESTARTING...");
+    logMsg("❌ Heap kritis: " + String(ESP.getFreeHeap()) +
+           " bytes, RESTARTING...");
     delay(1000);
     ESP.restart();
   }
