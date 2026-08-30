@@ -121,6 +121,10 @@ def parse_telemetry_packet(raw_bytes: bytes) -> Optional[Dict[str, Any]]:
     else:
         beacon_mac = ""
 
+    # 🛡️ Data Integrity Guard: Tolak jika timestamp invalid, lat/lon 0.0, atau IMEI kosong
+    if timestamp_sec < 1577836800 or (lat_x1e7 == 0 and lon_x1e7 == 0) or not imei_str or imei_str == "0":
+        return None
+
     # Convert Timestamp to ISO8601 string
     try:
         dt = datetime.fromtimestamp(timestamp_sec, tz=timezone.utc)

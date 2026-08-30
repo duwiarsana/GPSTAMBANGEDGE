@@ -366,18 +366,45 @@ bool parseGpsToBinary(const char *json, TelemetryPacketBinary &pkt) {
 
   if (!shouldRecord(doc)) return false;
 
+  // 1. Validasi IMEI (Wajib ada minimal 10 digit)
+  const char *imeiStr = doc["imei"] | "";
+  if (strlen(imeiStr) < 10) {
+    logMsg("⚠️ GPS data skipped: IMEI missing/invalid (" + String(imeiStr) + ")");
+    return false;
+  }
+  uint64_t parsedImei = strtoull(imeiStr, NULL, 10);
+  if (parsedImei == 0) {
+    logMsg("⚠️ GPS data skipped: IMEI is 0");
+    return false;
+  }
+
+  // 2. Validasi Timestamp (Wajib ada & valid setelah tahun 2020)
+  const char *ts = doc["timestamp"] | (doc["ts"] | "");
+  uint32_t parsedTs = parseISO8601ToEpoch(ts);
+  if (parsedTs < 1577836800UL) { // 2020-01-01 00:00:00 UTC
+    logMsg("⚠️ GPS data skipped: Invalid timestamp (" + String(ts) + ")");
+    return false;
+  }
+
+  // 3. Validasi Koordinat GPS (Wajib 3D Fix, bukan 0.0, 0.0)
+  double lat = doc["latitude"] | (doc["lat"] | 0.0);
+  double lon = doc["longitude"] | (doc["lon"] | 0.0);
+  int32_t lat_x1e7 = (int32_t)(lat * 10000000.0);
+  int32_t lon_x1e7 = (int32_t)(lon * 10000000.0);
+  if (lat_x1e7 == 0 && lon_x1e7 == 0) {
+    logMsg("⚠️ GPS data skipped: No GPS Fix (lat=0, lon=0)");
+    return false;
+  }
+
+  // Lolos semua validasi -> Alokasikan sequence & inisialisasi paket
   seq++;
   writeUint(SEQ_FILE, seq);
 
   initBinaryPacket(pkt, EXCA_ID, seq);
-
-  const char *ts = doc["timestamp"] | (doc["ts"] | "");
-  pkt.timestamp = parseISO8601ToEpoch(ts);
-
-  double lat = doc["latitude"] | (doc["lat"] | 0.0);
-  double lon = doc["longitude"] | (doc["lon"] | 0.0);
-  pkt.lat_x1e7 = (int32_t)(lat * 10000000.0);
-  pkt.lon_x1e7 = (int32_t)(lon * 10000000.0);
+  pkt.imei = parsedImei;
+  pkt.timestamp = parsedTs;
+  pkt.lat_x1e7 = lat_x1e7;
+  pkt.lon_x1e7 = lon_x1e7;
 
   double spd = doc["speed"] | (doc["spd"] | 0.0);
   pkt.speed_x10 = (uint16_t)(spd * 10.0);
@@ -389,14 +416,6 @@ bool parseGpsToBinary(const char *json, TelemetryPacketBinary &pkt) {
     pkt.bat_mv = (uint16_t)ext;
   } else {
     pkt.bat_mv = (uint16_t)(ext * 1000.0);
-  }
-
-  // Parse IMEI (15 digits e.g. 861327085563067)
-  const char *imeiStr = doc["imei"] | "";
-  if (strlen(imeiStr) > 0) {
-    pkt.imei = strtoull(imeiStr, NULL, 10);
-  } else {
-    pkt.imei = 0;
   }
 
   if (doc["input_status"].is<const char*>()) {
