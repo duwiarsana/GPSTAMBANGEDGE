@@ -32,20 +32,15 @@ function initMap() {
     maxZoom: 19
   });
 
-  // 3. Dark Matter Mode (Command Center Night Vision)
-  baseLayers.dark = L.tileLayer('https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
-    attribution: '&copy; CARTO &copy; OpenStreetMap',
-    maxZoom: 19
-  });
-
-  // 4. OpenTopoMap (Kontur Elevasi & Ketinggian Lereng)
+  // 3. OpenTopoMap (Kontur Elevasi & Ketinggian Lereng)
   baseLayers.topo = L.tileLayer('https://a.tile.opentopomap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenTopoMap &copy; OpenStreetMap',
     maxZoom: 17
   });
 
   // Restore preferred map layer from localStorage
-  const savedLayer = localStorage.getItem('gps_tambang_map_layer') || 'satellite';
+  let savedLayer = localStorage.getItem('gps_tambang_map_layer') || 'satellite';
+  if (savedLayer === 'dark' || !baseLayers[savedLayer]) savedLayer = 'satellite';
   switchMapLayer(savedLayer);
 }
 
