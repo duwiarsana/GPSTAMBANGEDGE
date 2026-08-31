@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <!-- Leaflet Map CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="style.css?v=6.0">
+  <link rel="stylesheet" href="style.css?v=6.1">
 </head>
 <body>
   <div class="app-container">
@@ -167,19 +167,19 @@
               <div class="insp-oper-grid">
                 <div class="insp-data-item">
                   <span class="data-label">Kecepatan</span>
-                  <span class="data-val-primary" id="insp-spd">0.0 <small>km/h</small></span>
+                  <span class="data-val-primary" id="insp-spd">0 <small>km/h</small></span>
+                </div>
+                <div class="insp-data-item">
+                  <span class="data-label">Tegangan Aki</span>
+                  <span class="data-val" id="insp-bat">12.66 <small>V</small></span>
                 </div>
                 <div class="insp-data-item">
                   <span class="data-label">Kunci Kontak</span>
                   <span class="badge-status-pill on" id="insp-ign">IGN ON</span>
                 </div>
                 <div class="insp-data-item">
-                  <span class="data-label">Status PTO (Dump)</span>
+                  <span class="data-label">PTO / Dump</span>
                   <span class="badge-status-pill off" id="insp-pto">PTO OFF</span>
-                </div>
-                <div class="insp-data-item">
-                  <span class="data-label">Tegangan Aki</span>
-                  <span class="data-val" id="insp-bat">25.4 <small>V</small></span>
                 </div>
                 <div class="insp-data-item">
                   <span class="data-label">Arah (Heading)</span>
@@ -463,6 +463,6 @@
 
   <!-- Leaflet Map JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="app.js?v=6.0"></script>
+  <script src="app.js?v=6.1"></script>
 </body>
 </html>
