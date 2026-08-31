@@ -222,6 +222,14 @@ if not os.path.exists(dashboard_dir):
 app = Flask(__name__, static_folder=dashboard_dir)
 CORS(app)
 
+@app.after_request
+def add_no_cache_headers(response):
+    if request.path.endswith('.html') or request.path.endswith('.css') or request.path.endswith('.js') or request.path == '/':
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
+
 @app.route("/")
 def serve_index():
     return send_from_directory(dashboard_dir, "index.html")
