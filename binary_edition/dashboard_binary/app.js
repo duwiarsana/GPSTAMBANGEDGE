@@ -523,7 +523,7 @@ function clearTrajectory() {
   currentTrajectoryData = [];
   const trailBadge = document.getElementById('insp-trail-count');
   if (trailBadge) {
-    trailBadge.innerText = '🛣️ Jejak Dinonaktifkan';
+    trailBadge.innerText = 'Nonaktif';
   }
 }
 
@@ -538,12 +538,12 @@ async function loadAndDrawTrajectory(src) {
   const trailBadge = document.getElementById('insp-trail-count');
 
   if (!isTrajectoryVisible) {
-    if (trailBadge) trailBadge.innerText = '🛣️ Jejak Dimatikan';
+    if (trailBadge) trailBadge.innerText = 'Nonaktif';
     return;
   }
 
   if (trailBadge) {
-    trailBadge.innerText = '⏳ Mengambil jejak lintasan...';
+    trailBadge.innerText = 'Memuat jejak...';
   }
 
   try {
@@ -559,7 +559,7 @@ async function loadAndDrawTrajectory(src) {
     currentTrajectoryData = points;
 
     if (points.length === 0) {
-      if (trailBadge) trailBadge.innerText = '🛣️ Belum ada histori jejak';
+      if (trailBadge) trailBadge.innerText = '0 Titik (Kosong)';
       return;
     }
 
@@ -632,7 +632,7 @@ async function loadAndDrawTrajectory(src) {
     if (trailBadge) {
       const tStart = points[0].ts ? points[0].ts.slice(11, 16) : '';
       const tEnd = points[points.length - 1].ts ? points[points.length - 1].ts.slice(11, 16) : '';
-      trailBadge.innerText = `🛣️ ${points.length.toLocaleString()} Titik (${tStart} - ${tEnd})`;
+      trailBadge.innerText = `${points.length} Titik (${tStart} - ${tEnd})`;
     }
 
     // Smoothly fit map view to show full path
@@ -642,7 +642,7 @@ async function loadAndDrawTrajectory(src) {
   } catch (err) {
     console.error('Error loading trajectory:', err);
     if (trailBadge) {
-      trailBadge.innerText = '⚠️ Gagal memuat jejak';
+      trailBadge.innerText = 'Gagal memuat';
     }
   }
 }
