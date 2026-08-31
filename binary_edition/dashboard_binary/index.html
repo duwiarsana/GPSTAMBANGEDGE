@@ -63,6 +63,24 @@
           <input type="text" id="search-input" placeholder="Cari Unit (EXCA01, DT01)..." />
         </div>
 
+        <!-- QUICK FILTER TABS -->
+        <div class="sidebar-filter-section">
+          <div class="fleet-filter-tabs">
+            <button class="filter-tab active" data-filter="all" id="tab-filter-all">
+              Semua (<span id="filter-count-all">0</span>)
+            </button>
+            <button class="filter-tab" data-filter="online" id="tab-filter-online">
+              🟢 Online (<span id="filter-count-online">0</span>)
+            </button>
+            <button class="filter-tab" data-filter="exca" id="tab-filter-exca">
+              🚜 Exca (<span id="filter-count-exca">0</span>)
+            </button>
+            <button class="filter-tab" data-filter="dt" id="tab-filter-dt">
+              🚛 DT (<span id="filter-count-dt">0</span>)
+            </button>
+          </div>
+        </div>
+
         <div class="fleet-list" id="fleet-list">
           <!-- Fleet items rendered via JS -->
         </div>
@@ -333,6 +351,6 @@
 
   <!-- Leaflet Map JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="app.js?v=4.2"></script>
+  <script src="app.js?v=4.3"></script>
 </body>
 </html>

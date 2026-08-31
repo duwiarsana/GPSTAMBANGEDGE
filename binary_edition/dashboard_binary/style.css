@@ -269,6 +269,49 @@ body {
   box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
 }
 
+.sidebar-filter-section {
+  padding: 8px 12px 6px 12px;
+  background-color: var(--bg-card-subtle);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.fleet-filter-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 3px;
+  background: #f1f5f9;
+  padding: 2.5px;
+  border-radius: 7px;
+  border: 1px solid #e2e8f0;
+}
+
+.filter-tab {
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  padding: 4px 1px;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #64748b;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.filter-tab:hover {
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.filter-tab.active {
+  background: #0284c7;
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(2, 132, 199, 0.25);
+}
+
 .fleet-list {
   flex: 1;
   overflow-y: auto;

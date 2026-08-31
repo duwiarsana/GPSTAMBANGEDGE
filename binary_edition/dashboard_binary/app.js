@@ -248,16 +248,43 @@ function calculateTilt(gx, gy, gz) {
 }
 
 // Render Sidebar List
+let currentFleetFilter = 'all';
+
 function renderFleetList() {
   const container = document.getElementById('fleet-list') || document.getElementById('fleet-list-container');
   if (!container) return;
   const searchEl = document.getElementById('search-input');
   const search = searchEl ? searchEl.value.toLowerCase() : '';
 
-  const filtered = devicesData.filter(d => d.src.toLowerCase().includes(search));
+  // Calculate counts for all 4 filter categories
+  const countAll = devicesData.length;
+  const countOnline = devicesData.filter(d => isDeviceOnline(d)).length;
+  const countExca = devicesData.filter(d => d.src.toUpperCase().startsWith('EXCA')).length;
+  const countDt = devicesData.filter(d => d.src.toUpperCase().startsWith('DT')).length;
+
+  const elAll = document.getElementById('filter-count-all');
+  if (elAll) elAll.innerText = countAll;
+  const elOnline = document.getElementById('filter-count-online');
+  if (elOnline) elOnline.innerText = countOnline;
+  const elExca = document.getElementById('filter-count-exca');
+  if (elExca) elExca.innerText = countExca;
+  const elDt = document.getElementById('filter-count-dt');
+  if (elDt) elDt.innerText = countDt;
+
+  // Filter list by search query
+  let filtered = devicesData.filter(d => d.src.toLowerCase().includes(search));
+
+  // Filter list by selected tab
+  if (currentFleetFilter === 'online') {
+    filtered = filtered.filter(d => isDeviceOnline(d));
+  } else if (currentFleetFilter === 'exca') {
+    filtered = filtered.filter(d => d.src.toUpperCase().startsWith('EXCA'));
+  } else if (currentFleetFilter === 'dt') {
+    filtered = filtered.filter(d => d.src.toUpperCase().startsWith('DT'));
+  }
 
   if (filtered.length === 0) {
-    container.innerHTML = '<div class="empty-state">Tidak ada unit ditemukan.</div>';
+    container.innerHTML = '<div class="empty-state">Tidak ada unit sesuai filter.</div>';
     return;
   }
 
@@ -710,6 +737,16 @@ if (searchInput) {
     renderFleetList();
   });
 }
+
+// Quick Filter Tabs Listener
+document.querySelectorAll('.filter-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    currentFleetFilter = tab.getAttribute('data-filter') || 'all';
+    document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    renderFleetList();
+  });
+});
 
 // Map Layer Switcher Listeners
 document.querySelectorAll('.layer-btn').forEach(btn => {
