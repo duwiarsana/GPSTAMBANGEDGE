@@ -8,6 +8,9 @@ let markers = {};
 let devicesData = [];
 let selectedDevice = null;
 
+let baseLayers = {};
+let currentLayerName = 'satellite';
+
 // Initialize Map
 function initMap() {
   // Center around mining site (e.g., Kutai / Samarinda coordinates: -0.738, 117.130)
@@ -17,30 +20,77 @@ function initMap() {
 
   L.control.zoom({ position: 'topright' }).addTo(map);
 
-  const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  // 1. Citra Satelit Esri (Tambang)
+  baseLayers.satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     attribution: 'Tiles &copy; Esri &mdash; World Imagery',
     maxZoom: 19
   });
 
-  const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  // 2. OpenStreetMap (Standar Jalan & Kontur)
+  baseLayers.osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors',
     maxZoom: 19
   });
 
-  const voyager = L.tileLayer('https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
+  // 3. Dark Matter Mode (Command Center Night Vision)
+  baseLayers.dark = L.tileLayer('https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
     attribution: '&copy; CARTO &copy; OpenStreetMap',
     maxZoom: 19
   });
 
-  satellite.addTo(map);
+  // 4. OpenTopoMap (Kontur Elevasi & Ketinggian Lereng)
+  baseLayers.topo = L.tileLayer('https://a.tile.opentopomap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenTopoMap &copy; OpenStreetMap',
+    maxZoom: 17
+  });
 
-  const baseMaps = {
-    "🛰️ Citra Satelit (Tambang)": satellite,
-    "🗺️ OpenStreetMap": osm,
-    "🏙️ Carto Voyager": voyager
-  };
+  // Restore preferred map layer from localStorage
+  const savedLayer = localStorage.getItem('gps_tambang_map_layer') || 'satellite';
+  switchMapLayer(savedLayer);
+}
 
-  L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
+// Switch Active Map Layer
+function switchMapLayer(layerName) {
+  if (!baseLayers[layerName]) layerName = 'satellite';
+
+  // Remove existing base layers
+  Object.keys(baseLayers).forEach(name => {
+    if (map && map.hasLayer(baseLayers[name])) {
+      map.removeLayer(baseLayers[name]);
+    }
+  });
+
+  // Add selected base layer to map
+  if (map && baseLayers[layerName]) {
+    baseLayers[layerName].addTo(map);
+  }
+
+  currentLayerName = layerName;
+  localStorage.setItem('gps_tambang_map_layer', layerName);
+
+  // Update UI active states
+  document.querySelectorAll('.layer-btn').forEach(btn => {
+    if (btn.getAttribute('data-layer') === layerName) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+}
+
+// Zoom & Fit Bounds to all fleet vehicles
+function fitFleetBounds() {
+  const activeMarkers = Object.values(markers);
+  if (activeMarkers.length === 0) return;
+
+  if (activeMarkers.length === 1) {
+    const latlng = activeMarkers[0].getLatLng();
+    map.setView(latlng, 16, { animate: true });
+    return;
+  }
+
+  const group = L.featureGroup(activeMarkers);
+  map.fitBounds(group.getBounds(), { padding: [70, 70], maxZoom: 17 });
 }
 
 // Check if device received data within 30 seconds
@@ -567,6 +617,22 @@ const searchInput = document.getElementById('search-input');
 if (searchInput) {
   searchInput.addEventListener('input', () => {
     renderFleetList();
+  });
+}
+
+// Map Layer Switcher Listeners
+document.querySelectorAll('.layer-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const layer = btn.getAttribute('data-layer');
+    if (layer) switchMapLayer(layer);
+  });
+});
+
+// Fit Fleet Bounds Listener
+const fitFleetBtn = document.getElementById('btn-fit-fleet');
+if (fitFleetBtn) {
+  fitFleetBtn.addEventListener('click', () => {
+    fitFleetBounds();
   });
 }
 

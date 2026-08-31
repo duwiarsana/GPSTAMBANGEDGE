@@ -70,6 +70,27 @@
 
       <!-- MAP SECTION -->
       <section class="map-section">
+        <!-- FLOATING MAP CONTROLS -->
+        <div class="map-controls-bar" id="map-controls-bar">
+          <div class="map-layer-selector">
+            <button class="layer-btn active" data-layer="satellite" title="Citra Satelit Tambang (Esri)">
+              <span class="layer-icon">🛰️</span> Satelit
+            </button>
+            <button class="layer-btn" data-layer="osm" title="Peta Jalan Standar (OpenStreetMap)">
+              <span class="layer-icon">🗺️</span> Jalan
+            </button>
+            <button class="layer-btn" data-layer="dark" title="Mode Gelap Command Center (Dark Matter)">
+              <span class="layer-icon">🌙</span> Dark Mode
+            </button>
+            <button class="layer-btn" data-layer="topo" title="Kontur Elevasi & Lereng (Topografi)">
+              <span class="layer-icon">🏔️</span> Topo
+            </button>
+          </div>
+          <button class="btn-fit-fleet" id="btn-fit-fleet" title="Zoom Pas ke Seluruh Posisi Armada">
+            🎯 Seluruh Armada
+          </button>
+        </div>
+
         <div id="map" class="map-view"></div>
 
         <!-- FLOATING TELEMETRY INSPECTOR -->
@@ -284,6 +305,6 @@
 
   <!-- Leaflet Map JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="app.js?v=3.6"></script>
+  <script src="app.js?v=3.7"></script>
 </body>
 </html>
