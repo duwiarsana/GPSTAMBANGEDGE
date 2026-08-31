@@ -79,8 +79,11 @@
               <span class="unit-icon" id="insp-icon">🚜</span>
               <h3 id="insp-id">EXCA01</h3>
             </div>
-            <span class="status-badge online" id="insp-status-badge">ONLINE</span>
-            <button class="btn-close-insp" id="close-inspector-btn">&times;</button>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span class="status-badge online" id="insp-status-badge">ONLINE</span>
+              <button class="btn-trail-toggle active" id="btn-trail-toggle" title="Tampilkan/Sembunyikan Jejak Rute Lintasan">🛣️ Jejak</button>
+              <button class="btn-close-insp" id="close-inspector-btn">&times;</button>
+            </div>
           </div>
 
           <div class="inspector-grid">
@@ -122,6 +125,11 @@
             <div class="coord-info" style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
               <span>📍 Koordinat: <strong id="insp-lat">-0.738881</strong>, <strong id="insp-lon">117.130152</strong></span>
               <span>📐 G-Sensor: <strong id="insp-gs">0, 0, 0</strong> <small>mg</small></span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+              <div class="trail-info-badge" id="insp-trail-count">
+                🛣️ Memuat jejak lintasan...
+              </div>
             </div>
             <div class="time-info-row">
               <div class="time-block">
@@ -276,6 +284,6 @@
 
   <!-- Leaflet Map JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="app.js?v=3.5"></script>
+  <script src="app.js?v=3.6"></script>
 </body>
 </html>

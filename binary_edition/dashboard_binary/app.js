@@ -257,6 +257,143 @@ function renderMarkers() {
   }
 }
 
+// ================= TRAJECTORY / BREADCRUMB TRAIL =================
+let trajectoryLayerGroup = null;
+let isTrajectoryVisible = true;
+let currentTrajectoryData = [];
+
+function clearTrajectory() {
+  if (trajectoryLayerGroup) {
+    map.removeLayer(trajectoryLayerGroup);
+    trajectoryLayerGroup = null;
+  }
+  currentTrajectoryData = [];
+  const trailBadge = document.getElementById('insp-trail-count');
+  if (trailBadge) {
+    trailBadge.innerText = '🛣️ Jejak Dinonaktifkan';
+  }
+}
+
+async function loadAndDrawTrajectory(src) {
+  if (!src) return;
+
+  if (trajectoryLayerGroup) {
+    map.removeLayer(trajectoryLayerGroup);
+    trajectoryLayerGroup = null;
+  }
+
+  const trailBadge = document.getElementById('insp-trail-count');
+
+  if (!isTrajectoryVisible) {
+    if (trailBadge) trailBadge.innerText = '🛣️ Jejak Dimatikan';
+    return;
+  }
+
+  if (trailBadge) {
+    trailBadge.innerText = '⏳ Mengambil jejak lintasan...';
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/telemetry/${encodeURIComponent(src)}?limit=500`);
+    if (!res.ok) throw new Error('Gagal memuat histori');
+    const rawData = await res.json();
+
+    // Filter valid coordinates & sort chronologically (oldest to newest)
+    const points = rawData
+      .filter(p => p.lat && p.lon && (p.lat !== 0 || p.lon !== 0))
+      .sort((a, b) => (a.timestamp_sec || 0) - (b.timestamp_sec || 0));
+
+    currentTrajectoryData = points;
+
+    if (points.length === 0) {
+      if (trailBadge) trailBadge.innerText = '🛣️ Belum ada histori jejak';
+      return;
+    }
+
+    const latlngs = points.map(p => [p.lat, p.lon]);
+    const group = L.featureGroup();
+
+    // 1. Aura Glow Polyline
+    const auraLine = L.polyline(latlngs, {
+      color: '#0284c7',
+      weight: 8,
+      opacity: 0.3,
+      lineCap: 'round',
+      lineJoin: 'round'
+    });
+    group.addLayer(auraLine);
+
+    // 2. Core Polyline
+    const isExca = src.toUpperCase().startsWith('EXCA');
+    const trailColor = isExca ? '#f59e0b' : '#38bdf8';
+    const mainLine = L.polyline(latlngs, {
+      color: trailColor,
+      weight: 3.5,
+      opacity: 0.95,
+      dashArray: '8, 6',
+      lineCap: 'round',
+      lineJoin: 'round'
+    });
+    group.addLayer(mainLine);
+
+    // 3. Start Point Flag (Titik Awal Lintasan)
+    if (points.length > 1) {
+      const startP = points[0];
+      const startIcon = L.divIcon({
+        className: 'custom-start-marker',
+        html: `
+          <div style="background:#10b981; width:20px; height:20px; border-radius:50%; border:2px solid #ffffff; box-shadow:0 0 8px rgba(16,185,129,0.9); display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff;">
+            🏁
+          </div>
+        `,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
+      });
+      const startMarker = L.marker([startP.lat, startP.lon], { icon: startIcon })
+        .bindPopup(`<strong>🏁 Titik Awal Rute</strong><br>Waktu: ${startP.ts || '—'}<br>Kecepatan: ${startP.spd} km/h`);
+      group.addLayer(startMarker);
+    }
+
+    // 4. Sample Breadcrumb Dots along the track
+    const step = Math.max(1, Math.floor(points.length / 25));
+    for (let i = 0; i < points.length - 1; i += step) {
+      const pt = points[i];
+      const isStopped = pt.spd === 0;
+      const dotIcon = L.divIcon({
+        className: 'custom-breadcrumb-marker',
+        html: `<div style="background:${isStopped ? '#ef4444' : trailColor}; width:7px; height:7px; border-radius:50%; border:1.5px solid #ffffff; box-shadow:0 0 3px rgba(0,0,0,0.6);"></div>`,
+        iconSize: [7, 7],
+        iconAnchor: [3.5, 3.5]
+      });
+      const dot = L.marker([pt.lat, pt.lon], { icon: dotIcon })
+        .bindTooltip(`⏱️ ${pt.ts}<br>⚡ ${pt.spd} km/h ${pt.ign ? '(IGN ON)' : '(IGN OFF)'}`, {
+          direction: 'top',
+          offset: [0, -4]
+        });
+      group.addLayer(dot);
+    }
+
+    trajectoryLayerGroup = group;
+    group.addTo(map);
+
+    if (trailBadge) {
+      const tStart = points[0].ts ? points[0].ts.slice(11, 16) : '';
+      const tEnd = points[points.length - 1].ts ? points[points.length - 1].ts.slice(11, 16) : '';
+      trailBadge.innerText = `🛣️ ${points.length.toLocaleString()} Titik Rute (${tStart} - ${tEnd})`;
+    }
+
+    // Smoothly fit map view to show full path
+    if (latlngs.length > 1) {
+      map.fitBounds(group.getBounds(), { padding: [60, 60], maxZoom: 16 });
+    }
+  } catch (err) {
+    console.error('Error loading trajectory:', err);
+    if (trailBadge) {
+      trailBadge.innerText = '⚠️ Gagal memuat jejak';
+    }
+  }
+}
+
 // Select Device & Open Inspector
 function selectDevice(src) {
   const dev = devicesData.find(d => d.src === src);
@@ -266,9 +403,11 @@ function selectDevice(src) {
   renderFleetList();
   updateInspector(dev);
 
+  // Load and render trajectory polyline path
+  loadAndDrawTrajectory(src);
+
   // Pan to marker
   if (markers[src]) {
-    map.setView([dev.lat, dev.lon], 16, { animate: true });
     markers[src].openPopup();
   }
 }
@@ -397,16 +536,39 @@ function updateInspector(d) {
 }
 
 // Event Listeners
-document.getElementById('close-inspector-btn').addEventListener('click', () => {
-  const inspector = document.getElementById('telemetry-inspector');
-  if (inspector) inspector.style.display = 'none';
-  selectedDevice = null;
-  renderFleetList();
-});
+const closeInspBtn = document.getElementById('close-inspector-btn');
+if (closeInspBtn) {
+  closeInspBtn.addEventListener('click', () => {
+    const inspector = document.getElementById('telemetry-inspector');
+    if (inspector) inspector.style.display = 'none';
+    selectedDevice = null;
+    clearTrajectory();
+    renderFleetList();
+  });
+}
 
-document.getElementById('search-input').addEventListener('input', () => {
-  renderFleetList();
-});
+const trailToggleBtn = document.getElementById('btn-trail-toggle');
+if (trailToggleBtn) {
+  trailToggleBtn.addEventListener('click', () => {
+    isTrajectoryVisible = !isTrajectoryVisible;
+    if (isTrajectoryVisible) {
+      trailToggleBtn.classList.add('active');
+      if (selectedDevice) {
+        loadAndDrawTrajectory(selectedDevice.src);
+      }
+    } else {
+      trailToggleBtn.classList.remove('active');
+      clearTrajectory();
+    }
+  });
+}
+
+const searchInput = document.getElementById('search-input');
+if (searchInput) {
+  searchInput.addEventListener('input', () => {
+    renderFleetList();
+  });
+}
 
 function triggerDownload(url) {
   const link = document.createElement('a');
