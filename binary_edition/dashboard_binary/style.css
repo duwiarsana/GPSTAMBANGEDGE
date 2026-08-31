@@ -1395,8 +1395,8 @@ body {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 58px;
-  background: rgba(255, 255, 255, 0.96);
+  height: 56px;
+  background: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-top: 1px solid #e2e8f0;
@@ -1420,7 +1420,7 @@ body {
   cursor: pointer;
   padding: 4px;
   border-radius: 8px;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
   position: relative;
   touch-action: manipulation;
 }
@@ -1471,12 +1471,49 @@ body {
   margin: 0 auto 8px auto;
 }
 
-/* MOBILE STATS MODAL */
-.mobile-stats-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+/* MOBILE STATS SCREEN VIEW */
+.mobile-stats-screen {
+  background: var(--bg-surface);
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 14px;
+}
+
+.mobile-stats-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.mobile-stats-header h2 {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.mobile-stats-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mobile-actions-card {
+  background: var(--bg-card-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 4px;
+}
+
+.mobile-actions-card h3 {
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
 }
 
 .m-stat-box {
@@ -1528,60 +1565,90 @@ body {
 
 /* ================= RESPONSIVE MOBILE & TABLET STYLES ================= */
 @media (max-width: 992px) {
-  .header {
-    padding: 8px 12px;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
   .header-metrics {
-    width: 100%;
-    justify-content: flex-start;
     overflow-x: auto;
-    padding-bottom: 2px;
-  }
-  .header-metrics::-webkit-scrollbar {
-    display: none;
-  }
-  .metric-chip {
-    flex: 0 0 auto;
   }
 }
 
 @media (max-width: 768px) {
+  /* CLEAN COMPACT MOBILE HEADER */
+  .header {
+    height: 48px;
+    padding: 6px 12px;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .header-metrics {
+    display: none !important;
+  }
+  .logo-title h1 {
+    font-size: 13px;
+  }
+  .sub-title {
+    display: none;
+  }
+  .logo-badge {
+    font-size: 9.5px;
+    padding: 2px 5px;
+  }
+
+  .btn-toggle-sidebar,
+  .btn-map-fleet-drawer,
+  .btn-close-sidebar,
+  .sidebar-backdrop {
+    display: none !important;
+  }
+
+  /* MOBILE 3-TAB VIEW SWITCHING */
   .mobile-bottom-nav {
-    display: grid;
-  }
-  .bottom-sheet-handle {
-    display: block;
+    display: grid !important;
   }
 
-  .btn-toggle-sidebar {
-    display: flex;
-  }
-  .btn-map-fleet-drawer {
-    display: flex;
-  }
-  .btn-close-sidebar {
-    display: flex;
+  .main-layout {
+    height: calc(100vh - 48px - 56px);
+    height: calc(100dvh - 48px - 56px);
+    overflow: hidden;
+    position: relative;
   }
 
-  .sidebar {
-    position: absolute;
-    top: 0;
-    bottom: 58px;
-    left: 0;
-    width: 320px;
-    max-width: 86vw;
-    z-index: 1100;
-    transform: translateX(-100%);
-    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+  /* 1. Map View (Default) */
+  .main-layout.view-map .map-section {
+    display: flex !important;
+    width: 100% !important;
+    height: 100% !important;
+  }
+  .main-layout.view-map #sidebar-fleet,
+  .main-layout.view-map #view-stats {
+    display: none !important;
   }
 
-  .sidebar.open {
-    transform: translateX(0);
+  /* 2. Fleet View */
+  .main-layout.view-fleet #sidebar-fleet {
+    display: flex !important;
+    width: 100% !important;
+    height: 100% !important;
+    position: static !important;
+    transform: none !important;
+    box-shadow: none !important;
+    border-right: none !important;
+  }
+  .main-layout.view-fleet .map-section,
+  .main-layout.view-fleet #view-stats {
+    display: none !important;
   }
 
+  /* 3. Stats View */
+  .main-layout.view-stats #view-stats {
+    display: flex !important;
+    width: 100% !important;
+    height: 100% !important;
+  }
+  .main-layout.view-stats .map-section,
+  .main-layout.view-stats #sidebar-fleet {
+    display: none !important;
+  }
+
+  /* FLOATING MAP CONTROLS ON MOBILE */
   .map-controls-bar {
     top: 8px;
     left: 8px;
@@ -1601,33 +1668,28 @@ body {
     font-size: 10px;
   }
 
+  /* BOTTOM SHEET TELEMETRY INSPECTOR ON MOBILE */
+  .bottom-sheet-handle {
+    display: block;
+  }
+
   .telemetry-inspector {
     position: fixed;
     top: auto;
-    bottom: 58px;
+    bottom: 56px;
     left: 0;
     right: 0;
     width: 100%;
     max-width: 100%;
-    max-height: 75vh;
+    max-height: 72vh;
     border-radius: 16px 16px 0 0;
-    padding: 10px 14px 16px 14px;
+    padding: 10px 14px 14px 14px;
     box-shadow: 0 -10px 30px rgba(15, 23, 42, 0.2);
     z-index: 1200;
   }
 }
 
 @media (max-width: 480px) {
-  .logo-title h1 {
-    font-size: 12px;
-  }
-  .sub-title {
-    display: none;
-  }
-  .logo-badge {
-    font-size: 9px;
-    padding: 2px 4px;
-  }
   .layer-btn {
     padding: 4px 5px;
     font-size: 9.5px;

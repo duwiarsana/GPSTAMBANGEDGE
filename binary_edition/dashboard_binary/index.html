@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <!-- Leaflet Map CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="style.css?v=2.3">
+  <link rel="stylesheet" href="style.css?v=5.1">
 </head>
 <body>
   <div class="app-container">
@@ -236,6 +236,46 @@
           </div>
         </div>
       </section>
+
+      <!-- MOBILE STATS VIEW (TAB RINGKASAN KHUSUS MOBILE) -->
+      <section class="mobile-stats-screen" id="view-stats" style="display: none;">
+        <div class="mobile-stats-header">
+          <h2>Ringkasan Operasional Tambang</h2>
+          <span class="badge">Live Telemetry</span>
+        </div>
+        <div class="mobile-stats-content">
+          <div class="m-stat-box">
+            <span class="m-stat-label">Total Armada Terdaftar</span>
+            <strong class="m-stat-val" id="m-stat-total-devices">0</strong>
+            <small>Unit Terdata di Sistem</small>
+          </div>
+          <div class="m-stat-box highlight-online">
+            <span class="m-stat-label">🟢 Unit Aktif (&le;30s)</span>
+            <strong class="m-stat-val" id="m-stat-active-devices">0</strong>
+            <small>Aktif Memancarkan Data</small>
+          </div>
+          <div class="m-stat-box highlight-packets">
+            <span class="m-stat-label">⚡ Paket Binary 64-Byte</span>
+            <strong class="m-stat-val" id="m-stat-total-packets">0</strong>
+            <small>Total Paket Terproses</small>
+          </div>
+          <div class="m-stat-box">
+            <span class="m-stat-label">📡 Status Koneksi Server</span>
+            <strong class="m-stat-val" style="color: #10b981; font-size: 13px;">CONNECTED</strong>
+            <small>WebSocket Live</small>
+          </div>
+
+          <div class="mobile-actions-card">
+            <h3>Ekspor & Manajemen Database</h3>
+            <button class="btn-primary" id="m-btn-open-export" style="width: 100%; justify-content: center; padding: 10px; margin-bottom: 8px;">
+              📥 Download / Export Database
+            </button>
+            <button class="btn-action-delete" id="m-btn-open-delete" style="width: 100%; justify-content: center; padding: 10px;">
+              🗑️ Hapus Data Database
+            </button>
+          </div>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -365,51 +405,6 @@
     </div>
   </div>
 
-  <!-- MOBILE SITE STATS MODAL (KHUSUS MOBILE) -->
-  <div class="modal-overlay" id="mobile-stats-modal" style="display: none;">
-    <div class="modal-card mobile-stats-card">
-      <div class="modal-header">
-        <div class="modal-title">
-          <span>📊</span>
-          <h3>Ringkasan Operasional Tambang</h3>
-        </div>
-        <button class="close-btn" id="close-mobile-stats-btn">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="mobile-stats-grid">
-          <div class="m-stat-box">
-            <span class="m-stat-label">Total Armada</span>
-            <strong class="m-stat-val" id="m-stat-total-devices">0</strong>
-            <small>Unit Terdaftar</small>
-          </div>
-          <div class="m-stat-box highlight-online">
-            <span class="m-stat-label">🟢 Unit Aktif</span>
-            <strong class="m-stat-val" id="m-stat-active-devices">0</strong>
-            <small>Online &le; 30s</small>
-          </div>
-          <div class="m-stat-box highlight-packets">
-            <span class="m-stat-label">⚡ Paket Binary</span>
-            <strong class="m-stat-val" id="m-stat-total-packets">0</strong>
-            <small>Data Terproses</small>
-          </div>
-          <div class="m-stat-box">
-            <span class="m-stat-label">📡 Koneksi Server</span>
-            <strong class="m-stat-val" style="color: #10b981; font-size: 13px;">CONNECTED</strong>
-            <small>WebSocket Live</small>
-          </div>
-        </div>
-        <div class="mobile-stats-actions">
-          <button class="btn-primary" id="m-btn-open-export" style="width: 100%; justify-content: center; padding: 10px;">
-            📥 Download / Export Database
-          </button>
-          <button class="btn-action-delete" id="m-btn-open-delete" style="width: 100%; justify-content: center; padding: 10px; margin-top: 6px;">
-            🗑️ Hapus Data Database
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- MOBILE BOTTOM NAVIGATION (KHUSUS MOBILE) -->
   <nav class="mobile-bottom-nav" id="mobile-bottom-nav">
     <button class="nav-tab-btn active" data-view="map" id="nav-btn-map">
@@ -429,6 +424,6 @@
 
   <!-- Leaflet Map JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="app.js?v=5.0"></script>
+  <script src="app.js?v=5.1"></script>
 </body>
 </html>

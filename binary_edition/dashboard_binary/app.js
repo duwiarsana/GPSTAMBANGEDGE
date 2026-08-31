@@ -191,44 +191,37 @@ function updateHeaderStats() {
   if (mTotDevs) mTotDevs.innerText = devicesData.length;
 }
 
-// Mobile & Tablet Sidebar Drawer Controls
-function openSidebarDrawer() {
-  const sidebar = document.getElementById('sidebar-fleet');
-  const backdrop = document.getElementById('sidebar-backdrop');
-  if (sidebar) sidebar.classList.add('open');
-  if (backdrop) backdrop.classList.add('active');
+// Dedicated Mobile Tab View Switcher (Peta | Armada | Ringkasan)
+let currentMobileView = 'map';
 
-  // Update mobile bottom nav state
-  updateMobileNavState('fleet');
-}
-
-function closeSidebarDrawer() {
-  const sidebar = document.getElementById('sidebar-fleet');
-  const backdrop = document.getElementById('sidebar-backdrop');
-  if (sidebar) sidebar.classList.remove('open');
-  if (backdrop) backdrop.classList.remove('active');
-
-  // Update mobile bottom nav state
-  updateMobileNavState('map');
-}
-
-function toggleSidebarDrawer() {
-  const sidebar = document.getElementById('sidebar-fleet');
-  if (sidebar && sidebar.classList.contains('open')) {
-    closeSidebarDrawer();
-  } else {
-    openSidebarDrawer();
+function switchMobileView(viewName) {
+  currentMobileView = viewName;
+  const mainLayout = document.querySelector('.main-layout');
+  if (mainLayout) {
+    mainLayout.classList.remove('view-map', 'view-fleet', 'view-stats');
+    mainLayout.classList.add(`view-${viewName}`);
   }
-}
 
-function updateMobileNavState(activeTab) {
+  // If switched to map, invalidate map size so Leaflet tiles render immediately
+  if (viewName === 'map' && map) {
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 100);
+  }
+
+  // Update bottom nav buttons active class
   document.querySelectorAll('.nav-tab-btn').forEach(btn => {
-    if (btn.getAttribute('data-view') === activeTab) {
+    if (btn.getAttribute('data-view') === viewName) {
       btn.classList.add('active');
     } else {
       btn.classList.remove('active');
     }
   });
+
+  // If switched to stats, refresh stats
+  if (viewName === 'stats') {
+    fetchStats();
+  }
 }
 
 function formatRelativeTime(dateStr) {
@@ -603,9 +596,9 @@ function selectDevice(src) {
   renderFleetList();
   updateInspector(dev);
 
-  // Auto-close sidebar drawer on mobile/tablet view
+  // Switch to map view immediately on mobile
   if (window.innerWidth <= 768) {
-    closeSidebarDrawer();
+    switchMobileView('map');
   }
 
   // Load and render trajectory polyline path
@@ -839,79 +832,18 @@ if (toggleSidebarBtn) {
   });
 }
 
-const mapDrawerBtn = document.getElementById('btn-map-fleet-drawer');
-if (mapDrawerBtn) {
-  mapDrawerBtn.addEventListener('click', () => {
-    openSidebarDrawer();
-  });
-}
-
-const closeSidebarBtn = document.getElementById('btn-close-sidebar');
-if (closeSidebarBtn) {
-  closeSidebarBtn.addEventListener('click', () => {
-    closeSidebarDrawer();
-  });
-}
-
-const sidebarBackdrop = document.getElementById('sidebar-backdrop');
-if (sidebarBackdrop) {
-  sidebarBackdrop.addEventListener('click', () => {
-    closeSidebarDrawer();
-  });
-}
-
 // Mobile Bottom Navigation Tabs Listener
-const navBtnMap = document.getElementById('nav-btn-map');
-if (navBtnMap) {
-  navBtnMap.addEventListener('click', () => {
-    closeSidebarDrawer();
-    closeMobileStatsModal();
-    updateMobileNavState('map');
+document.querySelectorAll('.nav-tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const view = btn.getAttribute('data-view');
+    if (view) switchMobileView(view);
   });
-}
+});
 
-const navBtnFleet = document.getElementById('nav-btn-fleet');
-if (navBtnFleet) {
-  navBtnFleet.addEventListener('click', () => {
-    closeMobileStatsModal();
-    openSidebarDrawer();
-    updateMobileNavState('fleet');
-  });
-}
-
-const navBtnStats = document.getElementById('nav-btn-stats');
-if (navBtnStats) {
-  navBtnStats.addEventListener('click', () => {
-    closeSidebarDrawer();
-    openMobileStatsModal();
-    updateMobileNavState('stats');
-  });
-}
-
-// Mobile Stats Modal Controls
-function openMobileStatsModal() {
-  const modal = document.getElementById('mobile-stats-modal');
-  if (modal) modal.style.display = 'flex';
-  fetchStats();
-}
-
-function closeMobileStatsModal() {
-  const modal = document.getElementById('mobile-stats-modal');
-  if (modal) modal.style.display = 'none';
-  updateMobileNavState('map');
-}
-
-const closeMobileStatsBtn = document.getElementById('close-mobile-stats-btn');
-if (closeMobileStatsBtn) {
-  closeMobileStatsBtn.addEventListener('click', () => {
-    closeMobileStatsModal();
-  });
-}
-
+// Mobile Stats Action Buttons (inside #view-stats)
 const mBtnOpenExport = document.getElementById('m-btn-open-export');
 if (mBtnOpenExport) {
   mBtnOpenExport.addEventListener('click', () => {
-    closeMobileStatsModal();
     if (typeof openModal === 'function') openModal();
   });
 }
@@ -919,7 +851,6 @@ if (mBtnOpenExport) {
 const mBtnOpenDelete = document.getElementById('m-btn-open-delete');
 if (mBtnOpenDelete) {
   mBtnOpenDelete.addEventListener('click', () => {
-    closeMobileStatsModal();
     if (typeof openDeleteModal === 'function') openDeleteModal();
   });
 }
@@ -1223,6 +1154,7 @@ if (confirmDeleteBtn) {
 // App Startup
 window.addEventListener('DOMContentLoaded', () => {
   initMap();
+  switchMobileView('map');
   fetchDevices();
   fetchStats();
 
