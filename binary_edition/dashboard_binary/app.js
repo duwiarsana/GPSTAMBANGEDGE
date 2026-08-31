@@ -333,11 +333,6 @@ function renderFleetList() {
         </div>
       </div>
     `;
-          <div>GPS: <strong>${d.ts}</strong></div>
-          <div>Server: <strong>${d.created_at || d.ts}</strong> <small>(${rxTimeRel})</small></div>
-        </div>
-      </div>
-    `;
   }).join('');
 }
 
