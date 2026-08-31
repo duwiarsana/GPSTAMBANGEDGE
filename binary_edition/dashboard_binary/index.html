@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <!-- Leaflet Map CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="style.css?v=5.3">
+  <link rel="stylesheet" href="style.css?v=6.0">
 </head>
 <body>
   <div class="app-container">
@@ -30,24 +30,35 @@
       </div>
 
       <div class="header-metrics">
-        <div class="metric-chip">
+        <div class="metric-chip chip-total" title="Total Seluruh Armada Terdaftar">
           <span class="chip-label">Total Armada</span>
           <span class="chip-val" id="total-devices">0</span>
         </div>
-        <div class="metric-chip active">
-          <span class="chip-label">Unit Aktif (&le;30s)</span>
-          <span class="chip-val" id="active-devices">0</span>
+        <div class="metric-chip chip-online" title="Armada Aktif Mengirim Data (&le;30 dtk)">
+          <span class="chip-label"><span class="status-dot-mini online"></span> Online</span>
+          <span class="chip-val" id="online-devices">0</span>
         </div>
-        <div class="metric-chip info">
-          <span class="chip-label">Paket Binary</span>
-          <span class="chip-val" id="total-packets">0</span>
+        <div class="metric-chip chip-stale" title="Armada Tidak Mengirim Data 30 dtk - 10 mnt">
+          <span class="chip-label"><span class="status-dot-mini stale"></span> Stale</span>
+          <span class="chip-val" id="stale-devices">0</span>
         </div>
-        <button class="btn-export-header" id="open-export-modal-btn">
-          📥 Unduh DB
-        </button>
-        <button class="btn-delete-header" id="open-delete-modal-btn">
-          🗑️ Hapus Data
-        </button>
+        <div class="metric-chip chip-offline" title="Armada Mati / Hilang Kontak (>10 mnt)">
+          <span class="chip-label"><span class="status-dot-mini offline"></span> Offline</span>
+          <span class="chip-val" id="offline-devices">0</span>
+        </div>
+
+        <div class="header-divider"></div>
+
+        <!-- SECONDARY DATABASE / ADMIN ACTIONS -->
+        <div class="header-admin-actions">
+          <button class="btn-export-header" id="open-export-modal-btn" title="Ekspor Database ke CSV">
+            📥 Unduh DB
+          </button>
+          <button class="btn-delete-header" id="open-delete-modal-btn" title="Hapus Data Database">
+            🗑️ Hapus Data
+          </button>
+        </div>
+
         <div class="status-indicator online" id="conn-status">
           <span class="status-dot"></span>
           <span class="status-text">CONNECTED</span>
@@ -82,6 +93,12 @@
             </button>
             <button class="filter-tab" data-filter="online" id="tab-filter-online">
               🟢 Online (<span id="filter-count-online">0</span>)
+            </button>
+            <button class="filter-tab" data-filter="stale" id="tab-filter-stale">
+              🟡 Stale (<span id="filter-count-stale">0</span>)
+            </button>
+            <button class="filter-tab" data-filter="offline" id="tab-filter-offline">
+              🔴 Offline (<span id="filter-count-offline">0</span>)
             </button>
             <button class="filter-tab" data-filter="exca" id="tab-filter-exca">
               🚜 Exca (<span id="filter-count-exca">0</span>)
@@ -126,10 +143,15 @@
         <!-- FLOATING TELEMETRY INSPECTOR / BOTTOM SHEET -->
         <div class="telemetry-inspector" id="telemetry-inspector" style="display: none;">
           <div class="bottom-sheet-handle"></div>
+
+          <!-- SECTION A: UNIT HEADER & HEALTH STATUS -->
           <div class="inspector-header">
             <div class="unit-id-badge">
               <span class="unit-icon" id="insp-icon">🚜</span>
-              <h3 id="insp-id">EXCA01</h3>
+              <div>
+                <h3 id="insp-id">EXCA01</h3>
+                <span class="unit-rx-age" id="insp-rx-age">⏱️ —</span>
+              </div>
             </div>
             <div class="insp-header-actions">
               <span class="status-badge online" id="insp-status-badge">ONLINE</span>
@@ -138,100 +160,117 @@
             </div>
           </div>
 
-          <!-- 2-COLUMN PRIMARY TELEMETRY GRID -->
-          <div class="inspector-grid">
-            <div class="insp-card">
-              <span class="card-label">Kecepatan</span>
-              <span class="card-value" id="insp-spd">0.0 <small>km/h</small></span>
+          <div class="inspector-content-scroll">
+            <!-- SECTION B: OPERATIONAL TELEMETRY -->
+            <div class="insp-section">
+              <div class="insp-section-title">⚡ Telemetri Operasional</div>
+              <div class="insp-oper-grid">
+                <div class="insp-data-item">
+                  <span class="data-label">Kecepatan</span>
+                  <span class="data-val-primary" id="insp-spd">0.0 <small>km/h</small></span>
+                </div>
+                <div class="insp-data-item">
+                  <span class="data-label">Kunci Kontak</span>
+                  <span class="badge-status-pill on" id="insp-ign">IGN ON</span>
+                </div>
+                <div class="insp-data-item">
+                  <span class="data-label">Status PTO (Dump)</span>
+                  <span class="badge-status-pill off" id="insp-pto">PTO OFF</span>
+                </div>
+                <div class="insp-data-item">
+                  <span class="data-label">Tegangan Aki</span>
+                  <span class="data-val" id="insp-bat">25.4 <small>V</small></span>
+                </div>
+                <div class="insp-data-item">
+                  <span class="data-label">Arah (Heading)</span>
+                  <span class="data-val" id="insp-hdg">0° <small>(N)</small></span>
+                </div>
+                <div class="insp-data-item">
+                  <span class="data-label">Driver iButton</span>
+                  <span class="data-val-mono" id="insp-ibutton">—</span>
+                </div>
+              </div>
             </div>
-            <div class="insp-card">
-              <span class="card-label">Kunci Kontak (Ignition)</span>
-              <span class="card-value badge-ign" id="insp-ign">ON</span>
-            </div>
-            <div class="insp-card">
-              <span class="card-label">Tegangan Aki</span>
-              <span class="card-value" id="insp-bat">25.4 <small>V</small></span>
-            </div>
-            <div class="insp-card">
-              <span class="card-label">Status PTO (Bak/Dump)</span>
-              <span class="card-value badge-ign" id="insp-pto">OFF</span>
-            </div>
-            <div class="insp-card">
-              <span class="card-label">Arah (Heading)</span>
-              <span class="card-value" id="insp-hdg">0 <small>°</small></span>
-            </div>
-            <div class="insp-card" style="border-color: rgba(16, 185, 129, 0.3);">
-              <span class="card-label">🔑 ID Driver</span>
-              <span class="card-value" id="insp-ibutton" style="font-size: 0.85rem; font-family: monospace; color: #10b981;">—</span>
-            </div>
-            <div class="insp-card" style="border-color: rgba(6, 182, 212, 0.3);">
-              <span class="card-label">📦 Total Database</span>
-              <span class="card-value" id="insp-total-db" style="color: var(--accent-cyan);">0 <small>record</small></span>
-            </div>
-            <div class="insp-card">
-              <span class="card-label">📱 IMEI Tracker</span>
-              <span class="card-value" id="insp-imei" style="font-size: 0.82rem; font-family: monospace;">—</span>
-            </div>
-          </div>
 
-          <!-- INCLINOMETER / G-SENSOR TILT GAUGE -->
-          <div class="tilt-gauge-container" id="insp-tilt-container">
-            <div class="tilt-gauge-header">
-              <div class="tilt-title">
-                <span class="tilt-icon">📐</span>
-                <span>Kemiringan Unit (Inclinometer K3)</span>
+            <!-- SECTION C: SAFETY / INCLINOMETER K3 -->
+            <div class="insp-section">
+              <div class="tilt-gauge-container" id="insp-tilt-container">
+                <div class="tilt-gauge-header">
+                  <div class="tilt-title">
+                    <span class="tilt-icon">📐</span>
+                    <span>Kemiringan Unit (Inclinometer K3)</span>
+                  </div>
+                  <span class="tilt-status-badge normal" id="insp-tilt-badge">0.0° NORMAL</span>
+                </div>
+                <div class="tilt-gauge-body">
+                  <div class="tilt-meter-box">
+                    <div class="tilt-meter-label">Kemiringan Total</div>
+                    <div class="tilt-meter-val" id="insp-tilt-total">0.0<small>°</small></div>
+                    <div class="tilt-bar-bg">
+                      <div class="tilt-bar-fill" id="insp-tilt-bar" style="width: 5%;"></div>
+                    </div>
+                  </div>
+                  <div class="tilt-sub-details">
+                    <div class="tilt-sub-item">
+                      <span class="sub-label">Roll (Samping):</span>
+                      <strong id="insp-tilt-roll">0.0° Datar</strong>
+                    </div>
+                    <div class="tilt-sub-item">
+                      <span class="sub-label">Pitch (Depan):</span>
+                      <strong id="insp-tilt-pitch">0.0° Rata</strong>
+                    </div>
+                    <div class="tilt-sub-item">
+                      <span class="sub-label">G-Sensor Raw:</span>
+                      <span id="insp-gs-raw" class="gs-raw-text">X:0, Y:0, Z:1000 mg</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <span class="tilt-status-badge normal" id="insp-tilt-badge">0.0° NORMAL</span>
             </div>
-            <div class="tilt-gauge-body">
-              <div class="tilt-meter-box">
-                <div class="tilt-meter-label">Kemiringan Total</div>
-                <div class="tilt-meter-val" id="insp-tilt-total">0.0<small>°</small></div>
-                <div class="tilt-bar-bg">
-                  <div class="tilt-bar-fill" id="insp-tilt-bar" style="width: 5%;"></div>
-                </div>
-              </div>
-              <div class="tilt-sub-details">
-                <div class="tilt-sub-item">
-                  <span class="sub-label">Roll (Samping):</span>
-                  <strong id="insp-tilt-roll">0.0° Datar</strong>
-                </div>
-                <div class="tilt-sub-item">
-                  <span class="sub-label">Pitch (Depan):</span>
-                  <strong id="insp-tilt-pitch">0.0° Rata</strong>
-                </div>
-                <div class="tilt-sub-item">
-                  <span class="sub-label">G-Sensor Raw:</span>
-                  <span id="insp-gs-raw" style="font-family: monospace; font-size: 9.5px; color: var(--text-secondary);">X:0, Y:0, Z:1000 mg</span>
-                </div>
-              </div>
-            </div>
-          </div>
 
-          <!-- FOOTER META & ACTIONS -->
-          <div class="inspector-footer">
-            <div class="coord-info">
-              <span>📍 <strong id="insp-lat">-0.738881</strong>, <strong id="insp-lon">117.130152</strong></span>
-              <span class="trail-info-badge" id="insp-trail-count">🛣️ Memuat jejak...</span>
-            </div>
-            <div class="time-info-row">
-              <div class="time-block">
-                <span class="time-title">📡 Terakhir Diterima:</span>
-                <strong id="insp-rx-time">—</strong>
-                <span class="time-rel-badge" id="insp-rx-rel"></span>
+            <!-- SECTION D & E: LOCATION & COMMUNICATION DELAY ANALYSIS -->
+            <div class="insp-section">
+              <div class="insp-section-title">📍 Lokasi & Waktu Komunikasi</div>
+              <div class="insp-loc-comm-box">
+                <div class="loc-row">
+                  <span class="loc-coords">📍 <strong id="insp-lat">-0.738881</strong>, <strong id="insp-lon">117.130152</strong></span>
+                  <span class="trail-info-badge" id="insp-trail-count">🛣️ Memuat jejak...</span>
+                </div>
+                
+                <div class="comm-delay-grid">
+                  <div class="comm-item">
+                    <span class="comm-label">⏱️ Waktu Rekam GPS:</span>
+                    <strong class="comm-val" id="insp-ts">—</strong>
+                  </div>
+                  <div class="comm-item">
+                    <span class="comm-label">📡 Waktu Terima Server:</span>
+                    <strong class="comm-val" id="insp-rx-time">—</strong>
+                  </div>
+                  <div class="comm-item full-width">
+                    <span class="comm-label">⏳ Selisih Unggah (Delay):</span>
+                    <div class="delay-val-row">
+                      <strong class="comm-val" id="insp-delay-val">—</strong>
+                      <span class="delay-tag" id="insp-delay-tag">Real-time</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div class="time-block">
-                <span class="time-title">⏱️ Waktu GPS:</span>
-                <strong id="insp-ts">—</strong>
-              </div>
             </div>
-            <div class="inspector-actions">
-              <button class="btn-action-download" id="insp-download-unit-btn">
-                📥 Unduh CSV Unit
-              </button>
-              <button class="btn-action-delete" id="insp-delete-unit-btn">
-                🗑️ Hapus Data Unit
-              </button>
+
+            <!-- SECTION F: TECHNICAL FOOTNOTE & ACTIONS -->
+            <div class="insp-tech-footer">
+              <div class="tech-meta-row">
+                <span>IMEI: <strong id="insp-imei">—</strong></span>
+                <span>Database: <strong id="insp-total-db">0</strong> rec</span>
+              </div>
+              <div class="inspector-actions">
+                <button class="btn-action-download" id="insp-download-unit-btn">
+                  📥 Unduh CSV Unit
+                </button>
+                <button class="btn-action-delete-subtle" id="insp-delete-unit-btn">
+                  🗑️ Hapus Data Unit
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -424,6 +463,6 @@
 
   <!-- Leaflet Map JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="app.js?v=5.3"></script>
+  <script src="app.js?v=6.0"></script>
 </body>
 </html>

@@ -86,30 +86,87 @@ function fitFleetBounds() {
   map.fitBounds(group.getBounds(), { padding: [70, 70], maxZoom: 17 });
 }
 
-// Check if device received data within 30 seconds
-function isDeviceOnline(d) {
-  if (!d) return false;
+// Centralized Fleet Health & Status Configuration
+const STATUS_CONFIG = {
+  ONLINE_THRESHOLD_SEC: 30,
+  STALE_THRESHOLD_SEC: 600 // 10 minutes (600 seconds)
+};
+
+// Evaluate device health status: 'online' | 'stale' | 'offline'
+function getDeviceHealthStatus(d) {
+  if (!d) return 'offline';
   const timeStr = d.created_at || d.ts;
-  if (!timeStr) return false;
+  if (!timeStr) return 'offline';
   try {
     const cleanStr = timeStr.includes('T') ? timeStr : timeStr.replace(' ', 'T') + 'Z';
     const rxTime = new Date(cleanStr).getTime();
     const now = Date.now();
     const diffSec = (now - rxTime) / 1000;
-    return diffSec >= 0 && diffSec <= 30;
+    if (isNaN(diffSec) || diffSec < 0) return 'online';
+    if (diffSec <= STATUS_CONFIG.ONLINE_THRESHOLD_SEC) return 'online';
+    if (diffSec <= STATUS_CONFIG.STALE_THRESHOLD_SEC) return 'stale';
+    return 'offline';
   } catch (e) {
-    return false;
+    return 'offline';
   }
 }
 
-// Create Custom Icon
-function createVehicleIcon(src, heading = 0, isOnline = true) {
+// Backward-compatible online check
+function isDeviceOnline(d) {
+  return getDeviceHealthStatus(d) === 'online';
+}
+
+// Calculate Upload Delay between device GPS timestamp and server received timestamp
+function calculateUploadDelay(gpsTs, serverTs) {
+  if (!gpsTs || !serverTs) return { text: '—', tag: 'Real-time', isDelayed: false, tagClass: 'realtime' };
+  try {
+    const tGps = new Date(gpsTs.includes('T') ? gpsTs : gpsTs.replace(' ', 'T') + 'Z').getTime();
+    const tSvr = new Date(serverTs.includes('T') ? serverTs : serverTs.replace(' ', 'T') + 'Z').getTime();
+    if (isNaN(tGps) || isNaN(tSvr)) return { text: '—', tag: 'Real-time', isDelayed: false, tagClass: 'realtime' };
+    const diffMs = Math.abs(tSvr - tGps);
+    const diffSec = Math.floor(diffMs / 1000);
+
+    if (diffSec < 60) {
+      return { text: `${diffSec} dtk`, tag: '⚡ Real-time', isDelayed: false, tagClass: 'realtime' };
+    }
+    if (diffSec < 3600) {
+      const m = Math.floor(diffSec / 60);
+      const s = diffSec % 60;
+      const isDelay = diffSec > 300;
+      return { text: `${m}m ${s}s`, tag: isDelay ? '⚠️ Tertunda' : '⚡ Real-time', isDelayed: isDelay, tagClass: isDelay ? 'delayed' : 'realtime' };
+    }
+    const hours = Math.floor(diffSec / 3600);
+    const mins = Math.floor((diffSec % 3600) / 60);
+    if (hours < 24) {
+      return { text: `${hours} jam ${mins} mnt`, tag: '⚠️ Tertunda', isDelayed: true, tagClass: 'delayed' };
+    }
+    const days = Math.floor(hours / 24);
+    const remHours = hours % 24;
+    return { text: `${days}h ${remHours}j ${mins}m`, tag: '📦 Buffer Sync', isDelayed: true, tagClass: 'delayed' };
+  } catch (e) {
+    return { text: '—', tag: 'Real-time', isDelayed: false, tagClass: 'realtime' };
+  }
+}
+
+// Create Custom Map Icon with Tri-State Status
+function createVehicleIcon(src, heading = 0, status = 'online') {
   const isExca = src.toUpperCase().startsWith('EXCA');
   const baseColor = isExca ? '#d97706' : '#0284c7';
-  const borderColor = isOnline ? '#16a34a' : '#dc2626';
-  const shadowGlow = isOnline ? '0 0 12px rgba(22,163,74,0.7)' : '0 0 6px rgba(220,38,38,0.4)';
+  let borderColor = '#10b981';
+  let shadowGlow = '0 0 10px rgba(16,185,129,0.7)';
+  let pulseClass = 'marker-pulse';
+
+  if (status === 'stale') {
+    borderColor = '#f59e0b';
+    shadowGlow = '0 0 6px rgba(245,158,11,0.6)';
+    pulseClass = '';
+  } else if (status === 'offline') {
+    borderColor = '#ef4444';
+    shadowGlow = '0 0 4px rgba(239,68,68,0.4)';
+    pulseClass = '';
+  }
+
   const symbol = isExca ? '🚜' : '🚛';
-  const pulseClass = isOnline ? 'marker-pulse' : '';
 
   const html = `
     <div class="custom-marker ${pulseClass}" style="transform: rotate(${heading}deg);">
@@ -158,37 +215,41 @@ async function fetchStats() {
     if (res.ok) {
       const data = await res.json();
       const totalPkts = Number(data.total_packets || 0).toLocaleString();
-      const totalDevs = data.total_devices || 0;
-      const onlineCount = devicesData.filter(d => isDeviceOnline(d)).length;
-
-      document.getElementById('total-packets').innerText = totalPkts;
-      document.getElementById('total-devices').innerText = totalDevs;
-      document.getElementById('active-devices').innerText = onlineCount;
-
-      // Mobile Stats Card
       const mTotPkts = document.getElementById('m-stat-total-packets');
       if (mTotPkts) mTotPkts.innerText = totalPkts;
-      const mTotDevs = document.getElementById('m-stat-total-devices');
-      if (mTotDevs) mTotDevs.innerText = totalDevs;
-      const mActDevs = document.getElementById('m-stat-active-devices');
-      if (mActDevs) mActDevs.innerText = onlineCount;
     }
   } catch (err) {}
 }
 
 function updateHeaderStats() {
-  const countStr = `${devicesData.length} Unit`;
+  const totalDevs = devicesData.length;
+  const countOnline = devicesData.filter(d => getDeviceHealthStatus(d) === 'online').length;
+  const countStale = devicesData.filter(d => getDeviceHealthStatus(d) === 'stale').length;
+  const countOffline = devicesData.filter(d => getDeviceHealthStatus(d) === 'offline').length;
+
+  const totalEl = document.getElementById('total-devices');
+  if (totalEl) totalEl.innerText = totalDevs;
+  const onlineEl = document.getElementById('online-devices') || document.getElementById('active-devices');
+  if (onlineEl) onlineEl.innerText = countOnline;
+  const staleEl = document.getElementById('stale-devices');
+  if (staleEl) staleEl.innerText = countStale;
+  const offlineEl = document.getElementById('offline-devices');
+  if (offlineEl) offlineEl.innerText = countOffline;
+
+  const countStr = `${totalDevs} Unit`;
   const badgeEl = document.getElementById('device-count-badge');
   if (badgeEl) badgeEl.innerText = countStr;
   const btnBadge = document.getElementById('btn-sidebar-badge');
-  if (btnBadge) btnBadge.innerText = devicesData.length;
+  if (btnBadge) btnBadge.innerText = totalDevs;
   const mapBadge = document.getElementById('map-drawer-badge');
-  if (mapBadge) mapBadge.innerText = devicesData.length;
+  if (mapBadge) mapBadge.innerText = totalDevs;
   const navBadge = document.getElementById('nav-fleet-count');
-  if (navBadge) navBadge.innerText = devicesData.length;
+  if (navBadge) navBadge.innerText = totalDevs;
 
   const mTotDevs = document.getElementById('m-stat-total-devices');
-  if (mTotDevs) mTotDevs.innerText = devicesData.length;
+  if (mTotDevs) mTotDevs.innerText = totalDevs;
+  const mActDevs = document.getElementById('m-stat-active-devices');
+  if (mActDevs) mActDevs.innerText = countOnline;
 }
 
 // Dedicated Mobile Tab View Switcher (Peta | Armada | Ringkasan)
@@ -309,9 +370,11 @@ function renderFleetList() {
   const searchEl = document.getElementById('search-input');
   const search = searchEl ? searchEl.value.toLowerCase() : '';
 
-  // Calculate counts for all 4 filter categories
+  // Calculate counts for all 6 filter categories
   const countAll = devicesData.length;
-  const countOnline = devicesData.filter(d => isDeviceOnline(d)).length;
+  const countOnline = devicesData.filter(d => getDeviceHealthStatus(d) === 'online').length;
+  const countStale = devicesData.filter(d => getDeviceHealthStatus(d) === 'stale').length;
+  const countOffline = devicesData.filter(d => getDeviceHealthStatus(d) === 'offline').length;
   const countExca = devicesData.filter(d => d.src.toUpperCase().startsWith('EXCA')).length;
   const countDt = devicesData.filter(d => d.src.toUpperCase().startsWith('DT')).length;
 
@@ -319,6 +382,10 @@ function renderFleetList() {
   if (elAll) elAll.innerText = countAll;
   const elOnline = document.getElementById('filter-count-online');
   if (elOnline) elOnline.innerText = countOnline;
+  const elStale = document.getElementById('filter-count-stale');
+  if (elStale) elStale.innerText = countStale;
+  const elOffline = document.getElementById('filter-count-offline');
+  if (elOffline) elOffline.innerText = countOffline;
   const elExca = document.getElementById('filter-count-exca');
   if (elExca) elExca.innerText = countExca;
   const elDt = document.getElementById('filter-count-dt');
@@ -329,7 +396,11 @@ function renderFleetList() {
 
   // Filter list by selected tab
   if (currentFleetFilter === 'online') {
-    filtered = filtered.filter(d => isDeviceOnline(d));
+    filtered = filtered.filter(d => getDeviceHealthStatus(d) === 'online');
+  } else if (currentFleetFilter === 'stale') {
+    filtered = filtered.filter(d => getDeviceHealthStatus(d) === 'stale');
+  } else if (currentFleetFilter === 'offline') {
+    filtered = filtered.filter(d => getDeviceHealthStatus(d) === 'offline');
   } else if (currentFleetFilter === 'exca') {
     filtered = filtered.filter(d => d.src.toUpperCase().startsWith('EXCA'));
   } else if (currentFleetFilter === 'dt') {
@@ -337,12 +408,12 @@ function renderFleetList() {
   }
 
   if (filtered.length === 0) {
-    container.innerHTML = '<div class="empty-state">Tidak ada unit sesuai filter.</div>';
+    container.innerHTML = '<div class="empty-state" style="padding: 20px; text-align: center; color: #94a3b8; font-size: 11px;">Tidak ada unit sesuai filter.</div>';
     return;
   }
 
   container.innerHTML = filtered.map(d => {
-    const isOnline = isDeviceOnline(d);
+    const status = getDeviceHealthStatus(d);
     const isSelected = selectedDevice && selectedDevice.src === d.src;
     const isExca = d.src.toUpperCase().startsWith('EXCA');
     const icon = isExca ? '🚜' : '🚛';
@@ -370,44 +441,33 @@ function renderFleetList() {
     const gz = gs.z ?? d.gs_z ?? 0;
     const tilt = calculateTilt(gx, gy, gz);
 
-    const imeiBadge = d.imei ? `<span style="font-size: 0.72rem; color: #64748b; font-family: monospace;">IMEI: ${d.imei}</span>` : '';
-    const stBadge = d.ibutton ? (d.ibutton_status || (d.raw_payload?.ibutton_login ? 'LOGIN' : 'LOGOUT')).toUpperCase() : '';
-    const ibuttonBadge = d.ibutton ? `<span style="font-size: 0.72rem; color: #10b981; font-weight: 700; font-family: monospace;">🔑 ID: ${d.ibutton} (${stBadge})</span>` : '';
-
     return `
-      <div class="fleet-card ${isSelected ? 'selected' : ''}" onclick="selectDevice('${d.src}')">
+      <div class="fleet-card ${status} ${isSelected ? 'selected' : ''}" onclick="selectDevice('${d.src}')">
         <div class="fleet-card-header">
           <div class="fleet-title">
-            <span class="status-dot-sm ${isOnline ? 'online' : 'offline'}"></span>
+            <span class="status-dot-sm ${status}"></span>
             <span>${icon}</span>
-            <div style="display: flex; flex-direction: column; gap: 1px;">
-              <span>${d.src}</span>
-              ${imeiBadge}
-              ${ibuttonBadge}
-            </div>
+            <span>${d.src}</span>
           </div>
-          <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 3px;">
-            <span class="fleet-badge ${isOnline ? 'online' : 'offline'}">
-              ${isOnline ? 'ONLINE' : 'OFFLINE'}
-            </span>
+          <div style="display: flex; align-items: center; gap: 4px;">
             <span class="fleet-tilt-badge ${tilt.status}" title="Kemiringan Unit K3">
               📐 ${tilt.tilt}°
             </span>
+            <span class="fleet-badge ${status}">
+              ${status.toUpperCase()}
+            </span>
           </div>
         </div>
-        <div class="fleet-info-grid">
-          <div>Spd: <strong>${d.spd} km/h</strong></div>
-          <div>Bat: <strong>${d.bat} V</strong></div>
-          <div>Ign: <strong style="color: ${d.ign ? '#10b981' : '#ef4444'}">${d.ign ? 'ON' : 'OFF'}</strong></div>
-          <div>PTO: <strong style="color: ${isPtoOn ? '#f59e0b' : '#64748b'}">${isPtoOn ? 'ON' : 'OFF'}</strong></div>
+        <div class="fleet-oper-row">
+          <span>⚡ <strong>${d.spd}</strong> km/h</span>
+          <span>🔑 <strong style="color: ${d.ign ? '#10b981' : '#ef4444'}">${d.ign ? 'ON' : 'OFF'}</strong></span>
+          <span>📦 <strong style="color: ${isPtoOn ? '#f59e0b' : '#64748b'}">${isPtoOn ? 'ON' : 'OFF'}</strong></span>
+          <span>🔋 <strong>${d.bat}V</strong></span>
         </div>
-        <div class="fleet-db-count">
-          <span>Database Record:</span>
-          <strong>${Number(d.total_records || d.count || 0).toLocaleString()}</strong>
-        </div>
-        <div class="fleet-time-row">
-          <div>GPS: <strong>${d.ts}</strong></div>
-          <div>Server: <strong>${d.created_at || d.ts}</strong> <small>(${rxTimeRel})</small></div>
+        <div class="fleet-meta-row">
+          <span>⏱️ ${rxTimeRel}</span>
+          <span>📍 GPS: <strong>${d.ts ? d.ts.slice(11, 19) : '—'}</strong></span>
+          <span>📦 <strong>${Number(d.total_records || d.count || 0).toLocaleString()}</strong> rec</span>
         </div>
       </div>
     `;
@@ -422,8 +482,8 @@ function renderMarkers() {
     currentSrcs.add(d.src);
     if (!d.lat || !d.lon || (d.lat === 0 && d.lon === 0)) return;
 
-    const isOnline = isDeviceOnline(d);
-    const icon = createVehicleIcon(d.src, d.hdg || 0, isOnline);
+    const status = getDeviceHealthStatus(d);
+    const icon = createVehicleIcon(d.src, d.hdg || 0, status);
 
     if (markers[d.src]) {
       markers[d.src].setLatLng([d.lat, d.lon]);
@@ -572,7 +632,7 @@ async function loadAndDrawTrajectory(src) {
     if (trailBadge) {
       const tStart = points[0].ts ? points[0].ts.slice(11, 16) : '';
       const tEnd = points[points.length - 1].ts ? points[points.length - 1].ts.slice(11, 16) : '';
-      trailBadge.innerText = `🛣️ ${points.length.toLocaleString()} Titik Rute (${tStart} - ${tEnd})`;
+      trailBadge.innerText = `🛣️ ${points.length.toLocaleString()} Titik (${tStart} - ${tEnd})`;
     }
 
     // Smoothly fit map view to show full path
@@ -614,32 +674,35 @@ function selectDevice(src) {
 
 function updateInspector(d) {
   const inspector = document.getElementById('telemetry-inspector');
-  if (inspector) inspector.style.display = 'block';
+  if (inspector) inspector.style.display = 'flex';
 
-  const isOnline = isDeviceOnline(d);
+  const status = getDeviceHealthStatus(d);
   const isExca = d.src.toUpperCase().startsWith('EXCA');
   const iconEl = document.getElementById('insp-icon');
   if (iconEl) iconEl.innerText = isExca ? '🚜' : '🚛';
-  const idEl = document.getElementById('insp-id') || document.getElementById('insp-unit-id');
+  const idEl = document.getElementById('insp-id');
   if (idEl) idEl.innerText = d.src;
-  
-  const statusBadge = document.getElementById('insp-status-badge') || document.getElementById('insp-status');
+
+  const rxTime = d.created_at || d.ts;
+  const rxRel = formatRelativeTime(rxTime);
+  const rxAgeEl = document.getElementById('insp-rx-age');
+  if (rxAgeEl) rxAgeEl.innerText = `⏱️ ${rxRel}`;
+
+  const statusBadge = document.getElementById('insp-status-badge');
   if (statusBadge) {
-    statusBadge.innerText = isOnline ? 'ONLINE' : 'OFFLINE';
-    statusBadge.className = `fleet-badge ${isOnline ? 'online' : 'offline'}`;
+    statusBadge.innerText = status.toUpperCase();
+    statusBadge.className = `status-badge ${status}`;
   }
 
+  // Section B: Operational Telemetry
   const spdEl = document.getElementById('insp-spd');
   if (spdEl) spdEl.innerHTML = `${d.spd} <small>km/h</small>`;
 
   const ignEl = document.getElementById('insp-ign');
   if (ignEl) {
-    ignEl.innerText = d.ign ? 'ON' : 'OFF';
-    ignEl.className = `card-value badge-ign ${d.ign ? 'on' : 'off'}`;
+    ignEl.innerText = d.ign ? 'IGN ON' : 'IGN OFF';
+    ignEl.className = `badge-status-pill ${d.ign ? 'on' : 'off'}`;
   }
-
-  const batEl = document.getElementById('insp-bat');
-  if (batEl) batEl.innerHTML = `${d.bat} <small>V</small>`;
 
   // Parse PTO (Bit0 of input_status / in)
   let isPtoOn = false;
@@ -656,63 +719,34 @@ function updateInspector(d) {
   }
   const ptoEl = document.getElementById('insp-pto');
   if (ptoEl) {
-    ptoEl.innerText = isPtoOn ? 'ON' : 'OFF';
-    ptoEl.className = `card-value badge-ign ${isPtoOn ? 'on' : 'off'}`;
+    ptoEl.innerText = isPtoOn ? 'PTO ON' : 'PTO OFF';
+    ptoEl.className = `badge-status-pill ${isPtoOn ? 'on' : 'off'}`;
   }
 
-  const odoEl = document.getElementById('insp-odo');
-  if (odoEl) {
-    odoEl.innerHTML = `${Number(d.odo || 0).toLocaleString()} <small>m</small>`;
-  }
-  
+  const batEl = document.getElementById('insp-bat');
+  if (batEl) batEl.innerHTML = `${d.bat} <small>V</small>`;
+
   const hdg = d.hdg ?? 0;
   const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
   const dir = directions[Math.round(hdg / 45) % 8];
   const hdgEl = document.getElementById('insp-hdg');
   if (hdgEl) hdgEl.innerHTML = `${hdg}° <small>(${dir})</small>`;
 
-  // Total data di database
-  const totalDbEl = document.getElementById('insp-total-db');
-  if (totalDbEl) {
-    totalDbEl.innerHTML = `${Number(d.total_records || d.count || 0).toLocaleString()} <small>record</small>`;
-  }
-
-  // IMEI Tracker
-  const imeiEl = document.getElementById('insp-imei');
-  if (imeiEl) {
-    imeiEl.innerText = d.imei || '—';
-  }
-
-  // iButton Driver ID
   const ibuttonEl = document.getElementById('insp-ibutton');
   if (ibuttonEl) {
     if (d.ibutton) {
       const st = (d.ibutton_status || (d.raw_payload?.ibutton_login ? 'LOGIN' : 'LOGOUT')).toUpperCase();
-      const isLogin = st === 'LOGIN';
-      const stBg = isLogin ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)';
-      const stBorder = isLogin ? '#10b981' : '#f59e0b';
-      const stColor = isLogin ? '#10b981' : '#f59e0b';
-      ibuttonEl.innerHTML = `${d.ibutton} <span style="font-size: 0.68rem; background: ${stBg}; border: 1px solid ${stBorder}; color: ${stColor}; padding: 1px 5px; border-radius: 4px; vertical-align: middle; margin-left: 4px; font-weight: 800;">${st}</span>`;
-      ibuttonEl.style.color = '#10b981';
-      ibuttonEl.style.fontWeight = '700';
+      ibuttonEl.innerText = `${d.ibutton} (${st})`;
     } else {
       ibuttonEl.innerText = '—';
-      ibuttonEl.style.color = '#94a3b8';
-      ibuttonEl.style.fontWeight = '400';
     }
   }
 
-  const latEl = document.getElementById('insp-lat');
-  if (latEl) latEl.innerText = d.lat;
-  const lonEl = document.getElementById('insp-lon');
-  if (lonEl) lonEl.innerText = d.lon;
-
-  // G-Sensor (X, Y, Z) & Inclinometer Tilt Gauge
+  // Section C: Safety & Inclinometer
   const gs = d.raw_payload?.gs || {};
   const gx = gs.x ?? d.gs_x ?? 0;
   const gy = gs.y ?? d.gs_y ?? 0;
   const gz = gs.z ?? d.gs_z ?? 0;
-
   const tiltInfo = calculateTilt(gx, gy, gz);
 
   const tiltBadge = document.getElementById('insp-tilt-badge');
@@ -742,24 +776,34 @@ function updateInspector(d) {
   const gsRawEl = document.getElementById('insp-gs-raw');
   if (gsRawEl) gsRawEl.innerText = `X:${gx}, Y:${gy}, Z:${gz} mg`;
 
-  const gsEl = document.getElementById('insp-gs');
-  if (gsEl) gsEl.innerText = `${gx}, ${gy}, ${gz}`;
+  // Section D & E: Location, Comm & Upload Delay
+  const latEl = document.getElementById('insp-lat');
+  if (latEl) latEl.innerText = d.lat;
+  const lonEl = document.getElementById('insp-lon');
+  if (lonEl) lonEl.innerText = d.lon;
 
-  // Timestamp GPS
   const tsEl = document.getElementById('insp-ts');
   if (tsEl) tsEl.innerText = d.ts || '—';
 
-  // Waktu Server Terima Data
   const rxEl = document.getElementById('insp-rx-time');
-  const rxRelEl = document.getElementById('insp-rx-rel');
-  if (rxEl) {
-    const rxTime = d.created_at || d.ts;
-    rxEl.innerText = rxTime || '—';
-    if (rxRelEl) {
-      const rel = formatRelativeTime(rxTime);
-      rxRelEl.innerText = rel ? `(${rel})` : '';
-      rxRelEl.className = `time-rel-badge ${isOnline ? 'online' : 'offline'}`;
-    }
+  if (rxEl) rxEl.innerText = rxTime || '—';
+
+  const delayInfo = calculateUploadDelay(d.ts, rxTime);
+  const delayValEl = document.getElementById('insp-delay-val');
+  if (delayValEl) delayValEl.innerText = delayInfo.text;
+  const delayTagEl = document.getElementById('insp-delay-tag');
+  if (delayTagEl) {
+    delayTagEl.innerText = delayInfo.tag;
+    delayTagEl.className = `delay-tag ${delayInfo.tagClass}`;
+  }
+
+  // Section F: Technical Footnote
+  const imeiEl = document.getElementById('insp-imei');
+  if (imeiEl) imeiEl.innerText = d.imei || '—';
+
+  const totalDbEl = document.getElementById('insp-total-db');
+  if (totalDbEl) {
+    totalDbEl.innerText = Number(d.total_records || d.count || 0).toLocaleString();
   }
 }
 
