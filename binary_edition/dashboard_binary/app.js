@@ -18,8 +18,6 @@ function initMap() {
     zoomControl: false
   }).setView([-0.7388, 117.1301], 14);
 
-  L.control.zoom({ position: 'topright' }).addTo(map);
-
   // 1. Citra Satelit Esri (Tambang)
   baseLayers.satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     attribution: 'Tiles &copy; Esri &mdash; World Imagery',
