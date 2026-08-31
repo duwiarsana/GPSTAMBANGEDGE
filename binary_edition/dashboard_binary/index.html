@@ -139,6 +139,40 @@
             </div>
           </div>
 
+          <!-- INCLINOMETER / G-SENSOR TILT GAUGE -->
+          <div class="tilt-gauge-container" id="insp-tilt-container">
+            <div class="tilt-gauge-header">
+              <div class="tilt-title">
+                <span class="tilt-icon">📐</span>
+                <span>Kemiringan Alat Berat (Inclinometer K3)</span>
+              </div>
+              <span class="tilt-status-badge normal" id="insp-tilt-badge">0.0° NORMAL</span>
+            </div>
+            <div class="tilt-gauge-body">
+              <div class="tilt-meter-box">
+                <div class="tilt-meter-label">Kemiringan Total</div>
+                <div class="tilt-meter-val" id="insp-tilt-total">0.0<small>°</small></div>
+                <div class="tilt-bar-bg">
+                  <div class="tilt-bar-fill" id="insp-tilt-bar" style="width: 5%;"></div>
+                </div>
+              </div>
+              <div class="tilt-sub-details">
+                <div class="tilt-sub-item">
+                  <span class="sub-label">Roll (Kemiringan Samping):</span>
+                  <strong id="insp-tilt-roll">0.0° (Datar)</strong>
+                </div>
+                <div class="tilt-sub-item">
+                  <span class="sub-label">Pitch (Nanjak / Turun):</span>
+                  <strong id="insp-tilt-pitch">0.0° (Rata)</strong>
+                </div>
+                <div class="tilt-sub-item">
+                  <span class="sub-label">Akselerasi G-Sensor:</span>
+                  <span id="insp-gs-raw" style="font-family: monospace; font-size: 10px; color: var(--text-secondary);">X:0, Y:0, Z:1000 mg</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="inspector-footer">
             <div class="coord-info" style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
               <span>📍 Koordinat: <strong id="insp-lat">-0.738881</strong>, <strong id="insp-lon">117.130152</strong></span>
@@ -302,6 +336,6 @@
 
   <!-- Leaflet Map JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="app.js?v=3.8"></script>
+  <script src="app.js?v=3.9"></script>
 </body>
 </html>

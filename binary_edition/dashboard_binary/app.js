@@ -191,6 +191,64 @@ function formatRelativeTime(dateStr) {
   }
 }
 
+// Calculate Inclinometer Tilt, Roll, Pitch from G-Sensor (mg)
+function calculateTilt(gx, gy, gz) {
+  const x = Number(gx || 0);
+  const y = Number(gy || 0);
+  const z = Number(gz || 0);
+
+  if (x === 0 && y === 0 && z === 0) {
+    return {
+      tilt: 0,
+      roll: 0,
+      pitch: 0,
+      status: 'normal',
+      statusText: '0.0° NORMAL',
+      rollText: '0.0° (Datar)',
+      pitchText: '0.0° (Rata)',
+      color: '#10b981',
+      percent: 3
+    };
+  }
+
+  // Pitch (incline forward/backward in degrees)
+  const pitchRad = Math.atan2(y, Math.sqrt(x * x + z * z));
+  const pitchDeg = (pitchRad * 180) / Math.PI;
+
+  // Roll (tilt lateral left/right in degrees)
+  const rollRad = Math.atan2(x, Math.sqrt(y * y + z * z));
+  const rollDeg = (rollRad * 180) / Math.PI;
+
+  // Total absolute tilt angle from flat horizontal plane
+  const tiltDeg = Math.sqrt(pitchDeg * pitchDeg + rollDeg * rollDeg);
+
+  let status = 'normal';
+  let color = '#10b981';
+  if (tiltDeg > 18) {
+    status = 'danger';
+    color = '#ef4444';
+  } else if (tiltDeg >= 10) {
+    status = 'warning';
+    color = '#d97706';
+  }
+
+  const rollDirection = rollDeg > 0.5 ? 'Miring Kanan' : (rollDeg < -0.5 ? 'Miring Kiri' : 'Datar');
+  const pitchDirection = pitchDeg > 0.5 ? 'Nanjak' : (pitchDeg < -0.5 ? 'Turun' : 'Rata');
+  const percent = Math.min(100, Math.max(4, (tiltDeg / 25) * 100));
+
+  return {
+    tilt: parseFloat(tiltDeg.toFixed(1)),
+    roll: parseFloat(Math.abs(rollDeg).toFixed(1)),
+    pitch: parseFloat(Math.abs(pitchDeg).toFixed(1)),
+    status: status,
+    statusText: `${tiltDeg.toFixed(1)}° ${status.toUpperCase()}`,
+    rollText: `${Math.abs(rollDeg).toFixed(1)}° (${rollDirection})`,
+    pitchText: `${Math.abs(pitchDeg).toFixed(1)}° (${pitchDirection})`,
+    color: color,
+    percent: percent
+  };
+}
+
 // Render Sidebar List
 function renderFleetList() {
   const container = document.getElementById('fleet-list') || document.getElementById('fleet-list-container');
@@ -227,6 +285,13 @@ function renderFleetList() {
 
     const rxTimeRel = formatRelativeTime(d.created_at || d.ts);
 
+    // G-Sensor & Tilt
+    const gs = d.raw_payload?.gs || {};
+    const gx = gs.x ?? d.gs_x ?? 0;
+    const gy = gs.y ?? d.gs_y ?? 0;
+    const gz = gs.z ?? d.gs_z ?? 0;
+    const tilt = calculateTilt(gx, gy, gz);
+
     const imeiBadge = d.imei ? `<span style="font-size: 0.72rem; color: #64748b; font-family: monospace;">IMEI: ${d.imei}</span>` : '';
     const stBadge = d.ibutton ? (d.ibutton_status || (d.raw_payload?.ibutton_login ? 'LOGIN' : 'LOGOUT')).toUpperCase() : '';
     const ibuttonBadge = d.ibutton ? `<span style="font-size: 0.72rem; color: #10b981; font-weight: 700; font-family: monospace;">🔑 ID: ${d.ibutton} (${stBadge})</span>` : '';
@@ -243,9 +308,14 @@ function renderFleetList() {
               ${ibuttonBadge}
             </div>
           </div>
-          <span class="fleet-badge ${isOnline ? 'online' : 'offline'}">
-            ${isOnline ? 'ONLINE' : 'OFFLINE'}
-          </span>
+          <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 3px;">
+            <span class="fleet-badge ${isOnline ? 'online' : 'offline'}">
+              ${isOnline ? 'ONLINE' : 'OFFLINE'}
+            </span>
+            <span class="fleet-tilt-badge ${tilt.status}" title="Kemiringan Unit K3">
+              📐 ${tilt.tilt}°
+            </span>
+          </div>
         </div>
         <div class="fleet-info-grid">
           <div>Spd: <strong>${d.spd} km/h</strong></div>
@@ -258,6 +328,11 @@ function renderFleetList() {
           <strong>${Number(d.total_records || d.count || 0).toLocaleString()}</strong>
         </div>
         <div class="fleet-time-row">
+          <div>GPS: <strong>${d.ts}</strong></div>
+          <div>Server: <strong>${d.created_at || d.ts}</strong> <small>(${rxTimeRel})</small></div>
+        </div>
+      </div>
+    `;
           <div>GPS: <strong>${d.ts}</strong></div>
           <div>Server: <strong>${d.created_at || d.ts}</strong> <small>(${rxTimeRel})</small></div>
         </div>
@@ -552,15 +627,43 @@ function updateInspector(d) {
   const lonEl = document.getElementById('insp-lon');
   if (lonEl) lonEl.innerText = d.lon;
 
-  // G-Sensor (X, Y, Z)
-  const gsEl = document.getElementById('insp-gs');
-  if (gsEl) {
-    const gs = d.raw_payload?.gs || {};
-    const gx = gs.x ?? d.gs_x ?? 0;
-    const gy = gs.y ?? d.gs_y ?? 0;
-    const gz = gs.z ?? d.gs_z ?? 0;
-    gsEl.innerText = `${gx}, ${gy}, ${gz}`;
+  // G-Sensor (X, Y, Z) & Inclinometer Tilt Gauge
+  const gs = d.raw_payload?.gs || {};
+  const gx = gs.x ?? d.gs_x ?? 0;
+  const gy = gs.y ?? d.gs_y ?? 0;
+  const gz = gs.z ?? d.gs_z ?? 0;
+
+  const tiltInfo = calculateTilt(gx, gy, gz);
+
+  const tiltBadge = document.getElementById('insp-tilt-badge');
+  if (tiltBadge) {
+    tiltBadge.innerText = tiltInfo.statusText;
+    tiltBadge.className = `tilt-status-badge ${tiltInfo.status}`;
   }
+
+  const tiltTotalEl = document.getElementById('insp-tilt-total');
+  if (tiltTotalEl) {
+    tiltTotalEl.innerHTML = `${tiltInfo.tilt}<small>°</small>`;
+    tiltTotalEl.style.color = tiltInfo.color;
+  }
+
+  const tiltBarEl = document.getElementById('insp-tilt-bar');
+  if (tiltBarEl) {
+    tiltBarEl.style.width = `${tiltInfo.percent}%`;
+    tiltBarEl.style.background = tiltInfo.color;
+  }
+
+  const tiltRollEl = document.getElementById('insp-tilt-roll');
+  if (tiltRollEl) tiltRollEl.innerText = tiltInfo.rollText;
+
+  const tiltPitchEl = document.getElementById('insp-tilt-pitch');
+  if (tiltPitchEl) tiltPitchEl.innerText = tiltInfo.pitchText;
+
+  const gsRawEl = document.getElementById('insp-gs-raw');
+  if (gsRawEl) gsRawEl.innerText = `X:${gx}, Y:${gy}, Z:${gz} mg`;
+
+  const gsEl = document.getElementById('insp-gs');
+  if (gsEl) gsEl.innerText = `${gx}, ${gy}, ${gz}`;
 
   // Timestamp GPS
   const tsEl = document.getElementById('insp-ts');

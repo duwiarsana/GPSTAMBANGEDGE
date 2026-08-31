@@ -624,6 +624,166 @@ body {
   }
 }
 
+/* ================= TILT / INCLINOMETER WIDGET ================= */
+.tilt-gauge-container {
+  background: var(--bg-card-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  transition: all 0.2s ease;
+}
+
+.tilt-gauge-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.tilt-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.tilt-status-badge {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.tilt-status-badge.normal {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.tilt-status-badge.warning {
+  background: rgba(245, 158, 11, 0.15);
+  color: #d97706;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.tilt-status-badge.danger {
+  background: rgba(239, 68, 68, 0.18);
+  color: #dc2626;
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  animation: pulse-danger 1.5s infinite;
+}
+
+@keyframes pulse-danger {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+.tilt-gauge-body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tilt-meter-box {
+  flex: 0 0 100px;
+  text-align: center;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  padding: 6px 8px;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.tilt-meter-label {
+  font-size: 9px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.tilt-meter-val {
+  font-size: 18px;
+  font-weight: 900;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.tilt-meter-val small {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.tilt-bar-bg {
+  width: 100%;
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 3px;
+  margin-top: 4px;
+  overflow: hidden;
+}
+
+.tilt-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: #10b981;
+  transition: width 0.3s ease, background 0.3s ease;
+}
+
+.tilt-sub-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+}
+
+.tilt-sub-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tilt-sub-item .sub-label {
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.tilt-sub-item strong {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.fleet-tilt-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.fleet-tilt-badge.normal {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+}
+
+.fleet-tilt-badge.warning {
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+}
+
+.fleet-tilt-badge.danger {
+  background: rgba(239, 68, 68, 0.15);
+  color: #dc2626;
+  font-weight: 800;
+}
+
 .inspector-grid,
 .inspector-body {
   display: grid;
