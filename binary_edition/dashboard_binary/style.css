@@ -1072,6 +1072,9 @@ body {
   justify-content: center;
   gap: 4px;
   cursor: pointer;
+  transition: all 0.2s ease;
+}
+
 /* MODAL STYLES */
 .modal-overlay {
   position: fixed;
