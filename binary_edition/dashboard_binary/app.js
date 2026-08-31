@@ -157,12 +157,21 @@ async function fetchStats() {
     const res = await fetch(`${API_BASE}/api/stats`);
     if (res.ok) {
       const data = await res.json();
-      document.getElementById('total-packets').innerText = Number(data.total_packets || 0).toLocaleString();
-      document.getElementById('total-devices').innerText = data.total_devices || 0;
-      
-      // Calculate active devices <= 30s directly from devicesData
+      const totalPkts = Number(data.total_packets || 0).toLocaleString();
+      const totalDevs = data.total_devices || 0;
       const onlineCount = devicesData.filter(d => isDeviceOnline(d)).length;
+
+      document.getElementById('total-packets').innerText = totalPkts;
+      document.getElementById('total-devices').innerText = totalDevs;
       document.getElementById('active-devices').innerText = onlineCount;
+
+      // Mobile Stats Card
+      const mTotPkts = document.getElementById('m-stat-total-packets');
+      if (mTotPkts) mTotPkts.innerText = totalPkts;
+      const mTotDevs = document.getElementById('m-stat-total-devices');
+      if (mTotDevs) mTotDevs.innerText = totalDevs;
+      const mActDevs = document.getElementById('m-stat-active-devices');
+      if (mActDevs) mActDevs.innerText = onlineCount;
     }
   } catch (err) {}
 }
@@ -175,6 +184,11 @@ function updateHeaderStats() {
   if (btnBadge) btnBadge.innerText = devicesData.length;
   const mapBadge = document.getElementById('map-drawer-badge');
   if (mapBadge) mapBadge.innerText = devicesData.length;
+  const navBadge = document.getElementById('nav-fleet-count');
+  if (navBadge) navBadge.innerText = devicesData.length;
+
+  const mTotDevs = document.getElementById('m-stat-total-devices');
+  if (mTotDevs) mTotDevs.innerText = devicesData.length;
 }
 
 // Mobile & Tablet Sidebar Drawer Controls
@@ -183,6 +197,9 @@ function openSidebarDrawer() {
   const backdrop = document.getElementById('sidebar-backdrop');
   if (sidebar) sidebar.classList.add('open');
   if (backdrop) backdrop.classList.add('active');
+
+  // Update mobile bottom nav state
+  updateMobileNavState('fleet');
 }
 
 function closeSidebarDrawer() {
@@ -190,6 +207,9 @@ function closeSidebarDrawer() {
   const backdrop = document.getElementById('sidebar-backdrop');
   if (sidebar) sidebar.classList.remove('open');
   if (backdrop) backdrop.classList.remove('active');
+
+  // Update mobile bottom nav state
+  updateMobileNavState('map');
 }
 
 function toggleSidebarDrawer() {
@@ -199,6 +219,16 @@ function toggleSidebarDrawer() {
   } else {
     openSidebarDrawer();
   }
+}
+
+function updateMobileNavState(activeTab) {
+  document.querySelectorAll('.nav-tab-btn').forEach(btn => {
+    if (btn.getAttribute('data-view') === activeTab) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
 }
 
 function formatRelativeTime(dateStr) {
@@ -827,6 +857,70 @@ const sidebarBackdrop = document.getElementById('sidebar-backdrop');
 if (sidebarBackdrop) {
   sidebarBackdrop.addEventListener('click', () => {
     closeSidebarDrawer();
+  });
+}
+
+// Mobile Bottom Navigation Tabs Listener
+const navBtnMap = document.getElementById('nav-btn-map');
+if (navBtnMap) {
+  navBtnMap.addEventListener('click', () => {
+    closeSidebarDrawer();
+    closeMobileStatsModal();
+    updateMobileNavState('map');
+  });
+}
+
+const navBtnFleet = document.getElementById('nav-btn-fleet');
+if (navBtnFleet) {
+  navBtnFleet.addEventListener('click', () => {
+    closeMobileStatsModal();
+    openSidebarDrawer();
+    updateMobileNavState('fleet');
+  });
+}
+
+const navBtnStats = document.getElementById('nav-btn-stats');
+if (navBtnStats) {
+  navBtnStats.addEventListener('click', () => {
+    closeSidebarDrawer();
+    openMobileStatsModal();
+    updateMobileNavState('stats');
+  });
+}
+
+// Mobile Stats Modal Controls
+function openMobileStatsModal() {
+  const modal = document.getElementById('mobile-stats-modal');
+  if (modal) modal.style.display = 'flex';
+  fetchStats();
+}
+
+function closeMobileStatsModal() {
+  const modal = document.getElementById('mobile-stats-modal');
+  if (modal) modal.style.display = 'none';
+  updateMobileNavState('map');
+}
+
+const closeMobileStatsBtn = document.getElementById('close-mobile-stats-btn');
+if (closeMobileStatsBtn) {
+  closeMobileStatsBtn.addEventListener('click', () => {
+    closeMobileStatsModal();
+  });
+}
+
+const mBtnOpenExport = document.getElementById('m-btn-open-export');
+if (mBtnOpenExport) {
+  mBtnOpenExport.addEventListener('click', () => {
+    closeMobileStatsModal();
+    if (typeof openModal === 'function') openModal();
+  });
+}
+
+const mBtnOpenDelete = document.getElementById('m-btn-open-delete');
+if (mBtnOpenDelete) {
+  mBtnOpenDelete.addEventListener('click', () => {
+    closeMobileStatsModal();
+    if (typeof openDeleteModal === 'function') openDeleteModal();
   });
 }
 

@@ -123,8 +123,9 @@
 
         <div id="map" class="map-view"></div>
 
-        <!-- FLOATING TELEMETRY INSPECTOR -->
+        <!-- FLOATING TELEMETRY INSPECTOR / BOTTOM SHEET -->
         <div class="telemetry-inspector" id="telemetry-inspector" style="display: none;">
+          <div class="bottom-sheet-handle"></div>
           <div class="inspector-header">
             <div class="unit-id-badge">
               <span class="unit-icon" id="insp-icon">🚜</span>
@@ -364,8 +365,70 @@
     </div>
   </div>
 
+  <!-- MOBILE SITE STATS MODAL (KHUSUS MOBILE) -->
+  <div class="modal-overlay" id="mobile-stats-modal" style="display: none;">
+    <div class="modal-card mobile-stats-card">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span>📊</span>
+          <h3>Ringkasan Operasional Tambang</h3>
+        </div>
+        <button class="close-btn" id="close-mobile-stats-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="mobile-stats-grid">
+          <div class="m-stat-box">
+            <span class="m-stat-label">Total Armada</span>
+            <strong class="m-stat-val" id="m-stat-total-devices">0</strong>
+            <small>Unit Terdaftar</small>
+          </div>
+          <div class="m-stat-box highlight-online">
+            <span class="m-stat-label">🟢 Unit Aktif</span>
+            <strong class="m-stat-val" id="m-stat-active-devices">0</strong>
+            <small>Online &le; 30s</small>
+          </div>
+          <div class="m-stat-box highlight-packets">
+            <span class="m-stat-label">⚡ Paket Binary</span>
+            <strong class="m-stat-val" id="m-stat-total-packets">0</strong>
+            <small>Data Terproses</small>
+          </div>
+          <div class="m-stat-box">
+            <span class="m-stat-label">📡 Koneksi Server</span>
+            <strong class="m-stat-val" style="color: #10b981; font-size: 13px;">CONNECTED</strong>
+            <small>WebSocket Live</small>
+          </div>
+        </div>
+        <div class="mobile-stats-actions">
+          <button class="btn-primary" id="m-btn-open-export" style="width: 100%; justify-content: center; padding: 10px;">
+            📥 Download / Export Database
+          </button>
+          <button class="btn-action-delete" id="m-btn-open-delete" style="width: 100%; justify-content: center; padding: 10px; margin-top: 6px;">
+            🗑️ Hapus Data Database
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MOBILE BOTTOM NAVIGATION (KHUSUS MOBILE) -->
+  <nav class="mobile-bottom-nav" id="mobile-bottom-nav">
+    <button class="nav-tab-btn active" data-view="map" id="nav-btn-map">
+      <span class="nav-icon">🗺️</span>
+      <span class="nav-label">Peta</span>
+    </button>
+    <button class="nav-tab-btn" data-view="fleet" id="nav-btn-fleet">
+      <span class="nav-icon">🚜</span>
+      <span class="nav-label">Armada</span>
+      <span class="nav-badge" id="nav-fleet-count">0</span>
+    </button>
+    <button class="nav-tab-btn" data-view="stats" id="nav-btn-stats">
+      <span class="nav-icon">📊</span>
+      <span class="nav-label">Ringkasan</span>
+    </button>
+  </nav>
+
   <!-- Leaflet Map JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="app.js?v=4.4"></script>
+  <script src="app.js?v=5.0"></script>
 </body>
 </html>

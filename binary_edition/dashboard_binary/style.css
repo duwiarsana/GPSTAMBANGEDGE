@@ -1388,6 +1388,144 @@ body {
   margin-top: 10px;
 }
 
+/* ================= DEDICATED MOBILE BOTTOM NAVIGATION & STATS ================= */
+.mobile-bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 58px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid #e2e8f0;
+  box-shadow: 0 -4px 20px rgba(15, 23, 42, 0.08);
+  z-index: 1300;
+  padding: 4px 16px env(safe-area-inset-bottom, 4px) 16px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.nav-tab-btn {
+  background: transparent;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  color: #64748b;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  position: relative;
+  touch-action: manipulation;
+}
+
+.nav-tab-btn .nav-icon {
+  font-size: 18px;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.nav-tab-btn .nav-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.nav-tab-btn .nav-badge {
+  position: absolute;
+  top: 1px;
+  right: calc(50% - 18px);
+  background: #0284c7;
+  color: #ffffff;
+  font-size: 8.5px;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 10px;
+  border: 1.5px solid #ffffff;
+}
+
+.nav-tab-btn:hover {
+  color: #0f172a;
+}
+
+.nav-tab-btn.active {
+  color: #0284c7;
+}
+
+.nav-tab-btn.active .nav-icon {
+  transform: translateY(-2px) scale(1.1);
+}
+
+.bottom-sheet-handle {
+  display: none;
+  width: 36px;
+  height: 4px;
+  background: #cbd5e1;
+  border-radius: 2px;
+  margin: 0 auto 8px auto;
+}
+
+/* MOBILE STATS MODAL */
+.mobile-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.m-stat-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.m-stat-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.m-stat-val {
+  font-size: 18px;
+  font-weight: 900;
+  color: #0f172a;
+  font-family: var(--font-mono);
+}
+
+.m-stat-box small {
+  font-size: 9.5px;
+  color: #94a3b8;
+}
+
+.m-stat-box.highlight-online {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.m-stat-box.highlight-online .m-stat-val {
+  color: #10b981;
+}
+
+.m-stat-box.highlight-packets {
+  background: rgba(2, 132, 199, 0.08);
+  border-color: rgba(2, 132, 199, 0.3);
+}
+
+.m-stat-box.highlight-packets .m-stat-val {
+  color: #0284c7;
+}
+
 /* ================= RESPONSIVE MOBILE & TABLET STYLES ================= */
 @media (max-width: 992px) {
   .header {
@@ -1410,6 +1548,13 @@ body {
 }
 
 @media (max-width: 768px) {
+  .mobile-bottom-nav {
+    display: grid;
+  }
+  .bottom-sheet-handle {
+    display: block;
+  }
+
   .btn-toggle-sidebar {
     display: flex;
   }
@@ -1423,7 +1568,7 @@ body {
   .sidebar {
     position: absolute;
     top: 0;
-    bottom: 0;
+    bottom: 58px;
     left: 0;
     width: 320px;
     max-width: 86vw;
@@ -1459,14 +1604,14 @@ body {
   .telemetry-inspector {
     position: fixed;
     top: auto;
-    bottom: 0;
+    bottom: 58px;
     left: 0;
     right: 0;
     width: 100%;
     max-width: 100%;
-    max-height: 80vh;
+    max-height: 75vh;
     border-radius: 16px 16px 0 0;
-    padding: 12px 14px 20px 14px;
+    padding: 10px 14px 16px 14px;
     box-shadow: 0 -10px 30px rgba(15, 23, 42, 0.2);
     z-index: 1200;
   }
