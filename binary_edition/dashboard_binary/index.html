@@ -17,6 +17,11 @@
     <!-- TOP HEADER -->
     <header class="header">
       <div class="logo-group">
+        <button class="btn-toggle-sidebar" id="btn-toggle-sidebar" title="Buka/Tutup Daftar Armada">
+          <span class="toggle-icon">☰</span>
+          <span class="toggle-text">Armada</span>
+          <span class="toggle-badge" id="btn-sidebar-badge">0</span>
+        </button>
         <div class="logo-badge">⚡ 64B BINARY</div>
         <div class="logo-title">
           <h1>GPS TAMBANG FLEET</h1>
@@ -34,11 +39,11 @@
           <span class="chip-val" id="active-devices">0</span>
         </div>
         <div class="metric-chip info">
-          <span class="chip-label">Paket Binary Terproses</span>
+          <span class="chip-label">Paket Binary</span>
           <span class="chip-val" id="total-packets">0</span>
         </div>
         <button class="btn-export-header" id="open-export-modal-btn">
-          📥 Download Database
+          📥 Unduh DB
         </button>
         <button class="btn-delete-header" id="open-delete-modal-btn">
           🗑️ Hapus Data
@@ -52,11 +57,17 @@
 
     <!-- MAIN CONTENT -->
     <main class="main-layout">
+      <!-- SIDEBAR BACKDROP FOR MOBILE -->
+      <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
       <!-- SIDEBAR FLEET LIST -->
-      <aside class="sidebar">
+      <aside class="sidebar" id="sidebar-fleet">
         <div class="sidebar-header">
-          <h2>Daftar Armada</h2>
-          <span class="badge" id="device-count-badge">0 Unit</span>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <h2>Daftar Armada</h2>
+            <span class="badge" id="device-count-badge">0 Unit</span>
+          </div>
+          <button class="btn-close-sidebar" id="btn-close-sidebar" title="Tutup Daftar Armada">&times;</button>
         </div>
 
         <div class="search-box">
@@ -90,6 +101,10 @@
       <section class="map-section">
         <!-- FLOATING MAP CONTROLS -->
         <div class="map-controls-bar" id="map-controls-bar">
+          <button class="btn-map-fleet-drawer" id="btn-map-fleet-drawer" title="Buka Daftar Armada">
+            <span>🚜 Armada</span>
+            <span class="drawer-badge" id="map-drawer-badge">0</span>
+          </button>
           <div class="map-layer-selector">
             <button class="layer-btn active" data-layer="satellite" title="Citra Satelit Tambang (Esri)">
               <span class="layer-icon">🛰️</span> Satelit
@@ -351,6 +366,6 @@
 
   <!-- Leaflet Map JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="app.js?v=4.3"></script>
+  <script src="app.js?v=4.4"></script>
 </body>
 </html>

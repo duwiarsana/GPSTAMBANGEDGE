@@ -208,6 +208,100 @@ body {
   position: relative;
 }
 
+/* SIDEBAR MOBILE TOGGLE BUTTONS & DRAWER */
+.btn-toggle-sidebar {
+  display: none;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  color: #0284c7;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s ease;
+}
+
+.btn-toggle-sidebar:hover {
+  background: #e0f2fe;
+}
+
+.toggle-badge,
+.drawer-badge {
+  background: #0284c7;
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 10px;
+}
+
+.btn-close-sidebar {
+  display: none;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+  font-size: 18px;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: all 0.15s ease;
+}
+
+.btn-close-sidebar:hover {
+  background: #fee2e2;
+  color: #ef4444;
+  border-color: #fca5a5;
+}
+
+.btn-map-fleet-drawer {
+  display: none;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.btn-map-fleet-drawer:hover {
+  background: #f0f9ff;
+  color: #0284c7;
+  border-color: #0284c7;
+}
+
+.sidebar-backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  z-index: 1050;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.sidebar-backdrop.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 /* SIDEBAR */
 .sidebar {
   width: 320px;
@@ -1292,4 +1386,109 @@ body {
   font-size: 11px;
   font-weight: 600;
   margin-top: 10px;
+}
+
+/* ================= RESPONSIVE MOBILE & TABLET STYLES ================= */
+@media (max-width: 992px) {
+  .header {
+    padding: 8px 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .header-metrics {
+    width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+  .header-metrics::-webkit-scrollbar {
+    display: none;
+  }
+  .metric-chip {
+    flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .btn-toggle-sidebar {
+    display: flex;
+  }
+  .btn-map-fleet-drawer {
+    display: flex;
+  }
+  .btn-close-sidebar {
+    display: flex;
+  }
+
+  .sidebar {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 320px;
+    max-width: 86vw;
+    z-index: 1100;
+    transform: translateX(-100%);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  .map-controls-bar {
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    justify-content: space-between;
+    padding: 4px 6px;
+    gap: 4px;
+  }
+
+  .layer-btn {
+    padding: 4px 6px;
+    font-size: 10px;
+  }
+
+  .btn-fit-fleet {
+    padding: 4px 8px;
+    font-size: 10px;
+  }
+
+  .telemetry-inspector {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-width: 100%;
+    max-height: 80vh;
+    border-radius: 16px 16px 0 0;
+    padding: 12px 14px 20px 14px;
+    box-shadow: 0 -10px 30px rgba(15, 23, 42, 0.2);
+    z-index: 1200;
+  }
+}
+
+@media (max-width: 480px) {
+  .logo-title h1 {
+    font-size: 12px;
+  }
+  .sub-title {
+    display: none;
+  }
+  .logo-badge {
+    font-size: 9px;
+    padding: 2px 4px;
+  }
+  .layer-btn {
+    padding: 4px 5px;
+    font-size: 9.5px;
+  }
+  .btn-fit-fleet {
+    padding: 4px 6px;
+    font-size: 9.5px;
+  }
 }

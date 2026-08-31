@@ -168,7 +168,37 @@ async function fetchStats() {
 }
 
 function updateHeaderStats() {
-  document.getElementById('device-count-badge').innerText = `${devicesData.length} Unit`;
+  const countStr = `${devicesData.length} Unit`;
+  const badgeEl = document.getElementById('device-count-badge');
+  if (badgeEl) badgeEl.innerText = countStr;
+  const btnBadge = document.getElementById('btn-sidebar-badge');
+  if (btnBadge) btnBadge.innerText = devicesData.length;
+  const mapBadge = document.getElementById('map-drawer-badge');
+  if (mapBadge) mapBadge.innerText = devicesData.length;
+}
+
+// Mobile & Tablet Sidebar Drawer Controls
+function openSidebarDrawer() {
+  const sidebar = document.getElementById('sidebar-fleet');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  if (sidebar) sidebar.classList.add('open');
+  if (backdrop) backdrop.classList.add('active');
+}
+
+function closeSidebarDrawer() {
+  const sidebar = document.getElementById('sidebar-fleet');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  if (sidebar) sidebar.classList.remove('open');
+  if (backdrop) backdrop.classList.remove('active');
+}
+
+function toggleSidebarDrawer() {
+  const sidebar = document.getElementById('sidebar-fleet');
+  if (sidebar && sidebar.classList.contains('open')) {
+    closeSidebarDrawer();
+  } else {
+    openSidebarDrawer();
+  }
 }
 
 function formatRelativeTime(dateStr) {
@@ -543,11 +573,18 @@ function selectDevice(src) {
   renderFleetList();
   updateInspector(dev);
 
+  // Auto-close sidebar drawer on mobile/tablet view
+  if (window.innerWidth <= 768) {
+    closeSidebarDrawer();
+  }
+
   // Load and render trajectory polyline path
   loadAndDrawTrajectory(src);
 
   // Pan to marker
   if (markers[src]) {
+    const latlng = markers[src].getLatLng();
+    map.panTo(latlng, { animate: true });
     markers[src].openPopup();
   }
 }
@@ -761,6 +798,35 @@ const fitFleetBtn = document.getElementById('btn-fit-fleet');
 if (fitFleetBtn) {
   fitFleetBtn.addEventListener('click', () => {
     fitFleetBounds();
+  });
+}
+
+// Mobile & Tablet Sidebar Drawer Listeners
+const toggleSidebarBtn = document.getElementById('btn-toggle-sidebar');
+if (toggleSidebarBtn) {
+  toggleSidebarBtn.addEventListener('click', () => {
+    toggleSidebarDrawer();
+  });
+}
+
+const mapDrawerBtn = document.getElementById('btn-map-fleet-drawer');
+if (mapDrawerBtn) {
+  mapDrawerBtn.addEventListener('click', () => {
+    openSidebarDrawer();
+  });
+}
+
+const closeSidebarBtn = document.getElementById('btn-close-sidebar');
+if (closeSidebarBtn) {
+  closeSidebarBtn.addEventListener('click', () => {
+    closeSidebarDrawer();
+  });
+}
+
+const sidebarBackdrop = document.getElementById('sidebar-backdrop');
+if (sidebarBackdrop) {
+  sidebarBackdrop.addEventListener('click', () => {
+    closeSidebarDrawer();
   });
 }
 
