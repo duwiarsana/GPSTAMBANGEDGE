@@ -2,7 +2,7 @@
  * GPS Tambang - Binary Edition Dashboard Frontend
  */
 
-const API_BASE = window.location.origin.includes('5001') ? '' : 'http://76.13.19.250:5001';
+const API_BASE = window.location.origin.includes('5001') || window.location.port === '5001' ? '' : (window.location.origin.startsWith('http') ? '' : 'http://72.62.126.85:5001');
 let map;
 let markers = {};
 let devicesData = [];

@@ -10,3 +10,7 @@ node_modules/
 remotion-gps-tambang/node_modules/
 remotion-gps-tambang/out/
 *.mp4
+*.csv
+*.sql
+__pycache__/
+*.pyc

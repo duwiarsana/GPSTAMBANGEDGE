@@ -188,7 +188,7 @@ def on_message(client, userdata, msg):
                 save_records_bulk(records)
                 # Kirim Auto-ACK instan untuk record terakhir di batch
                 last_rec = records[-1]
-                ack_topic = f"kutai/fleet/ack/{last_rec['src']}"
+                ack_topic = f"kutai/fleet/ack_binary/{last_rec['src']}"
                 ack_payload = json.dumps({
                     "id": last_rec["id"],
                     "count": len(records),

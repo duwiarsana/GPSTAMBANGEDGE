@@ -739,7 +739,7 @@ bool connectMQTT() {
   });
 
   if (mqtt.connect(clientId.c_str())) {
-    ackTopic = "kutai/fleet/ack/" + String(DT_ID);
+    ackTopic = "kutai/fleet/ack_binary/" + String(DT_ID);
     mqtt.subscribe(ackTopic.c_str());
     logMsg("✅ MQTT connected (Binary Ingest), sub: " + ackTopic);
     return true;
