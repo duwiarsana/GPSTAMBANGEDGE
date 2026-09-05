@@ -14,3 +14,6 @@ remotion-gps-tambang/out/
 *.sql
 __pycache__/
 *.pyc
+credentials.md
+secrets.md
+.env*

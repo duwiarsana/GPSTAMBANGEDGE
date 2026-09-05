@@ -12,7 +12,7 @@ import paho.mqtt.client as mqtt
 from binary_parser import parse_telemetry_packet, parse_telemetry_batch
 
 # Configuration
-MQTT_HOST = os.environ.get("MQTT_HOST", "76.13.19.250")
+MQTT_HOST = os.environ.get("MQTT_HOST", "72.62.126.85")
 MQTT_PORT = int(os.environ.get("MQTT_PORT", 1883))
 MQTT_BINARY_TOPIC = "kutai/fleet/binary"
 MQTT_JSON_TOPIC = "kutai/fleet/data"

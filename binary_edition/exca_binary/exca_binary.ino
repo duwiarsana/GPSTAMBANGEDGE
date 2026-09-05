@@ -57,7 +57,7 @@ WifiCredential wifiList[] = {{"WIFI_GATEWAY_MINING_11", "46448951"},
                              {"HOTSPOT_DT_KEAMANAN", "46448951"}};
 const int wifiCount = sizeof(wifiList) / sizeof(wifiList[0]);
 
-const char *MQTT_SERVER = "76.13.19.250";
+const char *MQTT_SERVER = "72.62.126.85";
 const uint16_t MQTT_PORT = 1883;
 const char *MQTT_BINARY_TOPIC = "kutai/fleet/binary";
 
