@@ -628,30 +628,41 @@ void handleDTGps() {
       resetGpsParser();
       continue;
     }
-
-    if (millis() - gpsStartJson > 1500) {
-      logMsg("⚠️ GPS parse timeout (>1.5s), resyncing...");
-      resetGpsParser();
-    }
   }
 
-  // Auto-recovery jika Serial2 macet / terputus saat cabut-pasang
+  // 1. Reset parser bila transmisi JSON terhenti di tengah jalan (misal kabel dicabut)
+  if (gpsCollecting && (millis() - gpsStartJson > 1500)) {
+    logMsg("⚠️ GPS parse timeout (>1.5s), resyncing parser...");
+    resetGpsParser();
+  }
+
+  // 2. Auto-recovery & Auto-Reset jika Serial2 macet saat cabut-pasang konektor
   static unsigned long lastUartCheck = 0;
+  static int recoveryAttempts = 0;
   if (lastValidPktTime == 0) lastValidPktTime = millis();
 
-  if (millis() - lastUartCheck > 5000) {
+  if (millis() - lastUartCheck > 3000) {
     lastUartCheck = millis();
-    // Jika tidak ada paket valid selama 10 detik (misal konektor sempat dicabut/dipasang)
+    // Jika tidak ada paket valid selama > 10 detik
     if (millis() - lastValidPktTime > 10000) {
-      logMsg("🔄 [UART Auto-Recovery] Re-initializing Serial2 (GPS)...");
-      Serial2.end();
-      pinMode(GPS_RX, INPUT_PULLUP);
-      delay(50);
-      Serial2.setRxBufferSize(2048);
-      Serial2.begin(GPS_BAUD);
-      Serial2.setPins(GPS_RX, GPS_TX);
-      resetGpsParser();
-      lastValidPktTime = millis(); // Reset timer agar tidak loop terus
+      recoveryAttempts++;
+      if (recoveryAttempts <= 2) {
+        logMsg("🔄 [UART Auto-Recovery #" + String(recoveryAttempts) + "] Re-initializing Serial2 (GPS)...");
+        Serial2.end();
+        pinMode(GPS_RX, INPUT_PULLUP);
+        delay(50);
+        Serial2.setRxBufferSize(2048);
+        Serial2.begin(GPS_BAUD);
+        Serial2.setPins(GPS_RX, GPS_TX);
+        resetGpsParser();
+      } else {
+        // Jika 2x restart UART masih tidak terbaca, lakukan Software Reset ESP32 otomatis
+        logMsg("⚠️ [Auto-Reset] GPS tidak terdeteksi setelah re-init, me-restart ESP32...");
+        delay(500);
+        ESP.restart();
+      }
+    } else {
+      recoveryAttempts = 0;
     }
   }
 }
