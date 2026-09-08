@@ -536,6 +536,8 @@ bool parseDTGpsToBinary(const char *json, TelemetryPacketBinary &pkt) {
 }
 
 // ================= GPS SERIAL HANDLER =================
+static unsigned long lastValidPktTime = 0;
+
 void resetGpsParser() {
   gpsBufLen = 0;
   gpsBrace = 0;
@@ -574,6 +576,7 @@ void handleDTGps() {
 
       TelemetryPacketBinary pkt;
       if (parseDTGpsToBinary(gpsBuf, pkt)) {
+        lastValidPktTime = millis();
         uint32_t dtOff = readUint(DT_OFFSET_FILE, 0);
         uint32_t sizeBefore = 0;
         File fCheck = SD.open(DT_LOG_FILE_BIN, FILE_READ);
@@ -625,8 +628,28 @@ void handleDTGps() {
       continue;
     }
 
-    if (millis() - gpsStartJson > 4000) {
+    if (millis() - gpsStartJson > 1500) {
+      logMsg("⚠️ GPS parse timeout (>1.5s), resyncing...");
       resetGpsParser();
+    }
+  }
+
+  // Auto-recovery jika Serial2 macet / terputus saat cabut-pasang
+  static unsigned long lastUartCheck = 0;
+  if (lastValidPktTime == 0) lastValidPktTime = millis();
+
+  if (millis() - lastUartCheck > 15000) {
+    lastUartCheck = millis();
+    // Jika tidak ada data serial sama sekali atau parsing gagal selama 30 detik
+    if (millis() - lastValidPktTime > 30000) {
+      logMsg("🔄 [UART Auto-Recovery] Re-initializing Serial2 (GPS)...");
+      Serial2.end();
+      delay(50);
+      Serial2.setRxBufferSize(2048);
+      Serial2.begin(GPS_BAUD);
+      Serial2.setPins(GPS_RX, GPS_TX);
+      resetGpsParser();
+      lastValidPktTime = millis(); // Reset timer agar tidak loop
     }
   }
 }
