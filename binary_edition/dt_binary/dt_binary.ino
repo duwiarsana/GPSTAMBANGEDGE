@@ -292,9 +292,10 @@ bool shouldRecord(JsonDocument &doc) {
 
   switch (recordState) {
   case REC_IDLE:
-    if (ignition == 1) {
+    if (ignition == 1 || ignition == -1) {
       recordState = REC_ACTIVE;
-      logMsg("⏺️ -> ACTIVE (Ignition ON)");
+      WiFi.setSleep(false); // Pastikan modem langsung bangun
+      logMsg("⏺️ -> ACTIVE (GPS stream detected)");
       return true;
     }
     return false;
@@ -638,18 +639,19 @@ void handleDTGps() {
   static unsigned long lastUartCheck = 0;
   if (lastValidPktTime == 0) lastValidPktTime = millis();
 
-  if (millis() - lastUartCheck > 15000) {
+  if (millis() - lastUartCheck > 5000) {
     lastUartCheck = millis();
-    // Jika tidak ada data serial sama sekali atau parsing gagal selama 30 detik
-    if (millis() - lastValidPktTime > 30000) {
+    // Jika tidak ada paket valid selama 10 detik (misal konektor sempat dicabut/dipasang)
+    if (millis() - lastValidPktTime > 10000) {
       logMsg("🔄 [UART Auto-Recovery] Re-initializing Serial2 (GPS)...");
       Serial2.end();
+      pinMode(GPS_RX, INPUT_PULLUP);
       delay(50);
       Serial2.setRxBufferSize(2048);
       Serial2.begin(GPS_BAUD);
       Serial2.setPins(GPS_RX, GPS_TX);
       resetGpsParser();
-      lastValidPktTime = millis(); // Reset timer agar tidak loop
+      lastValidPktTime = millis(); // Reset timer agar tidak loop terus
     }
   }
 }
@@ -1293,6 +1295,7 @@ void setup() {
   digitalWrite(LED_MQTT, LOW);
   digitalWrite(LED_REC, LOW);
 
+  pinMode(GPS_RX, INPUT_PULLUP);
   Serial2.setRxBufferSize(2048);
   Serial2.begin(GPS_BAUD);
   Serial2.setPins(GPS_RX, GPS_TX);
