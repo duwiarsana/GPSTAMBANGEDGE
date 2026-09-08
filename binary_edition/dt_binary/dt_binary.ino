@@ -546,8 +546,22 @@ void resetGpsParser() {
 }
 
 void handleDTGps() {
+  static unsigned long lastRawRxTime = 0;
+  static bool gpsDisconnected = false;
+  if (lastRawRxTime == 0) lastRawRxTime = millis();
+
   while (Serial2.available()) {
     char c = Serial2.read();
+    unsigned long nowRx = millis();
+
+    // Jika sebelumnya kabel dicabut (> 3 detik tanpa 1 byte pun) lalu dicolok kembali:
+    if (gpsDisconnected && (nowRx - lastRawRxTime > 3000)) {
+      logMsg("🔌 [HOT-PLUG] Modul GPS terhubung kembali! Melakukan auto-restart ESP32...");
+      delay(800); // Beri waktu modul GPS vendor menyelesaikan boot sequence
+      ESP.restart();
+    }
+    lastRawRxTime = nowRx;
+    gpsDisconnected = false;
 
     if (!gpsCollecting) {
       if (c == '{') {
@@ -630,40 +644,15 @@ void handleDTGps() {
     }
   }
 
-  // 1. Reset parser bila transmisi JSON terhenti di tengah jalan (misal kabel dicabut)
+  // Tandai kabel tercabut jika lebih dari 3 detik tidak ada byte sama sekali
+  if (millis() - lastRawRxTime > 3000) {
+    gpsDisconnected = true;
+  }
+
+  // Reset parser bila transmisi JSON terhenti di tengah jalan
   if (gpsCollecting && (millis() - gpsStartJson > 1500)) {
     logMsg("⚠️ GPS parse timeout (>1.5s), resyncing parser...");
     resetGpsParser();
-  }
-
-  // 2. Auto-recovery & Auto-Reset jika Serial2 macet saat cabut-pasang konektor
-  static unsigned long lastUartCheck = 0;
-  static int recoveryAttempts = 0;
-  if (lastValidPktTime == 0) lastValidPktTime = millis();
-
-  if (millis() - lastUartCheck > 3000) {
-    lastUartCheck = millis();
-    // Jika tidak ada paket valid selama > 10 detik
-    if (millis() - lastValidPktTime > 10000) {
-      recoveryAttempts++;
-      if (recoveryAttempts <= 2) {
-        logMsg("🔄 [UART Auto-Recovery #" + String(recoveryAttempts) + "] Re-initializing Serial2 (GPS)...");
-        Serial2.end();
-        pinMode(GPS_RX, INPUT_PULLUP);
-        delay(50);
-        Serial2.setRxBufferSize(2048);
-        Serial2.begin(GPS_BAUD);
-        Serial2.setPins(GPS_RX, GPS_TX);
-        resetGpsParser();
-      } else {
-        // Jika 2x restart UART masih tidak terbaca, lakukan Software Reset ESP32 otomatis
-        logMsg("⚠️ [Auto-Reset] GPS tidak terdeteksi setelah re-init, me-restart ESP32...");
-        delay(500);
-        ESP.restart();
-      }
-    } else {
-      recoveryAttempts = 0;
-    }
   }
 }
 
