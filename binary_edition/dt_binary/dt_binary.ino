@@ -553,8 +553,13 @@ void resetGpsParser() {
 
 void initSerial2() {
   Serial2.setRxBufferSize(2048);
-  Serial2.begin(GPS_BAUD, SERIAL_8N1, GPS_RX, GPS_TX);
-  logMsg("🔌 [UART] Serial2 initialized RX=" + String(GPS_RX) + " TX=" + String(GPS_TX) + " @" + String(GPS_BAUD));
+  Serial2.begin(GPS_BAUD);
+  Serial2.setPins(GPS_RX, GPS_TX);
+  delay(1500);
+  while (Serial2.available()) {
+    Serial2.read();
+  }
+  logMsg("🔌 [UART] Serial2 initialized RX=" + String(GPS_RX) + " TX=" + String(GPS_TX) + " @" + String(GPS_BAUD) + " (buffer flushed)");
 }
 
 void handleDTGps() {
@@ -1307,7 +1312,7 @@ void updateLedRec() {
 // ================= SETUP =================
 void setup() {
   Serial.begin(115200);
-  delay(3000);
+  delay(1000);
 
   logMsg("=== GPSTAMBANG DT BINARY EDITION START ===");
 
@@ -1315,7 +1320,6 @@ void setup() {
                                       .idle_core_mask = 0,
                                       .trigger_panic = true};
   esp_task_wdt_reconfigure(&wdt_config);
-  esp_task_wdt_add(NULL);
   logMsg("🐕 Watchdog configured: " + String(WDT_TIMEOUT_SEC) + "s");
 
   pinMode(LED_GPS, OUTPUT);
@@ -1337,6 +1341,9 @@ void setup() {
 
   WiFi.mode(WIFI_STA);
   WiFi.disconnect(false, true);
+
+  // Watchdog task didaftarkan di paling akhir setup setelah semua inisialisasi selesai
+  esp_task_wdt_add(NULL);
 
   logMsg("✅ " + String(DT_ID) + " BINARY READY (64B Packet)");
 }

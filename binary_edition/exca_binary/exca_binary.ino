@@ -542,8 +542,13 @@ void resetParser() {
 
 void initSerial2() {
   Serial2.setRxBufferSize(2048);
-  Serial2.begin(GPS_BAUD, SERIAL_8N1, RXD2, TXD2);
-  logMsg("🔌 [UART] Serial2 initialized RX=" + String(RXD2) + " TX=" + String(TXD2) + " @" + String(GPS_BAUD));
+  Serial2.begin(GPS_BAUD);
+  Serial2.setPins(RXD2, TXD2);
+  delay(1500);
+  while (Serial2.available()) {
+    Serial2.read();
+  }
+  logMsg("🔌 [UART] Serial2 initialized RX=" + String(RXD2) + " TX=" + String(TXD2) + " @" + String(GPS_BAUD) + " (buffer flushed)");
 }
 
 void handleGPS() {
@@ -1230,10 +1235,7 @@ void updateLedRec() {
 // ================= SETUP =================
 void setup() {
   Serial.begin(115200);
-  delay(3000);
-
-  WiFi.mode(WIFI_AP_STA);
-  WiFi.softAP(AP_SSID, AP_PASS);
+  delay(1000);
 
   logMsg("=== " + String(EXCA_ID) + " BINARY EDITION STARTING ===");
 
@@ -1241,7 +1243,6 @@ void setup() {
                                       .idle_core_mask = 0,
                                       .trigger_panic = true};
   esp_task_wdt_reconfigure(&wdt_config);
-  esp_task_wdt_add(NULL);
   logMsg("🐕 Watchdog configured: " + String(WDT_TIMEOUT_SEC) + "s");
 
   pinMode(LED_LOG, OUTPUT);
@@ -1251,13 +1252,20 @@ void setup() {
   digitalWrite(LED_LOG, LOW);
   digitalWrite(LED_TRANSFER, LOW);
   digitalWrite(LED_REC, LOW);
+
   pinMode(RXD2, INPUT_PULLUP);
   initSerial2();
 
   mqtt.setBufferSize(4096);
 
   initSD();
+
+  WiFi.mode(WIFI_AP_STA);
+  WiFi.softAP(AP_SSID, AP_PASS);
   server.begin();
+
+  // Watchdog task didaftarkan di paling akhir setup setelah semua inisialisasi selesai
+  esp_task_wdt_add(NULL);
 
   logMsg("✅ " + String(EXCA_ID) + " BINARY READY (64B Packet)");
 }
