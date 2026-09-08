@@ -538,6 +538,12 @@ bool parseDTGpsToBinary(const char *json, TelemetryPacketBinary &pkt) {
 
 // ================= GPS SERIAL HANDLER =================
 static unsigned long lastValidPktTime = 0;
+static unsigned long lastGpsByteTime = 0;
+static uint32_t gpsByteCount = 0;
+static unsigned long lastDiagLogTime = 0;
+static unsigned long lastUartRecoveryTime = 0;
+static bool firstByteLogged = false;
+static bool firstValidPktLogged = false;
 
 void resetGpsParser() {
   gpsBufLen = 0;
@@ -545,23 +551,22 @@ void resetGpsParser() {
   gpsCollecting = false;
 }
 
-void handleDTGps() {
-  static unsigned long lastRawRxTime = 0;
-  static bool gpsDisconnected = false;
-  if (lastRawRxTime == 0) lastRawRxTime = millis();
+void initSerial2() {
+  Serial2.setRxBufferSize(2048);
+  Serial2.begin(GPS_BAUD, SERIAL_8N1, GPS_RX, GPS_TX);
+  logMsg("🔌 [UART] Serial2 initialized RX=" + String(GPS_RX) + " TX=" + String(GPS_TX) + " @" + String(GPS_BAUD));
+}
 
+void handleDTGps() {
   while (Serial2.available()) {
     char c = Serial2.read();
-    unsigned long nowRx = millis();
+    lastGpsByteTime = millis();
+    gpsByteCount++;
 
-    // Jika sebelumnya kabel dicabut (> 3 detik tanpa 1 byte pun) lalu dicolok kembali:
-    if (gpsDisconnected && (nowRx - lastRawRxTime > 3000)) {
-      logMsg("🔌 [HOT-PLUG] Modul GPS terhubung kembali! Melakukan auto-restart ESP32...");
-      delay(800); // Beri waktu modul GPS vendor menyelesaikan boot sequence
-      ESP.restart();
+    if (!firstByteLogged) {
+      firstByteLogged = true;
+      logMsg("📡 [UART] First RX byte received from GPS!");
     }
-    lastRawRxTime = nowRx;
-    gpsDisconnected = false;
 
     if (!gpsCollecting) {
       if (c == '{') {
@@ -592,6 +597,10 @@ void handleDTGps() {
       TelemetryPacketBinary pkt;
       if (parseDTGpsToBinary(gpsBuf, pkt)) {
         lastValidPktTime = millis();
+        if (!firstValidPktLogged) {
+          firstValidPktLogged = true;
+          logMsg("✨ [UART] First valid telemetry packet received!");
+        }
         uint32_t dtOff = readUint(DT_OFFSET_FILE, 0);
         uint32_t sizeBefore = 0;
         File fCheck = SD.open(DT_LOG_FILE_BIN, FILE_READ);
@@ -644,15 +653,37 @@ void handleDTGps() {
     }
   }
 
-  // Tandai kabel tercabut jika lebih dari 3 detik tidak ada byte sama sekali
-  if (millis() - lastRawRxTime > 3000) {
-    gpsDisconnected = true;
+  // 1. Reset parser bila transmisi JSON terhenti di tengah jalan
+  if (gpsCollecting && (millis() - gpsStartJson > 2000)) {
+    logMsg("⚠️ GPS parse timeout (>2s), resyncing parser...");
+    resetGpsParser();
   }
 
-  // Reset parser bila transmisi JSON terhenti di tengah jalan
-  if (gpsCollecting && (millis() - gpsStartJson > 1500)) {
-    logMsg("⚠️ GPS parse timeout (>1.5s), resyncing parser...");
-    resetGpsParser();
+  // 2. Periodic UART Health Monitoring & Diagnostic Logger (tiap 30 detik)
+  unsigned long now = millis();
+  if (now - lastDiagLogTime >= 30000) {
+    lastDiagLogTime = now;
+    if (gpsByteCount > 0) {
+      logMsg("📊 [UART Health] Total RX bytes=" + String(gpsByteCount) + 
+             ", last RX " + String((now - lastGpsByteTime) / 1000) + "s ago, last valid pkt " +
+             (lastValidPktTime > 0 ? String((now - lastValidPktTime) / 1000) + "s ago" : "never"));
+    } else {
+      logMsg("⚠️ [UART Health] No serial bytes received yet after " + String(now / 1000) + "s of boot");
+    }
+  }
+
+  // 3. Low-Level UART Hardware Recovery jika TIDAK ADA RX BYTES sama sekali
+  // Grace period 10 detik pertama boot; recovery interval tiap 15 detik jika mati
+  if (gpsByteCount == 0 || (now - lastGpsByteTime > 15000)) {
+    if (now >= 10000 && (now - lastUartRecoveryTime >= 15000)) {
+      lastUartRecoveryTime = now;
+      logMsg("🔄 [UART Recovery] No RX bytes detected (silence >15s). Restarting Serial2...");
+      Serial2.end();
+      delay(50);
+      resetGpsParser();
+      initSerial2();
+      logMsg("✅ [UART Recovery] Serial2 recovery complete");
+    }
   }
 }
 
@@ -1098,7 +1129,8 @@ bool transferFromExcaBinary() {
   if (targetIP[0] == 0) {
     targetIP = excaIP;
   }
-  logMsg("🔌 Opening TCP to EXCA at " + targetIP.toString() + ":" + String(EXCA_PORT) + "...");
+  logMsg("🔌 Opening TCP to EXCA at " + targetIP.toString() + ":" +
+         String(EXCA_PORT) + "...");
 
   WiFiClient client;
   bool connected = false;
@@ -1116,7 +1148,8 @@ bool transferFromExcaBinary() {
   }
 
   if (!connected) {
-    logMsg("❌ EXCA TCP fail (cannot reach " + targetIP.toString() + ":" + String(EXCA_PORT) + ")");
+    logMsg("❌ EXCA TCP fail (cannot reach " + targetIP.toString() + ":" +
+           String(EXCA_PORT) + ")");
     return false;
   }
 
@@ -1274,7 +1307,7 @@ void updateLedRec() {
 // ================= SETUP =================
 void setup() {
   Serial.begin(115200);
-  delay(1000);
+  delay(3000);
 
   logMsg("=== GPSTAMBANG DT BINARY EDITION START ===");
 
@@ -1296,9 +1329,7 @@ void setup() {
   digitalWrite(LED_REC, LOW);
 
   pinMode(GPS_RX, INPUT_PULLUP);
-  Serial2.setRxBufferSize(2048);
-  Serial2.begin(GPS_BAUD);
-  Serial2.setPins(GPS_RX, GPS_TX);
+  initSerial2();
 
   mqtt.setBufferSize(4096);
 
