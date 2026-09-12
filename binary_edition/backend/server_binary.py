@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import queue
 import sqlite3
 import threading
 import time
@@ -12,8 +13,10 @@ import paho.mqtt.client as mqtt
 from binary_parser import parse_telemetry_packet, parse_telemetry_batch
 
 # Configuration
-MQTT_HOST = os.environ.get("MQTT_HOST", "72.62.126.85")
+MQTT_HOST = os.environ.get("MQTT_HOST", "34.101.180.48")
 MQTT_PORT = int(os.environ.get("MQTT_PORT", 1883))
+MQTT_USER = os.environ.get("MQTT_USER", "kutai")
+MQTT_PASS = os.environ.get("MQTT_PASS", "79750d76450466d56b9f44926f38614a3846bdbf")
 MQTT_BINARY_TOPIC = "kutai/fleet/binary"
 MQTT_JSON_TOPIC = "kutai/fleet/data"
 DB_PATH = os.environ.get("DB_PATH", "telemetry_binary.db")
@@ -34,6 +37,7 @@ logging.basicConfig(
 logger = logging.getLogger("BinaryBackend")
 
 db_lock = threading.Lock()
+ingest_queue = queue.Queue(maxsize=100000)
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH, timeout=20)
@@ -169,6 +173,37 @@ def save_records_bulk(records: list) -> bool:
 def save_record(data: dict) -> bool:
     return save_records_bulk([data])
 
+def db_worker():
+    """
+    ⚡ Background Ingestion Worker (Consumer)
+    Mengambil record dari memory queue dan melakukan bulk insert ke SQLite setiap <= 200ms atau 50 record.
+    Membuat thread MQTT murni non-blocking sehingga sanggup menelan ribuan paket per detik.
+    """
+    logger.info("🚀 Background DB Ingest Worker thread started.")
+    batch = []
+    last_flush = time.time()
+
+    while True:
+        try:
+            timeout = max(0.01, 0.2 - (time.time() - last_flush))
+            try:
+                item = ingest_queue.get(timeout=timeout)
+                if isinstance(item, list):
+                    batch.extend(item)
+                else:
+                    batch.append(item)
+            except queue.Empty:
+                pass
+
+            now = time.time()
+            if len(batch) >= 50 or (batch and (now - last_flush >= 0.2)):
+                save_records_bulk(batch)
+                batch = []
+                last_flush = now
+        except Exception as e:
+            logger.error(f"❌ DB Worker error: {e}")
+            time.sleep(0.2)
+
 # MQTT Callbacks
 def on_connect(client, userdata, flags, rc, properties=None):
     if rc == 0:
@@ -185,17 +220,24 @@ def on_message(client, userdata, msg):
             # ⚡ 64-BYTE SINGLE OR MULTI-PACKET BULK UNPACKING
             records = parse_telemetry_batch(msg.payload)
             if records:
-                save_records_bulk(records)
-                # Kirim Auto-ACK instan untuk record terakhir di batch
+                # 🚀 Non-blocking enqueue ke memory buffer
+                try:
+                    ingest_queue.put_nowait(records)
+                except queue.Full:
+                    logger.error("⚠️ Ingest queue full! Falling back to synchronous insert.")
+                    save_records_bulk(records)
+
+                # Kirim Auto-ACK instan (ESP32 tidak perlu menunggu disk write)
                 last_rec = records[-1]
-                ack_topic = f"kutai/fleet/ack_binary/{last_rec['src']}"
                 ack_payload = json.dumps({
                     "id": last_rec["id"],
                     "count": len(records),
                     "status": "ok"
                 })
-                client.publish(ack_topic, ack_payload, qos=0)
-                logger.info(f"📤 Sent Auto-ACK to {ack_topic} for {len(records)} record(s) (last: {last_rec['id']})")
+                # Send to both binary ack topic and legacy ack topic for maximum compatibility
+                client.publish(f"kutai/fleet/ack_binary/{last_rec['src']}", ack_payload, qos=0)
+                client.publish(f"kutai/fleet/ack/{last_rec['src']}", ack_payload, qos=0)
+                logger.info(f"📤 Sent Auto-ACK to kutai/fleet/ack_binary/{last_rec['src']} and kutai/fleet/ack/{last_rec['src']} for {len(records)} record(s) (last: {last_rec['id']}) [Queue: {ingest_queue.qsize()}]")
             else:
                 logger.warning(f"⚠️ Failed to parse binary payload (len: {len(msg.payload)} bytes)")
         
@@ -203,7 +245,11 @@ def on_message(client, userdata, msg):
             # Legacy JSON Fallback
             payload_str = msg.payload.decode('utf-8')
             data = json.loads(payload_str)
-            save_record(data)
+            try:
+                ingest_queue.put_nowait([data])
+            except queue.Full:
+                save_record(data)
+
             msg_id = data.get("id")
             src = data.get("src")
             if msg_id and src:
@@ -369,6 +415,7 @@ def get_stats():
             "total_packets": total_packets,
             "total_devices": total_devices,
             "active_devices": active_devices,
+            "queue_size": ingest_queue.qsize(),
             "protocol": "64-Byte Binary Packets"
         })
     except Exception as e:
@@ -637,6 +684,9 @@ def start_mqtt():
     mqtt_client.on_connect = on_connect
     mqtt_client.on_message = on_message
 
+    if MQTT_USER and MQTT_PASS:
+        mqtt_client.username_pw_set(MQTT_USER, MQTT_PASS)
+
     while True:
         try:
             logger.info(f"Connecting to MQTT Broker at {MQTT_HOST}:{MQTT_PORT}...")
@@ -648,6 +698,10 @@ def start_mqtt():
 
 if __name__ == "__main__":
     init_db()
+    worker_thread = threading.Thread(target=db_worker, daemon=True)
+    worker_thread.start()
+    logger.info("⚡ Starting Background DB Ingest Worker...")
+
     mqtt_thread = threading.Thread(target=start_mqtt, daemon=True)
     mqtt_thread.start()
     logger.info("⚡ Starting MQTT Binary Thread...")

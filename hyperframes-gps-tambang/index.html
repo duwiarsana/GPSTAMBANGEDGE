@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1080, height=1920, initial-scale=1.0">
+    <title>GPS Tambang Edge - Animasi Visual (HyperFrames Config)</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="canvas">
+        <!-- Scene 1: Intro -->
+        <div id="scene-1" class="scene active">
+            <div class="satellite pulse">🛰️</div>
+            <div class="chip spin-slow">⚙️</div>
+        </div>
+
+        <!-- Scene 2: Exca Logging -->
+        <div id="scene-2" class="scene">
+            <div class="satellite sway">🛰️</div>
+            <div class="signal-wave-down"></div>
+            <div class="exca">🚜</div>
+            <div class="sd-card pulse-fast">🗂️</div>
+        </div>
+
+        <!-- Scene 3: DT Datang -->
+        <div id="scene-3" class="scene">
+            <div class="exca fixed-right">🚜</div>
+            <div class="dt move-in">🚚</div>
+            <div class="wifi-ripple hidden"></div>
+            <div class="data-particles hidden"></div>
+        </div>
+
+        <!-- Scene 4: DT ke Basecamp -->
+        <div id="scene-4" class="scene">
+            <div class="tower fixed-right">📡</div>
+            <div class="cloud">☁️</div>
+            <div class="dt drive-right">🚚</div>
+            <div class="upload-stream hidden"></div>
+        </div>
+
+        <!-- Scene 5: Outro Jaringan -->
+        <div id="scene-5" class="scene">
+            <div class="network-path">
+                <div class="net-node">🛰️</div>
+                <div class="net-line"></div>
+                <div class="net-node">🚜</div>
+                <div class="net-line"></div>
+                <div class="net-node">🚚</div>
+                <div class="net-line"></div>
+                <div class="net-node">☁️</div>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>

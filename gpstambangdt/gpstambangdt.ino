@@ -808,6 +808,10 @@ bool publishOneWithAck(const String &line, const String &msgId,
       continue;
     }
 
+    // Blink LED on publish
+    digitalWrite(LED_GPS, HIGH);
+    ledGpsTimer = millis();
+
     logMsg("📤 published, wait ACK...");
 
     // Tunggu ACK dengan timeout 5 detik
@@ -995,34 +999,8 @@ bool compactQueueFile(const char *logPath, const char *offsetPath,
 
 // ================= LED RECORDING =================
 void updateLedRec() {
-  unsigned long now = millis();
-  unsigned long interval = 0;
-
-  switch (recordState) {
-  case REC_IDLE:
-    // LED mati total
-    if (ledRecOn) {
-      digitalWrite(LED_REC, LOW);
-      ledRecOn = false;
-    }
-    return;
-
-  case REC_ACTIVE:
-    // Blink lambat: 1s ON, 1s OFF
-    interval = 1000;
-    break;
-
-  case REC_COOLDOWN:
-    // Blink cepat: 200ms ON, 200ms OFF
-    interval = 200;
-    break;
-  }
-
-  if (now - ledRecLastToggle >= interval) {
-    ledRecLastToggle = now;
-    ledRecOn = !ledRecOn;
-    digitalWrite(LED_REC, ledRecOn ? HIGH : LOW);
-  }
+  // DINONAKTIFKAN agar tidak bentrok dengan kedipan data masuk/publish
+  // Biarkan LED hanya berkedip saat ada data GPS masuk dan saat publish MQTT
 }
 
 // ================= HEARTBEAT =================
@@ -1055,10 +1033,11 @@ void setup() {
   pinMode(LED_MQTT, OUTPUT);
   pinMode(LED_REC, OUTPUT);
 
-  digitalWrite(LED_GPS, LOW);
-  digitalWrite(LED_EXCA, LOW);
-  digitalWrite(LED_MQTT, LOW);
-  digitalWrite(LED_REC, LOW);
+  // NYALAKAN LED DI AWAL BOOTING UNTUK INDIKASI
+  digitalWrite(LED_GPS, HIGH);
+  digitalWrite(LED_EXCA, HIGH);
+  digitalWrite(LED_MQTT, HIGH);
+  digitalWrite(LED_REC, HIGH);
 
   // GPS serial init
   Serial2.setRxBufferSize(2048);
@@ -1066,8 +1045,10 @@ void setup() {
   Serial2.setPins(GPS_RX, GPS_TX);
 
   delay(1500);
-  while (Serial2.available())
+  unsigned long tFlush = millis();
+  while (Serial2.available() && millis() - tFlush < 500) {
     Serial2.read();
+  }
 
   // SD card init
   if (!initStorage()) {
@@ -1078,6 +1059,12 @@ void setup() {
   WiFi.mode(WIFI_STA);
   WiFi.disconnect(true, true);
   delay(200);
+
+  // MATIKAN LED KETIKA SETUP SELESAI
+  digitalWrite(LED_GPS, LOW);
+  digitalWrite(LED_EXCA, LOW);
+  digitalWrite(LED_MQTT, LOW);
+  digitalWrite(LED_REC, LOW);
 
   // Aktifkan watchdog untuk loop task setelah setup selesai
   esp_task_wdt_add(NULL);

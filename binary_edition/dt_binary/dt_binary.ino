@@ -50,8 +50,10 @@ const uint16_t EXCA_PORT = 5000;
 IPAddress excaIP(192, 168, 4, 1);
 
 // ================= MQTT BROKER =================
-const char *MQTT_SERVER = "72.62.126.85";
+const char *MQTT_SERVER = "34.101.180.48";
 const uint16_t MQTT_PORT = 1883;
+const char *MQTT_USER = "kutai";
+const char *MQTT_PASS = "79750d76450466d56b9f44926f38614a3846bdbf";
 const char *MQTT_BINARY_TOPIC = "kutai/fleet/binary";
 
 WiFiClient espClient;
@@ -556,7 +558,8 @@ void initSerial2() {
   Serial2.begin(GPS_BAUD);
   Serial2.setPins(GPS_RX, GPS_TX);
   delay(1500);
-  while (Serial2.available()) {
+  unsigned long tFlush = millis();
+  while (Serial2.available() && millis() - tFlush < 500) {
     Serial2.read();
   }
   logMsg("🔌 [UART] Serial2 initialized RX=" + String(GPS_RX) + " TX=" + String(GPS_TX) + " @" + String(GPS_BAUD) + " (buffer flushed)");
@@ -811,7 +814,7 @@ bool connectMQTT() {
   if (mqtt.connected())
     return true;
 
-  String clientId = String(DT_ID) + "-" + String(millis());
+  String clientId = String(DT_ID);
   mqtt.setServer(MQTT_SERVER, MQTT_PORT);
   mqtt.setCallback([](char *topic, byte *payload, unsigned int length) {
     String msg;
@@ -831,7 +834,7 @@ bool connectMQTT() {
     }
   });
 
-  if (mqtt.connect(clientId.c_str())) {
+  if (mqtt.connect(clientId.c_str(), MQTT_USER, MQTT_PASS)) {
     ackTopic = "kutai/fleet/ack_binary/+";
     mqtt.subscribe(ackTopic.c_str());
     logMsg("✅ MQTT connected (Binary Ingest), sub: " + ackTopic);
@@ -858,6 +861,10 @@ bool publishBinaryWithAck(const TelemetryPacketBinary &pkt, int maxRetries) {
       logMsg("❌ Binary Publish error");
       return false;
     }
+
+    // Blink LED on publish
+    digitalWrite(LED_GPS, HIGH);
+    ledGpsTimer = millis();
 
     statMqttSent++;
     unsigned long t0 = millis();
@@ -896,6 +903,10 @@ bool publishBinaryBulkWithAck(const uint8_t *bulkBuffer, size_t totalBytes,
       logMsg("❌ Binary Bulk Publish error");
       return false;
     }
+
+    // Blink LED on publish
+    digitalWrite(LED_GPS, HIGH);
+    ledGpsTimer = millis();
 
     statMqttSent += count;
     unsigned long t0 = millis();
@@ -1078,6 +1089,7 @@ String findBestExcaSSID() {
 
   String bestSSID = "";
   int bestRSSI = -1000;
+  const int MIN_EXCA_RSSI = -82; // Hanya konek jika sinyal cukup kuat & dekat
 
   for (int i = 0; i < n; i++) {
     String s = WiFi.SSID(i);
@@ -1089,6 +1101,12 @@ String findBestExcaSSID() {
   }
 
   WiFi.scanDelete();
+
+  if (bestRSSI < MIN_EXCA_RSSI) {
+    return "";
+  }
+
+  logMsg("🎯 Best EXCA target: " + bestSSID + " (RSSI: " + String(bestRSSI) + " dBm)");
   return bestSSID;
 }
 
@@ -1162,6 +1180,9 @@ bool transferFromExcaBinary() {
   client.println("HELLO_BIN");
   String line;
   if (!waitTcpLine(client, line, 5000) || line != "READY_BIN") {
+    if (line == "BUSY") {
+      logMsg("⏳ EXCA is BUSY (serving another DT). Backing off...");
+    }
     client.stop();
     return false;
   }
@@ -1291,22 +1312,8 @@ bool compactBinaryQueueFile(const char *logPath, const char *offsetPath,
 }
 
 void updateLedRec() {
-  unsigned long now = millis();
-  switch (recordState) {
-  case REC_ACTIVE:
-    digitalWrite(LED_REC, HIGH);
-    break;
-  case REC_COOLDOWN:
-    if (now - ledRecLastToggle >= 250) {
-      ledRecLastToggle = now;
-      ledRecOn = !ledRecOn;
-      digitalWrite(LED_REC, ledRecOn ? HIGH : LOW);
-    }
-    break;
-  case REC_IDLE:
-    digitalWrite(LED_REC, LOW);
-    break;
-  }
+  // DINONAKTIFKAN agar tidak bentrok dengan kedipan data masuk/publish
+  // Biarkan LED hanya berkedip saat ada data GPS masuk dan saat publish MQTT
 }
 
 // ================= SETUP =================
@@ -1327,10 +1334,11 @@ void setup() {
   pinMode(LED_MQTT, OUTPUT);
   pinMode(LED_REC, OUTPUT);
 
-  digitalWrite(LED_GPS, LOW);
-  digitalWrite(LED_EXCA, LOW);
-  digitalWrite(LED_MQTT, LOW);
-  digitalWrite(LED_REC, LOW);
+  // NYALAKAN LED DI AWAL BOOTING UNTUK INDIKASI
+  digitalWrite(LED_GPS, HIGH);
+  digitalWrite(LED_EXCA, HIGH);
+  digitalWrite(LED_MQTT, HIGH);
+  digitalWrite(LED_REC, HIGH);
 
   pinMode(GPS_RX, INPUT_PULLUP);
   initSerial2();
@@ -1341,6 +1349,12 @@ void setup() {
 
   WiFi.mode(WIFI_STA);
   WiFi.disconnect(false, true);
+
+  // MATIKAN LED KETIKA SETUP SELESAI
+  digitalWrite(LED_GPS, LOW);
+  digitalWrite(LED_EXCA, LOW);
+  digitalWrite(LED_MQTT, LOW);
+  digitalWrite(LED_REC, LOW);
 
   // Watchdog task didaftarkan di paling akhir setup setelah semua inisialisasi selesai
   esp_task_wdt_add(NULL);
@@ -1384,13 +1398,19 @@ void loop() {
     if (ssid.length() > 0) {
       excaTransferBusy = true;
       digitalWrite(LED_EXCA, HIGH);
+      bool harvestSuccess = false;
       if (connectExca(ssid)) {
-        transferFromExcaBinary();
+        harvestSuccess = transferFromExcaBinary();
       }
       WiFi.disconnect(false, true);
       flushStaleGpsData();
       digitalWrite(LED_EXCA, LOW);
       excaTransferBusy = false;
+
+      // Jika gagal atau EXCA sedang melayani DT lain (BUSY), tambah jeda acak 4-8s agar antrean tidak tabrakan
+      if (!harvestSuccess) {
+        lastExcaScan = now + random(4000, 8000);
+      }
     }
   }
 

@@ -1,0 +1,118 @@
+/* Reset & Setup */
+body, html {
+    margin: 0;
+    padding: 0;
+    width: 1080px;
+    height: 1920px;
+    background-color: #0f172a;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: sans-serif;
+}
+
+#canvas {
+    width: 1080px;
+    height: 1920px;
+    position: relative;
+    background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+}
+
+.scene {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    opacity: 0;
+    transition: opacity 1s ease-in-out;
+    display: none;
+}
+.scene.active {
+    opacity: 1;
+    display: block;
+}
+.hidden { display: none !important; }
+
+/* Animations & Entities */
+.satellite { font-size: 150px; position: absolute; left: 465px; top: 200px; filter: drop-shadow(0 0 20px #38bdf8); }
+.chip { font-size: 200px; position: absolute; left: 440px; top: 800px; filter: drop-shadow(0 0 40px #10b981); }
+.exca { font-size: 250px; position: absolute; left: 415px; top: 900px; filter: drop-shadow(0 10px 20px #000); }
+.sd-card { font-size: 120px; position: absolute; left: 650px; top: 1050px; }
+.dt { font-size: 250px; position: absolute; left: -300px; top: 900px; transform: scaleX(-1); filter: drop-shadow(0 10px 20px #000); }
+.tower { font-size: 250px; position: absolute; right: 100px; top: 800px; }
+.cloud { font-size: 200px; position: absolute; right: 120px; top: 150px; filter: drop-shadow(0 0 30px #f472b6); }
+
+/* Common Positions */
+.fixed-right { left: auto; right: 100px; }
+
+/* Keyframes */
+@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+@keyframes spin-slow { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+@keyframes sway { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-30px); } }
+@keyframes pulse-fast { 0%, 100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.2); filter: brightness(1.5); } }
+@keyframes drive-in { to { left: 200px; } }
+@keyframes drive-cross { from { left: 200px; } to { left: 700px; } }
+@keyframes ripple { 
+    0% { width: 0; height: 0; opacity: 1; border-width: 20px; }
+    100% { width: 800px; height: 800px; opacity: 0; border-width: 0px; }
+}
+@keyframes packet-fly {
+    0% { transform: translate(0, 0); opacity: 1; }
+    100% { transform: translate(-350px, 0); opacity: 0; }
+}
+@keyframes upload-fly {
+    0% { transform: translate(0, 0); opacity: 1; }
+    100% { transform: translate(0, -600px); opacity: 0; }
+}
+
+/* Modifier Classes */
+.pulse { animation: pulse 2s infinite; }
+.spin-slow { animation: spin-slow 10s linear infinite; }
+.sway { animation: sway 4s ease-in-out infinite; }
+.pulse-fast { animation: pulse-fast 1s infinite; }
+.move-in { animation: drive-in 3s forwards ease-out; }
+.drive-right { animation: drive-cross 4s forwards linear; }
+
+/* Custom Visual Effects */
+.signal-wave-down {
+    position: absolute; left: 535px; top: 400px;
+    width: 10px; height: 400px;
+    background: linear-gradient(to bottom, rgba(56,189,248,0), #38bdf8, rgba(56,189,248,0));
+    animation: signal-drop 2s infinite linear;
+}
+@keyframes signal-drop { 0% { background-position: 0 -400px; } 100% { background-position: 0 400px; } }
+
+.wifi-ripple {
+    position: absolute; right: 250px; top: 1050px;
+    width: 0; height: 0;
+    border: 10px solid #38bdf8;
+    border-radius: 50%;
+    transform: translate(50%, -50%);
+    animation: ripple 2s infinite;
+}
+
+.data-particles {
+    position: absolute; right: 250px; top: 1050px;
+}
+.data-particle {
+    position: absolute; width: 40px; height: 40px; background: #f59e0b; border-radius: 50%;
+    box-shadow: 0 0 20px #f59e0b;
+    animation: packet-fly 1s infinite linear;
+}
+
+.upload-stream {
+    position: absolute; right: 250px; top: 900px;
+}
+.upload-particle {
+    position: absolute; width: 40px; height: 40px; background: #ec4899; border-radius: 50%;
+    box-shadow: 0 0 20px #ec4899;
+    animation: upload-fly 1.5s infinite ease-in;
+}
+
+/* Network Path Scene 5 */
+.network-path {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100%; gap: 50px;
+}
+.net-node { font-size: 150px; filter: drop-shadow(0 0 20px #10b981); margin: 0; }
+.net-line { width: 10px; height: 150px; background: #10b981; box-shadow: 0 0 15px #10b981; }

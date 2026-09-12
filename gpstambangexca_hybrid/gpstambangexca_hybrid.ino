@@ -627,6 +627,10 @@ bool publishOneWithAck(const String &line, const String &msgId,
       continue;
     }
 
+    // Blink LED on publish
+    digitalWrite(LED_LOG, HIGH);
+    ledLogTimer = millis();
+
     logMsg("📤 published, wait ACK...");
 
     unsigned long t0 = millis();
@@ -739,31 +743,8 @@ void tryInternetAndPublishDirect() {
 
 // ================= LED RECORDING =================
 void updateLedRec() {
-  unsigned long now = millis();
-  unsigned long interval = 0;
-
-  switch (recordState) {
-  case REC_IDLE:
-    if (ledRecOn) {
-      digitalWrite(LED_REC, LOW);
-      ledRecOn = false;
-    }
-    return;
-
-  case REC_ACTIVE:
-    interval = 1000;
-    break;
-
-  case REC_COOLDOWN:
-    interval = 200;
-    break;
-  }
-
-  if (now - ledRecLastToggle >= interval) {
-    ledRecLastToggle = now;
-    ledRecOn = !ledRecOn;
-    digitalWrite(LED_REC, ledRecOn ? HIGH : LOW);
-  }
+  // DINONAKTIFKAN agar tidak bentrok dengan kedipan data masuk/publish
+  // Biarkan LED hanya berkedip saat ada data GPS masuk dan saat publish MQTT
 }
 
 // ================= SETUP =================
@@ -783,17 +764,20 @@ void setup() {
   pinMode(LED_TRANSFER, OUTPUT);
   pinMode(LED_REC, OUTPUT);
 
-  digitalWrite(LED_LOG, LOW);
-  digitalWrite(LED_TRANSFER, LOW);
-  digitalWrite(LED_REC, LOW);
+  // NYALAKAN LED DI AWAL BOOTING UNTUK INDIKASI
+  digitalWrite(LED_LOG, HIGH);
+  digitalWrite(LED_TRANSFER, HIGH);
+  digitalWrite(LED_REC, HIGH);
 
   Serial2.setRxBufferSize(2048);
   Serial2.begin(GPS_BAUD);
   Serial2.setPins(RXD2, TXD2);
 
   delay(1500);
-  while (Serial2.available())
+  unsigned long tFlush = millis();
+  while (Serial2.available() && millis() - tFlush < 500) {
     Serial2.read();
+  }
 
   initSD();
 
@@ -801,6 +785,11 @@ void setup() {
   WiFi.mode(WIFI_AP_STA);
   WiFi.softAP(AP_SSID, AP_PASS);
   server.begin();
+
+  // MATIKAN LED KETIKA SETUP SELESAI
+  digitalWrite(LED_REC, LOW);
+  digitalWrite(LED_LOG, LOW);
+  digitalWrite(LED_TRANSFER, LOW);
 
   esp_task_wdt_add(NULL);
 

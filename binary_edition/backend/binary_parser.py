@@ -1,5 +1,5 @@
 """
-Binary Telemetry Parser (64-Byte Struct)
+Binary Telemetry Parser (66-Byte Struct Version 2)
 For GPS Tambang Edge - Binary Edition
 """
 
@@ -190,24 +190,48 @@ def parse_telemetry_batch(raw_bytes: bytes) -> list:
     return results
 
 if __name__ == "__main__":
-    # Test pack and unpack
-    src_b = b"EXCA01\x00\x00"
+    # Test pack and unpack Version 2 (66-Byte Struct)
+    src_b = b"DT01\x00\x00\x00\x00"
     mac_b = bytes([0xC3, 0x00, 0x00, 0x38, 0xB4, 0x52])
-    test_data = struct.pack(
-        "<2sB8sIIiiHHhHI4Bh3h6sbBBHH",
-        b'\xaa\x55', 1, src_b, 100, 1775738126,
-        int(-0.7388810 * 1e7), int(117.1301520 * 1e7),
-        250, 67, 45, 25400, 3815, 1, 0, 0, 8, 425,
-        -734, -263, 583, mac_b, -67, 51, 1, 0, 0
-    )
-    # Calculate and put CRC
-    crc = calculate_crc16(test_data[:62])
-    final_packet = test_data[:62] + struct.pack("<H", crc)
+    imei_val = 861327085563067
     
-    # Test batch unpack with 2 packets
+    # Pack 64 bytes data payload (without CRC)
+    test_data = struct.pack(
+        TELEMETRY_STRUCT_FMT_V2[:-1], # tanpa 'H' untuk CRC
+        b'\xaa\x55',        # 2s magic
+        2,                  # B  version
+        src_b,              # 8s src
+        imei_val,           # Q  imei (uint64)
+        100,                # I  seq (uint32)
+        1775738126,         # I  timestamp (uint32)
+        int(-0.7388810 * 1e7), # i lat_x1e7 (int32)
+        int(117.1301520 * 1e7),# i lon_x1e7 (int32)
+        250,                # H  speed_x10 (uint16)
+        67,                 # H  heading (uint16)
+        45,                 # h  altitude (int16)
+        24500,              # H  bat_mv (uint16)
+        1,                  # B  ignition (uint8)
+        1,                  # B  input_status (uint8, PTO ON)
+        1,                  # B  flags (uint8, GPS Fix)
+        mac_b,              # 6s beacon_mac
+        -67,                # b  beacon_rssi (int8)
+        0x010A0D09,         # I  ibutton_id (uint32)
+        3,                  # B  ibutton_flags (login + auth)
+        -734,               # h  gs_x (int16)
+        -263,               # h  gs_y (int16)
+        583                 # h  gs_z (int16)
+    )
+    
+    # Hitung CRC16-CCITT atas 64 byte pertama
+    crc = calculate_crc16(test_data)
+    # Total ukuran tepat 66 bytes (64 byte data + 2 byte CRC16)
+    final_packet = test_data + struct.pack("<H", crc)
+    assert len(final_packet) == TELEMETRY_PACKET_SIZE, f"Packet size must be {TELEMETRY_PACKET_SIZE} bytes"
+    
+    # Test batch unpack with 2 packets (2 * 66 = 132 bytes)
     batch_data = final_packet * 2
     parsed_batch = parse_telemetry_batch(batch_data)
-    print(f"Test Batch Unpack: Parsed {len(parsed_batch)} packets.")
+    print(f"✅ Test Batch Unpack Sukses: Berhasil parse {len(parsed_batch)} paket (Ukuran per paket: {len(final_packet)} bytes).")
     import pprint
     pprint.pprint(parsed_batch[0])
 

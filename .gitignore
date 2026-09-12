@@ -17,3 +17,5 @@ __pycache__/
 credentials.md
 secrets.md
 .env*
+*.bin
+*.zip

@@ -57,8 +57,10 @@ WifiCredential wifiList[] = {{"WIFI_GATEWAY_MINING_11", "46448951"},
                              {"HOTSPOT_DT_KEAMANAN", "46448951"}};
 const int wifiCount = sizeof(wifiList) / sizeof(wifiList[0]);
 
-const char *MQTT_SERVER = "72.62.126.85";
+const char *MQTT_SERVER = "34.101.180.48";
 const uint16_t MQTT_PORT = 1883;
+const char *MQTT_USER = "kutai";
+const char *MQTT_PASS = "79750d76450466d56b9f44926f38614a3846bdbf";
 const char *MQTT_BINARY_TOPIC = "kutai/fleet/binary";
 
 WiFiClient espClient;
@@ -545,7 +547,8 @@ void initSerial2() {
   Serial2.begin(GPS_BAUD);
   Serial2.setPins(RXD2, TXD2);
   delay(1500);
-  while (Serial2.available()) {
+  unsigned long tFlush = millis();
+  while (Serial2.available() && millis() - tFlush < 500) {
     Serial2.read();
   }
   logMsg("🔌 [UART] Serial2 initialized RX=" + String(RXD2) + " TX=" + String(TXD2) + " @" + String(GPS_BAUD) + " (buffer flushed)");
@@ -641,6 +644,7 @@ void handleGPS() {
               uint32_t newSize = fCur.size();
               fCur.close();
               writeUint(MQTT_OFFSET_FILE, newSize);
+              writeUint(DT_OFFSET_FILE, newSize); // Sinkronkan ke dt_offset agar DT tidak relay data ini lagi
             }
           }
           busy = false;
@@ -798,7 +802,7 @@ bool connectMQTT() {
   if (mqtt.connected())
     return true;
 
-  String clientId = String(EXCA_ID) + "-" + String(millis());
+  String clientId = String(EXCA_ID);
   mqtt.setServer(MQTT_SERVER, MQTT_PORT);
   mqtt.setCallback([](char *topic, byte *payload, unsigned int length) {
     String msg;
@@ -818,7 +822,7 @@ bool connectMQTT() {
     }
   });
 
-  if (mqtt.connect(clientId.c_str())) {
+  if (mqtt.connect(clientId.c_str(), MQTT_USER, MQTT_PASS)) {
     ackTopic = "kutai/fleet/ack_binary/" + String(EXCA_ID);
     mqtt.subscribe(ackTopic.c_str());
     logMsg("✅ MQTT connected (Binary Ingest), sub: " + ackTopic);
@@ -846,6 +850,10 @@ bool publishBinaryWithAck(const TelemetryPacketBinary &pkt, int maxRetry) {
       logMsg("❌ Binary Publish error");
       return false;
     }
+
+    // Blink LED on publish
+    digitalWrite(LED_LOG, HIGH);
+    ledLogTimer = millis();
 
     statMqttSent++;
     unsigned long t0 = millis();
@@ -884,6 +892,10 @@ bool publishBinaryBulkWithAck(const uint8_t *bulkBuffer, size_t totalBytes,
       logMsg("❌ Binary Bulk Publish error");
       return false;
     }
+
+    // Blink LED on publish
+    digitalWrite(LED_LOG, HIGH);
+    ledLogTimer = millis();
 
     statMqttSent += count;
     unsigned long t0 = millis();
@@ -973,6 +985,11 @@ bool publishBinaryQueueChunk(const char *logPath, const char *offsetPath,
     }
 
     writeUint(offsetPath, f.position());
+    // Sinkronkan dt_offset agar DT tidak menduplikasi relay backlog yang sudah diupload langsung oleh EXCA
+    uint32_t curDtOff = readUint(DT_OFFSET_FILE, 0);
+    if (f.position() > curDtOff) {
+      writeUint(DT_OFFSET_FILE, f.position());
+    }
     sentCount += validInBatch;
   }
 
@@ -1093,6 +1110,17 @@ bool waitTcpMsg(WiFiClient &c, String expect, unsigned long timeoutMs = 3000) {
 void handleClient(WiFiClient client) {
   if (busy) {
     client.println("BUSY");
+    client.flush();
+    client.stop();
+    return;
+  }
+
+  // 🛡️ Jika EXCA sedang online (terkoneksi WiFi & MQTT ke VPS), EXCA upload mandiri.
+  // Relay via DT di-bypass karena data sudah / sedang dikirim langsung ke server.
+  if (WiFi.status() == WL_CONNECTED && mqtt.connected()) {
+    logMsg("ℹ️ EXCA online via WiFi/MQTT (direct upload). Relay ke DT di-bypass.");
+    client.println("NO_DATA");
+    client.flush();
     client.stop();
     return;
   }
@@ -1207,29 +1235,8 @@ void handleClient(WiFiClient client) {
 
 // ================= LED STATE =================
 void updateLedRec() {
-  unsigned long now = millis();
-  unsigned long interval = 0;
-
-  switch (recordState) {
-  case REC_IDLE:
-    if (ledRecOn) {
-      digitalWrite(LED_REC, LOW);
-      ledRecOn = false;
-    }
-    return;
-  case REC_ACTIVE:
-    interval = 1000;
-    break;
-  case REC_COOLDOWN:
-    interval = 200;
-    break;
-  }
-
-  if (now - ledRecLastToggle >= interval) {
-    ledRecLastToggle = now;
-    ledRecOn = !ledRecOn;
-    digitalWrite(LED_REC, ledRecOn ? HIGH : LOW);
-  }
+  // DINONAKTIFKAN agar tidak bentrok dengan kedipan data masuk/publish
+  // Biarkan LED hanya berkedip saat ada data GPS masuk dan saat publish MQTT
 }
 
 // ================= SETUP =================
@@ -1249,9 +1256,10 @@ void setup() {
   pinMode(LED_TRANSFER, OUTPUT);
   pinMode(LED_REC, OUTPUT);
 
-  digitalWrite(LED_LOG, LOW);
-  digitalWrite(LED_TRANSFER, LOW);
-  digitalWrite(LED_REC, LOW);
+  // NYALAKAN LED DI AWAL BOOTING UNTUK INDIKASI
+  digitalWrite(LED_LOG, HIGH);
+  digitalWrite(LED_TRANSFER, HIGH);
+  digitalWrite(LED_REC, HIGH);
 
   pinMode(RXD2, INPUT_PULLUP);
   initSerial2();
@@ -1261,8 +1269,13 @@ void setup() {
   initSD();
 
   WiFi.mode(WIFI_AP_STA);
-  WiFi.softAP(AP_SSID, AP_PASS);
+  WiFi.softAP(AP_SSID, AP_PASS, 1, 0, 4); // Channel 1, broadcast, max 4 klien
   server.begin();
+
+  // MATIKAN LED KETIKA SETUP SELESAI
+  digitalWrite(LED_REC, LOW);
+  digitalWrite(LED_LOG, LOW);
+  digitalWrite(LED_TRANSFER, LOW);
 
   // Watchdog task didaftarkan di paling akhir setup setelah semua inisialisasi selesai
   esp_task_wdt_add(NULL);
