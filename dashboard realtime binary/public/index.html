@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Realtime Mining Fleet Tracker</title>
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Header Bar -->
+    <header class="top-nav">
+      <div class="nav-brand">
+        <div class="logo-icon">⛏️</div>
+        <div>
+          <div class="brand-title">KUTAI MINING FLEET TRACKER</div>
+          <div class="brand-sub">Realtime MQTT Telemetry • Observer Mode (No ACK)</div>
+        </div>
+      </div>
+      
+      <div class="nav-metrics">
+        <div class="metric-badge" id="badge-dt">
+          <span class="dot dt"></span>
+          <span class="label">Dump Trucks:</span>
+          <strong id="count-dt">0</strong>
+        </div>
+        <div class="metric-badge" id="badge-exca">
+          <span class="dot exca"></span>
+          <span class="label">Excavators:</span>
+          <strong id="count-exca">0</strong>
+        </div>
+        <div class="metric-badge" id="badge-status">
+          <span class="dot online" id="ws-indicator"></span>
+          <span id="ws-text">Connecting...</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <div class="main-container">
+      <!-- Map Area -->
+      <div id="map-view">
+        <div class="map-overlay-controls">
+          <button id="btn-recenter" class="ctrl-btn" title="Fit all vehicles into view">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+            Recenter Map
+          </button>
+          <div class="layer-selector">
+            <label><input type="radio" name="basemap" value="satellite" checked> 🛰️ Satellite</label>
+            <label><input type="radio" name="basemap" value="topo"> ⛰️ Topo</label>
+            <label><input type="radio" name="basemap" value="osm"> 🗺️ Street</label>
+          </div>
+        </div>
+
+        <div class="map-legend">
+          <div class="legend-item"><span class="legend-dot dt"></span> Dump Truck (DT)</div>
+          <div class="legend-item"><span class="legend-dot exca"></span> Excavator (EXCA)</div>
+          <div class="legend-item"><span class="legend-dot pto"></span> PTO Active (Dumping)</div>
+        </div>
+      </div>
+
+      <!-- Right Sidebar: Vehicle List -->
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <h3>Fleet Telemetry List</h3>
+          <span class="unit-counter" id="total-units">0 Units</span>
+        </div>
+        
+        <div class="search-box">
+          <input type="text" id="filter-input" placeholder="Search Unit ID (e.g. DT584, EXCA01)...">
+        </div>
+
+        <div class="vehicle-list" id="vehicle-list-container">
+          <div class="empty-state">
+            <div class="spinner"></div>
+            <p>Menunggu data telemetry dari broker MQTT...</p>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="app.js"></script>
+</body>
+</html>

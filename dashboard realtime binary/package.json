@@ -1,0 +1,13 @@
+{
+  "name": "dashboard-realtime-binary",
+  "version": "1.0.0",
+  "description": "Ultra-lightweight Realtime Fleet Tracker for Mining GPS Binary Telemetry",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "mqtt": "^5.10.4",
+    "ws": "^8.18.0"
+  }
+}

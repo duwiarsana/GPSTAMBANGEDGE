@@ -24,7 +24,11 @@
 
 #include "gps_binary_protocol.h"
 
+#include <DNSServer.h>
+#include <WebServer.h>
+
 // ================= PIN CONFIGURATION =================
+#define PIN_BOOT_BTN 0 // Tombol BOOT pada ESP32 (Active LOW)
 #define GPS_RX 16
 #define GPS_TX 17
 #define SD_CS 5
@@ -38,8 +42,11 @@
 #define WDT_TIMEOUT_SEC 30
 #define HEAP_MIN_BYTES 20000
 
-// ================= ID DEVICE =================
-const char *DT_ID = "DT20";
+// ================= ID DEVICE (NVS Dynamic) =================
+#define DEFAULT_DT_ID "DTCONFIG"
+char DT_ID[16] = DEFAULT_DT_ID;
+
+
 
 // ================= UART GPS =================
 #define GPS_BAUD 115200
@@ -220,6 +227,169 @@ bool appendBinaryRecord(const char *path, const TelemetryPacketBinary &pkt) {
   f.close();
   sdErrorCount = 0;
   return (written == sizeof(pkt));
+}
+
+// ================= NVS DEVICE ID CONFIG =================
+void loadDeviceID() {
+  Preferences p;
+  if (p.begin("device_cfg", true)) {
+    String savedId = p.getString("unit_id", DEFAULT_DT_ID);
+    savedId.trim();
+    if (savedId.length() > 0 && savedId.length() < sizeof(DT_ID)) {
+      strncpy(DT_ID, savedId.c_str(), sizeof(DT_ID) - 1);
+      DT_ID[sizeof(DT_ID) - 1] = '\0';
+    }
+    p.end();
+  }
+}
+
+void saveDeviceID(const String &newId) {
+  String clean = newId;
+  clean.trim();
+  clean.toUpperCase();
+  if (clean.length() == 0 || clean.length() >= sizeof(DT_ID)) return;
+
+  Preferences p;
+  if (p.begin("device_cfg", false)) {
+    p.putString("unit_id", clean);
+    p.end();
+    strncpy(DT_ID, clean.c_str(), sizeof(DT_ID) - 1);
+    DT_ID[sizeof(DT_ID) - 1] = '\0';
+    logMsg("💾 Unit ID updated in NVS: " + String(DT_ID));
+  }
+}
+
+// ================= WEB CONFIG PORTAL (CAPTIVE PORTAL) =================
+WebServer configServer(80);
+DNSServer dnsServer;
+
+void handlePortalRoot() {
+  String html = F("<!DOCTYPE html><html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1.0'>"
+                  "<title>Setting ID Dump Truck</title>"
+                  "<style>"
+                  "body{font-family:sans-serif;background:#0f172a;color:#f8fafc;padding:20px;text-align:center;}"
+                  ".box{background:#1e293b;border-radius:12px;padding:24px;max-width:380px;margin:auto;box-shadow:0 4px 20px rgba(0,0,0,0.4);}"
+                  "h2{margin-bottom:6px;color:#38bdf8;font-size:20px;}"
+                  "p{font-size:13px;color:#94a3b8;margin-bottom:20px;}"
+                  ".cur{background:#334155;padding:8px 14px;border-radius:8px;font-weight:bold;margin-bottom:18px;font-size:16px;color:#38bdf8;}"
+                  "input[type=text]{width:100%;box-sizing:border-box;padding:12px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#fff;font-size:16px;text-transform:uppercase;text-align:center;font-weight:bold;margin-bottom:18px;}"
+                  "input[type=text]:focus{outline:none;border-color:#38bdf8;}"
+                  "button{width:100%;padding:12px;border:none;border-radius:8px;background:#0284c7;color:#fff;font-size:15px;font-weight:bold;cursor:pointer;}"
+                  "button:hover{background:#0369a1;}"
+                  "</style></head><body><div class='box'>"
+                  "<h2>🚚 SETTING ID DUMP TRUCK</h2>"
+                  "<p>Kutai Mining GPS Edge Tracker</p>"
+                  "<div class='cur'>ID Saat Ini: ");
+  html += String(DT_ID);
+  html += F("</div><form method='POST' action='/save'>"
+            "<label style='font-size:12px;display:block;margin-bottom:6px;text-align:left;color:#cbd5e1;'>MASUKKAN ID BARU:</label>"
+            "<input type='text' name='id' maxlength='7' placeholder='contoh: DT584' required autofocus>"
+            "<button type='submit'>💾 SIMPAN & REBOOT</button>"
+            "</form></div></body></html>");
+  configServer.send(200, "text/html", html);
+}
+
+void handlePortalSave() {
+  if (configServer.hasArg("id")) {
+    String newId = configServer.arg("id");
+    newId.trim();
+    newId.toUpperCase();
+    if (newId.length() > 0 && newId.length() < sizeof(DT_ID)) {
+      saveDeviceID(newId);
+      String html = F("<!DOCTYPE html><html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1.0'>"
+                      "<style>body{font-family:sans-serif;background:#0f172a;color:#fff;text-align:center;padding:40px;}"
+                      ".box{background:#1e293b;padding:30px;border-radius:12px;max-width:360px;margin:auto;}"
+                      "h2{color:#10b981;}</style></head><body><div class='box'>"
+                      "<h2>✅ Berhasil Disimpan!</h2>"
+                      "<p>ID Baru: <strong>");
+      html += newId;
+      html += F("</strong></p><p>ESP32 sedang reboot ke mode operasional normal...</p>"
+                "</div></body></html>");
+      configServer.send(200, "text/html", html);
+      delay(1500);
+      ESP.restart();
+      return;
+    }
+  }
+  configServer.send(400, "text/plain", "ID tidak valid");
+}
+
+void launchConfigPortal() {
+  logMsg("==================================================");
+  logMsg("⚙️ MEMASUKI MODE CONFIG PORTAL (SETTING ID VIA HP)");
+  logMsg("==================================================");
+
+  // Nyalakan semua LED sebagai indikasi visual masuk mode setting
+  digitalWrite(LED_GPS, HIGH);
+  digitalWrite(LED_EXCA, HIGH);
+  digitalWrite(LED_MQTT, HIGH);
+  digitalWrite(LED_REC, HIGH);
+
+  WiFi.disconnect(true, true);
+  delay(200);
+  WiFi.mode(WIFI_AP);
+
+  String apName = "SETTING_" + String(DT_ID);
+  WiFi.softAP(apName.c_str());
+  delay(300);
+
+  IPAddress myIP = WiFi.softAPIP();
+  logMsg("📡 Hotspot Aktif: " + apName);
+  logMsg("🌐 Buka Browser di HP: http://" + myIP.toString());
+
+  // Setup DNS Server untuk Captive Portal
+  dnsServer.start(53, "*", myIP);
+
+  configServer.on("/", HTTP_GET, handlePortalRoot);
+  configServer.on("/save", HTTP_POST, handlePortalSave);
+  // Tangani Captive Portal redirects (Android, iOS/Apple, Windows)
+  configServer.onNotFound([]() {
+    configServer.sendHeader("Location", String("http://") + WiFi.softAPIP().toString() + "/", true);
+    configServer.send(302, "text/plain", "");
+  });
+
+  configServer.begin();
+
+  unsigned long portalStart = millis();
+  const unsigned long PORTAL_TIMEOUT = 180000; // Otomatis keluar setelah 3 menit jika tidak ada aktivitas
+
+  while (millis() - portalStart < PORTAL_TIMEOUT) {
+    esp_task_wdt_reset();
+    dnsServer.processNextRequest();
+    configServer.handleClient();
+
+    // Efek LED berkedip bergantian menunjukkan status portal aktif
+    if ((millis() / 300) % 2 == 0) {
+      digitalWrite(LED_GPS, HIGH);
+      digitalWrite(LED_MQTT, LOW);
+    } else {
+      digitalWrite(LED_GPS, LOW);
+      digitalWrite(LED_MQTT, HIGH);
+    }
+    delay(2);
+  }
+
+  logMsg("⏳ Config portal timeout (3 menit), restart normal...");
+  delay(500);
+  ESP.restart();
+}
+
+void checkBootButtonTrigger() {
+  pinMode(PIN_BOOT_BTN, INPUT_PULLUP);
+  if (digitalRead(PIN_BOOT_BTN) == LOW) {
+    unsigned long pressStart = millis();
+    logMsg("🔘 Tombol BOOT tertekan, tahan 3 detik untuk masuk Setting Mode...");
+    while (digitalRead(PIN_BOOT_BTN) == LOW) {
+      esp_task_wdt_reset();
+      if (millis() - pressStart >= 3000) {
+        logMsg("🎯 Trigger Config Portal AKTIF!");
+        launchConfigPortal();
+        return;
+      }
+      delay(50);
+    }
+    logMsg("ℹ️ Tombol BOOT dilepas sebelum 3 detik, boot normal dilanjutkan.");
+  }
 }
 
 // ================= NVS WIFI CACHE =================
@@ -562,7 +732,8 @@ void initSerial2() {
   while (Serial2.available() && millis() - tFlush < 500) {
     Serial2.read();
   }
-  logMsg("🔌 [UART] Serial2 initialized RX=" + String(GPS_RX) + " TX=" + String(GPS_TX) + " @" + String(GPS_BAUD) + " (buffer flushed)");
+  logMsg("🔌 [UART] Serial2 initialized RX=" + String(GPS_RX) + " TX=" +
+         String(GPS_TX) + " @" + String(GPS_BAUD) + " (buffer flushed)");
 }
 
 void handleDTGps() {
@@ -672,20 +843,26 @@ void handleDTGps() {
   if (now - lastDiagLogTime >= 30000) {
     lastDiagLogTime = now;
     if (gpsByteCount > 0) {
-      logMsg("📊 [UART Health] Total RX bytes=" + String(gpsByteCount) + 
-             ", last RX " + String((now - lastGpsByteTime) / 1000) + "s ago, last valid pkt " +
-             (lastValidPktTime > 0 ? String((now - lastValidPktTime) / 1000) + "s ago" : "never"));
+      logMsg("📊 [UART Health] Total RX bytes=" + String(gpsByteCount) +
+             ", last RX " + String((now - lastGpsByteTime) / 1000) +
+             "s ago, last valid pkt " +
+             (lastValidPktTime > 0
+                  ? String((now - lastValidPktTime) / 1000) + "s ago"
+                  : "never"));
     } else {
-      logMsg("⚠️ [UART Health] No serial bytes received yet after " + String(now / 1000) + "s of boot");
+      logMsg("⚠️ [UART Health] No serial bytes received yet after " +
+             String(now / 1000) + "s of boot");
     }
   }
 
   // 3. Low-Level UART Hardware Recovery jika TIDAK ADA RX BYTES sama sekali
-  // Grace period 10 detik pertama boot; recovery interval tiap 15 detik jika mati
+  // Grace period 10 detik pertama boot; recovery interval tiap 15 detik jika
+  // mati
   if (gpsByteCount == 0 || (now - lastGpsByteTime > 15000)) {
     if (now >= 10000 && (now - lastUartRecoveryTime >= 15000)) {
       lastUartRecoveryTime = now;
-      logMsg("🔄 [UART Recovery] No RX bytes detected (silence >15s). Restarting Serial2...");
+      logMsg("🔄 [UART Recovery] No RX bytes detected (silence >15s). "
+             "Restarting Serial2...");
       Serial2.end();
       delay(50);
       resetGpsParser();
@@ -1106,7 +1283,8 @@ String findBestExcaSSID() {
     return "";
   }
 
-  logMsg("🎯 Best EXCA target: " + bestSSID + " (RSSI: " + String(bestRSSI) + " dBm)");
+  logMsg("🎯 Best EXCA target: " + bestSSID + " (RSSI: " + String(bestRSSI) +
+         " dBm)");
   return bestSSID;
 }
 
@@ -1323,6 +1501,19 @@ void setup() {
 
   logMsg("=== GPSTAMBANG DT BINARY EDITION START ===");
 
+  // 1. Baca Device ID dari NVS
+  loadDeviceID();
+  logMsg("🏷️ Loaded Unit ID: " + String(DT_ID));
+
+  // 2. Jika ID masih default (DTCONFIG), langsung otomatis buka Hotspot Setting
+  if (strcmp(DT_ID, DEFAULT_DT_ID) == 0) {
+    logMsg("⚠️ Unit ID masih default (DTCONFIG)! Otomatis membuka Config Portal...");
+    launchConfigPortal();
+  }
+
+  // 3. Cek apakah tombol BOOT sedang ditekan untuk masuk Web Config Portal
+  checkBootButtonTrigger();
+
   esp_task_wdt_config_t wdt_config = {.timeout_ms = WDT_TIMEOUT_SEC * 1000,
                                       .idle_core_mask = 0,
                                       .trigger_panic = true};
@@ -1356,7 +1547,8 @@ void setup() {
   digitalWrite(LED_MQTT, LOW);
   digitalWrite(LED_REC, LOW);
 
-  // Watchdog task didaftarkan di paling akhir setup setelah semua inisialisasi selesai
+  // Watchdog task didaftarkan di paling akhir setup setelah semua inisialisasi
+  // selesai
   esp_task_wdt_add(NULL);
 
   logMsg("✅ " + String(DT_ID) + " BINARY READY (64B Packet)");
@@ -1365,6 +1557,11 @@ void setup() {
 // ================= LOOP =================
 void loop() {
   esp_task_wdt_reset();
+
+  // Cek tombol BOOT kapan saja saat operasional (jika ditekan dan ditahan 3 detik)
+  if (digitalRead(PIN_BOOT_BTN) == LOW) {
+    checkBootButtonTrigger();
+  }
 
   handleDTGps();
 
@@ -1407,7 +1604,8 @@ void loop() {
       digitalWrite(LED_EXCA, LOW);
       excaTransferBusy = false;
 
-      // Jika gagal atau EXCA sedang melayani DT lain (BUSY), tambah jeda acak 4-8s agar antrean tidak tabrakan
+      // Jika gagal atau EXCA sedang melayani DT lain (BUSY), tambah jeda acak
+      // 4-8s agar antrean tidak tabrakan
       if (!harvestSuccess) {
         lastExcaScan = now + random(4000, 8000);
       }
