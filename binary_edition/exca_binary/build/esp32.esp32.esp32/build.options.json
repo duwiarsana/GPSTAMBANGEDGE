@@ -1,0 +1,9 @@
+{
+  "additionalFiles": "../..",
+  "compiler.optimization_flags": "-Os",
+  "customBuildProperties": "",
+  "fqbn": "esp32:esp32:esp32",
+  "hardwareFolders": "/Users/duwiarsana/Library/Arduino15/packages/esp32/hardware/esp32/3.3.11,/Users/duwiarsana/Library/Arduino15/packages/esp32/hardware/esp32/3.3.11",
+  "otherLibrariesFolders": "/Users/duwiarsana/Documents/Arduino/libraries",
+  "sketchLocation": "/Users/duwiarsana/.gemini/antigravity/scratch/GPSTAMBANGEDGE/binary_edition/exca_binary"
+}

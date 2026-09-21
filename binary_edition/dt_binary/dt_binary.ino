@@ -26,6 +26,8 @@
 
 #include <DNSServer.h>
 #include <WebServer.h>
+#include <Update.h>
+
 
 // ================= PIN CONFIGURATION =================
 #define PIN_BOOT_BTN 0 // Tombol BOOT pada ESP32 (Active LOW)
@@ -265,27 +267,68 @@ DNSServer dnsServer;
 
 void handlePortalRoot() {
   String html = F("<!DOCTYPE html><html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1.0'>"
-                  "<title>Setting ID Dump Truck</title>"
+                  "<title>Setting & OTA Dump Truck</title>"
                   "<style>"
-                  "body{font-family:sans-serif;background:#0f172a;color:#f8fafc;padding:20px;text-align:center;}"
-                  ".box{background:#1e293b;border-radius:12px;padding:24px;max-width:380px;margin:auto;box-shadow:0 4px 20px rgba(0,0,0,0.4);}"
-                  "h2{margin-bottom:6px;color:#38bdf8;font-size:20px;}"
-                  "p{font-size:13px;color:#94a3b8;margin-bottom:20px;}"
-                  ".cur{background:#334155;padding:8px 14px;border-radius:8px;font-weight:bold;margin-bottom:18px;font-size:16px;color:#38bdf8;}"
-                  "input[type=text]{width:100%;box-sizing:border-box;padding:12px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#fff;font-size:16px;text-transform:uppercase;text-align:center;font-weight:bold;margin-bottom:18px;}"
-                  "input[type=text]:focus{outline:none;border-color:#38bdf8;}"
-                  "button{width:100%;padding:12px;border:none;border-radius:8px;background:#0284c7;color:#fff;font-size:15px;font-weight:bold;cursor:pointer;}"
-                  "button:hover{background:#0369a1;}"
+                  "body{font-family:sans-serif;background:#0f172a;color:#f8fafc;padding:16px;text-align:center;}"
+                  ".box{background:#1e293b;border-radius:12px;padding:20px;max-width:380px;margin:auto;box-shadow:0 4px 20px rgba(0,0,0,0.4);}"
+                  "h2{margin-bottom:4px;color:#38bdf8;font-size:19px;}"
+                  "p{font-size:12px;color:#94a3b8;margin-bottom:16px;}"
+                  ".cur{background:#334155;padding:8px 12px;border-radius:8px;font-weight:bold;margin-bottom:16px;font-size:15px;color:#38bdf8;}"
+                  ".card{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:14px;margin-bottom:14px;text-align:left;}"
+                  ".card-title{font-size:12px;font-weight:bold;color:#cbd5e1;margin-bottom:8px;text-transform:uppercase;}"
+                  "input[type=text]{width:100%;box-sizing:border-box;padding:10px;border-radius:6px;border:1px solid #475569;background:#1e293b;color:#fff;font-size:15px;text-transform:uppercase;text-align:center;font-weight:bold;margin-bottom:12px;}"
+                  "input[type=file]{width:100%;box-sizing:border-box;padding:8px;border-radius:6px;border:1px dashed #475569;background:#1e293b;color:#94a3b8;font-size:12px;margin-bottom:12px;}"
+                  "button{width:100%;padding:11px;border:none;border-radius:6px;font-size:14px;font-weight:bold;cursor:pointer;transition:0.2s;}"
+                  ".btn-blue{background:#0284c7;color:#fff;}.btn-blue:hover{background:#0369a1;}"
+                  ".btn-green{background:#10b981;color:#fff;}.btn-green:hover{background:#059669;}"
+                  "#prg{display:none;width:100%;background:#334155;border-radius:4px;overflow:hidden;margin-top:10px;height:18px;position:relative;}"
+                  "#bar{width:0%;height:100%;background:#10b981;transition:width 0.2s;}"
+                  "#txt{position:absolute;width:100%;text-align:center;font-size:11px;line-height:18px;color:#fff;font-weight:bold;top:0;left:0;}"
                   "</style></head><body><div class='box'>"
-                  "<h2>🚚 SETTING ID DUMP TRUCK</h2>"
-                  "<p>Kutai Mining GPS Edge Tracker</p>"
+                  "<h2>🚚 DUMP TRUCK EDGE</h2>"
+                  "<p>Kutai Mining GPS Telemetry</p>"
                   "<div class='cur'>ID Saat Ini: ");
   html += String(DT_ID);
-  html += F("</div><form method='POST' action='/save'>"
-            "<label style='font-size:12px;display:block;margin-bottom:6px;text-align:left;color:#cbd5e1;'>MASUKKAN ID BARU:</label>"
-            "<input type='text' name='id' maxlength='7' placeholder='contoh: DT584' required autofocus>"
-            "<button type='submit'>💾 SIMPAN & REBOOT</button>"
-            "</form></div></body></html>");
+  html += F("</div>"
+            "<div class='card'>"
+            "<div class='card-title'>🏷️ Ganti ID Unit</div>"
+            "<form method='POST' action='/save'>"
+            "<input type='text' name='id' maxlength='7' placeholder='contoh: DT584' required>"
+            "<button type='submit' class='btn-blue'>💾 SIMPAN & REBOOT</button>"
+            "</form></div>"
+            "<div class='card'>"
+            "<div class='card-title'>⚡ Update Firmware (OTA)</div>"
+            "<form id='otaForm' method='POST' action='/update' enctype='multipart/form-data'>"
+            "<input type='file' name='update' accept='.bin' required id='firmwareFile'>"
+            "<button type='submit' class='btn-green' id='btnUpload'>🚀 FLASH FIRMWARE (.BIN)</button>"
+            "<div id='prg'><div id='bar'></div><div id='txt'>0%</div></div>"
+            "</form></div>"
+            "</div>"
+            "<script>"
+            "document.getElementById('otaForm').onsubmit=function(e){"
+            "e.preventDefault();"
+            "var fileInput=document.getElementById('firmwareFile');"
+            "if(!fileInput.files.length)return;"
+            "var btn=document.getElementById('btnUpload');btn.disabled=true;btn.innerText='Sedang Upload...';"
+            "var prg=document.getElementById('prg');prg.style.display='block';"
+            "var bar=document.getElementById('bar');var txt=document.getElementById('txt');"
+            "var xhr=new XMLHttpRequest();"
+            "xhr.open('POST','/update',true);"
+            "xhr.upload.onprogress=function(evt){"
+            "if(evt.lengthComputable){"
+            "var p=Math.round((evt.loaded/evt.total)*100);"
+            "bar.style.width=p+'%';"
+            "txt.innerText='Flashing: '+p+'%';"
+            "}};"
+            "xhr.onload=function(){"
+            "if(xhr.status==200){"
+            "document.body.innerHTML='<div class=\"box\" style=\"margin-top:60px;\"><h2 style=\"color:#10b981;\">✅ Update OTA Berhasil!</h2><p>ESP32 sedang restart ke firmware baru...</p></div>';"
+            "}else{alert('Gagal update: '+xhr.responseText);btn.disabled=false;btn.innerText='FLASH FIRMWARE (.BIN)';}"
+            "};"
+            "var data=new FormData();data.append('update',fileInput.files[0]);"
+            "xhr.send(data);"
+            "};"
+            "</script></body></html>");
   configServer.send(200, "text/html", html);
 }
 
@@ -316,7 +359,7 @@ void handlePortalSave() {
 
 void launchConfigPortal() {
   logMsg("==================================================");
-  logMsg("⚙️ MEMASUKI MODE CONFIG PORTAL (SETTING ID VIA HP)");
+  logMsg("⚙️ MEMASUKI MODE CONFIG PORTAL & OTA UPDATE");
   logMsg("==================================================");
 
   // Nyalakan semua LED sebagai indikasi visual masuk mode setting
@@ -342,6 +385,33 @@ void launchConfigPortal() {
 
   configServer.on("/", HTTP_GET, handlePortalRoot);
   configServer.on("/save", HTTP_POST, handlePortalSave);
+
+  // OTA Firmware Update Endpoints
+  configServer.on("/update", HTTP_POST, []() {
+    configServer.sendHeader("Connection", "close");
+    configServer.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
+    delay(1000);
+    ESP.restart();
+  }, []() {
+    HTTPUpload &upload = configServer.upload();
+    if (upload.status == UPLOAD_FILE_START) {
+      logMsg("🚀 [OTA] Update file: " + upload.filename);
+      if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+        Update.printError(Serial);
+      }
+    } else if (upload.status == UPLOAD_FILE_WRITE) {
+      if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+        Update.printError(Serial);
+      }
+    } else if (upload.status == UPLOAD_FILE_END) {
+      if (Update.end(true)) {
+        logMsg("✅ [OTA] Selesai! Ukuran: " + String(upload.totalSize) + " bytes. Siap reboot.");
+      } else {
+        Update.printError(Serial);
+      }
+    }
+  });
+
   // Tangani Captive Portal redirects (Android, iOS/Apple, Windows)
   configServer.onNotFound([]() {
     configServer.sendHeader("Location", String("http://") + WiFi.softAPIP().toString() + "/", true);
